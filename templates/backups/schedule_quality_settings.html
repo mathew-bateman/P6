@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule Quality Settings | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .settings-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .settings-hero {
+        align-items: center;
+    }
+    .settings-hero h1 { margin: 0; }
+    .settings-hero .settings-meta { margin-top: 8px; }
+    .settings-hero .button { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .settings-hero > a.button.ghost { box-sizing: border-box; min-height: 40px; height: 40px; padding: 8px 14px; line-height: 1.2; }
+    .settings-hero-actions { display: flex; align-items: center; gap: 10px; }
+    .settings-hero-actions > a.button, .settings-hero-actions > button { box-sizing: border-box; width: 160px; min-height: 40px; height: 40px; padding: 8px 14px; line-height: 1.2; text-align: center; }
+    .settings-form { display: flex; flex-direction: column; }
+    .settings-scope-panel { order: 1; }
+    .settings-constraints-panel { order: 2; }
+    .settings-thresholds-panel { order: 3; }
+    .settings-evidence-panel { order: 4; }
+    .settings-actions-panel { order: 5; }
+    .settings-info-button {
+        margin-left: auto;
+        width: 34px;
+        min-height: 34px;
+        padding: 0;
+        border-radius: 50%;
+        font-weight: 700;
+        background: var(--accent);
+    }
+    .settings-info-dialog {
+        max-width: 480px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 22px;
+        color: var(--text);
+    }
+    .settings-info-dialog::backdrop { background: rgba(15, 23, 42, .45); }
+    .settings-info-dialog h2 { margin-top: 0; }
+    .settings-info-dialog .button { margin-top: 8px; }
+    .settings-actions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -18px -18px 16px;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
+        background: #f8fafc;
+    }
+    .settings-actions-header h2 { margin: 0; }
+    .settings-actions-panel .settings-actions {
+        justify-content: flex-end;
+        margin: 18px -18px -18px;
+        padding: 16px 18px;
+        border-top: 1px solid var(--line);
+    }
+    .settings-form > .panel > h2,
+    .settings-form > .panel > .settings-advanced-section > h2 {
+        margin: -18px -18px 16px;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
+        background: #f8fafc;
+    }
+    .settings-table th:not(:first-child), .settings-table td:not(:first-child) { text-align: center; }
+    .settings-table td:first-child { min-width: 220px; }
+    .settings-table input[type="checkbox"] { transform: scale(1.15); }
+    .settings-na { color: var(--muted); font-size: 13px; }
+    .settings-options { max-width: 920px; }
+    .settings-options td:first-child { width: 55%; }
+    .settings-options input[type="number"], .settings-options input[type="text"] { max-width: 260px; }
+    .settings-save-error { border: 2px solid #fecdca; box-shadow: 0 10px 26px rgba(180, 35, 24, .12); }
+    .settings-save-error h2 { color: var(--danger); }
+    .settings-save-error p { margin: 0 0 10px; }
+    .settings-save-error .errorlist { margin: 0; padding-left: 20px; color: var(--danger); }
+    .settings-error { color: var(--danger); margin: 5px 0 0; padding: 0; list-style: none; font-size: 13px; font-weight: 600; }
+    .settings-invalid-row > td { background: #fff7f6; }
+    .settings-invalid-panel { border: 2px solid #fecdca; }
+    .field-invalid { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(180, 35, 24, .12); }
+    .settings-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .settings-actions .secondary { background: #344054; }
+    .settings-action-note {
+        border-left: 4px solid var(--accent);
+        background: #f0fdfa;
+        margin-bottom: 16px;
+        padding: 12px 14px;
+    }
+    .settings-action-note strong { display: block; margin-bottom: 3px; }
+    .settings-advanced-toggle { margin: 0; }
+    .settings-advanced-toggle-icon { transition: transform 150ms ease; }
+    .settings-advanced[open] .settings-advanced-toggle { margin-bottom: 22px; }
+    .settings-advanced[open] .settings-advanced-toggle-icon { transform: rotate(180deg); }
+    .settings-advanced-section + .settings-advanced-section {
+        border-top: 1px solid var(--line);
+        margin-top: 24px;
+        padding-top: 24px;
+    }
+    .evidence-builder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+    .evidence-builder .field { margin: 0; }
+    .evidence-builder select, .evidence-builder input { min-width: 0; }
+    .evidence-fields-table { display: table; width: 100%; min-width: 100%; max-width: none; table-layout: fixed; border-collapse: collapse; margin-top: 16px; }
+    .evidence-fields-table th, .evidence-fields-table td { vertical-align: middle; overflow-wrap: anywhere; }
+    .evidence-fields-table th:nth-child(1) { width: 11%; text-align: center; background: #eef2f7; }
+    .evidence-fields-table th:nth-child(2) { width: 19%; }
+    .evidence-fields-table th:nth-child(3) { width: 25%; }
+    .evidence-fields-table th:nth-child(4) { width: 31%; }
+    .evidence-fields-table th:nth-child(5) { width: 14%; text-align: center; background: #eef2f7; }
+    .evidence-fields-table td:first-child, .evidence-fields-table td:last-child { text-align: center; }
+    .evidence-order-controls { display: inline-flex; gap: 4px; }
+    .evidence-order-controls button { min-width: 30px; padding: 5px 7px; line-height: 1; }
+    .evidence-order-controls button:disabled { background: #e5e7eb; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; opacity: 1; }
+    .evidence-label-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; min-width: 0; }
+    .evidence-label-value { min-width: 0; overflow-wrap: anywhere; }
+    .evidence-label-editor input { width: 100%; min-width: 0; }
+    .evidence-label-editor .edit-evidence-label { grid-column: 2; flex: 0 0 auto; min-width: 34px; padding: 6px 8px; }
+    .evidence-label-editor .evidence-label-value, .evidence-label-editor input { grid-column: 1; grid-row: 1; }
+    .evidence-fields-table .danger { min-width: 38px; padding: 8px; }
+    .evidence-empty { color: var(--muted); }
+    .evidence-view { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; background: #fff; }
+    .evidence-view summary { cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+    .evidence-view[open] summary { margin-bottom: 14px; }
+    @media (max-width: 900px) {
+        .evidence-builder { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .evidence-builder .add-evidence-field { grid-column: 1 / -1; width: 100%; }
+    }
+    @media (max-width: 560px) {
+        .evidence-builder { grid-template-columns: 1fr; }
+        .evidence-builder .add-evidence-field { grid-column: auto; }
+    }
+</style>
+
+<form id="settings-form" class="settings-form" method="post">
+    {% csrf_token %}
+    {{ settings_form.config_version_id }}
+    {{ settings_form.expected_settings_hash }}
+    {{ settings_form.change_note.as_hidden }}
+    <input id="settings-ui-state" type="hidden" name="ui_state" value="{{ request.POST.ui_state|default:'' }}">
+
+<div class="toolbar page-hero settings-hero">
+    <div>
+        <h1>Configure Schedule Quality</h1>
+    </div>
+    <div class="settings-hero-actions">
+        <a class="button ghost" href="{% url 'schedule_quality_dashboard' %}">Back to Refresh</a>
+        <button type="submit" name="action" value="publish">Publish</button>
+    </div>
+</div>
+
+    {% if settings_form.errors %}
+        <section id="settings-save-error" class="panel danger-zone settings-save-error" role="alert" tabindex="-1">
+            <h2>Settings were not saved</h2>
+            <p>Your changes are retained below. Correct the highlighted item and publish again.</p>
+            {{ settings_form.non_field_errors }}
+            {% for field in settings_form.hidden_fields %}{{ field.errors }}{% endfor %}
+        </section>
+    {% endif %}
+
+    <section class="panel settings-evidence-panel {% if settings_form.detail_fields_json.errors %}settings-invalid-panel{% endif %}">
+        <h2>Additional evidence columns by view</h2>
+        <p class="subtle">Open the view you are working on and add its P6 columns. The count shows what is already configured.</p>
+        {{ settings_form.detail_fields_json }}
+        {% for check in settings_snapshot.checks %}
+            <details class="settings-advanced evidence-view" data-check="{{ check.check_code }}">
+                <summary><strong>{{ check.display_name }}</strong> <span class="subtle evidence-count"></span></summary>
+                <div class="evidence-builder" aria-label="Add evidence field for {{ check.display_name }}">
+                    <div class="field"><label>P6 table<select class="evidence-category" disabled><option>Loading P6 tables…</option></select></label></div>
+                    <div class="field"><label>P6 field<select class="evidence-field" disabled><option>Choose a source first…</option></select></label></div><div class="field"><label>Evidence label<input class="evidence-label" type="text" maxlength="120" placeholder="Shown in Power BI"></label></div><button class="secondary add-evidence-field" type="button">Add field</button>
+                </div><table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Actions</th></tr></thead><tbody></tbody></table>
+            </details>
+        {% endfor %}
+    </section>
+
+    <section class="panel settings-thresholds-panel">
+        <h2>Thresholds and options</h2>
+        <p class="subtle">These values control what each check finds. Units are shown beside every value.</p>
+        <table class="settings-options">
+            <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+                <th>Unit</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in settings_form.option_rows %}
+                <tr{% if row.field.errors %} class="settings-invalid-row"{% endif %}>
+                    <td><label for="{{ row.field.id_for_label }}">{{ row.option.display_name }}</label></td>
+                    <td>
+                        {{ row.field }}
+                        {% if row.field.errors %}<div class="settings-error">{{ row.field.errors }}</div>{% endif %}
+                    </td>
+                    <td>{{ row.option.unit_code|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="3" class="subtle">No options are available.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel settings-scope-panel">
+            <div class="settings-advanced-section">
+                <h2>Check scope</h2>
+                <p class="subtle">A selected checkbox is included; a clear checkbox is excluded. N/A settings cannot be changed for that check.</p>
+                <table class="settings-table">
+                    <thead>
+                    <tr{% if row.enabled.errors %} class="settings-invalid-row"{% endif %}>
+                        <th>Check</th>
+                        <th>Enabled</th>
+                        <th>Include LOE</th>
+                        <th>Include WBS summary</th>
+                        <th>Include milestones</th>
+                        <th>Exclude complete</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in settings_form.check_rows %}
+                        <tr>
+                            <td>
+                                <strong>{{ row.check.display_name }}</strong>
+                                {% if row.enabled.errors %}<div class="settings-error">{{ row.enabled.errors }}</div>{% endif %}
+                            </td>
+                            <td>{{ row.enabled }}</td>
+                            <td>{% if row.include_loe %}{{ row.include_loe }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                            <td>{% if row.include_wbs_summary %}{{ row.include_wbs_summary }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                            <td>{% if row.include_milestones %}{{ row.include_milestones }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                            <td>{% if row.exclude_complete %}{{ row.exclude_complete }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="subtle">No check settings are available.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+    </section>
+
+    <section class="panel settings-constraints-panel">
+            <div class="settings-advanced-section">
+                <h2>Constraint types checked</h2>
+                <div class="grid">
+                {% for row in settings_form.constraint_rows %}
+                    <label class="schedule-toggle">
+                        {{ row.field }}
+                        <span>Check {{ row.constraint.display_name }}</span>
+                    </label>
+                {% empty %}
+                    <p class="subtle">No constraint types are available.</p>
+                {% endfor %}
+                </div>
+            </div>
+    </section>
+
+</form>
+<script>
+(() => {
+    const stored = document.getElementById('{{ settings_form.detail_fields_json.id_for_label }}');
+    const uiState = document.getElementById('settings-ui-state');
+    const categoryLabels = {activity_code:'ACTVTYPE', udf:'UDFTYPE', task_column:'TASK', project_column:'PROJECT', relationship_column:'TASKPRED', wbs_column:'PROJWBS', resource_column:'TASKRSRC'};
+    let fields = [];
+    try { fields = JSON.parse(stored.value || '[]'); } catch (_) { fields = []; }
+
+    try {
+        const state = JSON.parse(uiState.value || '{}');
+        (state.openEvidenceChecks || []).forEach(code => {
+            const view = document.querySelector(`.evidence-view[data-check="${code}"]`);
+            if (view) view.open = true;
+        });
+    } catch (_) {}
+    document.getElementById('settings-form').addEventListener('submit', () => {
+        uiState.value = JSON.stringify({
+            openEvidenceChecks: [...document.querySelectorAll('.evidence-view[open]')].map(view => view.dataset.check),
+        });
+    });
+    document.querySelectorAll('.settings-error').forEach(error => {
+        const row = error.closest('tr');
+        if (row) row.classList.add('settings-invalid-row');
+        const control = row?.querySelector('input, select, textarea');
+        if (control) {
+            control.classList.add('field-invalid');
+            control.setAttribute('aria-invalid', 'true');
+        }
+    });
+    const saveError = document.getElementById('settings-save-error');
+    if (saveError) requestAnimationFrame(() => { saveError.focus(); saveError.scrollIntoView({block: 'center'}); });
+
+    function normaliseFieldOrders() {
+        const codes = [...new Set(fields.map(field => field.check_code))];
+        codes.forEach(code => fields
+            .filter(field => field.check_code === code)
+            .sort((left, right) => Number(left.sort_order) - Number(right.sort_order))
+            .forEach((field, index) => { field.sort_order = index + 1; }));
+    }
+    function sync() { stored.value = JSON.stringify(fields); }
+    function render() {
+        document.querySelectorAll('.evidence-view').forEach(view => {
+            const code = view.dataset.check;
+            const body = view.querySelector('tbody');
+            const selected = fields.map((item, index) => ({...item, index})).filter(item => item.check_code === code).sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
+            view.querySelector('.evidence-count').textContent = selected.length ? `(${selected.length} configured)` : '(no additional columns)';
+            body.replaceChildren();
+            if (!selected.length) {
+                body.innerHTML = '<tr><td class="evidence-empty" colspan="5">No additional columns configured.</td></tr>';
+                return;
+            }
+            selected.forEach(item => {
+                const row = document.createElement('tr');
+                [categoryLabels[item.source_category] || item.source_category, item.source_identifier].forEach(value => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    row.append(cell);
+                });
+                const labelCell = document.createElement('td');
+                const labelEditor = document.createElement('div');
+                labelEditor.className = 'evidence-label-editor';
+                const labelValue = document.createElement('span');
+                labelValue.className = 'evidence-label-value';
+                labelValue.textContent = item.display_label;
+                const labelInput = document.createElement('input');
+                labelInput.type = 'text';
+                labelInput.maxLength = 120;
+                labelInput.value = item.display_label;
+                labelInput.setAttribute('aria-label', `Evidence label for ${item.source_identifier}`);
+                labelInput.hidden = true;
+                const edit = document.createElement('button');
+                edit.type = 'button';
+                edit.className = 'ghost edit-evidence-label';
+                edit.textContent = '\u270E';
+                edit.setAttribute('aria-label', `Edit evidence label for ${item.source_identifier}`);
+                edit.title = 'Edit evidence label';
+                const finishEditing = () => {
+                    const value = labelInput.value.trim();
+                    fields[item.index].display_label = value;
+                    labelInput.value = value;
+                    labelValue.textContent = value;
+                    labelInput.hidden = true;
+                    labelValue.hidden = false;
+                    sync();
+                };
+                edit.addEventListener('mousedown', event => event.preventDefault());
+                edit.onclick = () => {
+                    if (!labelInput.hidden) {
+                        finishEditing();
+                        return;
+                    }
+                    labelValue.hidden = true;
+                    labelInput.hidden = false;
+                    labelInput.focus();
+                    labelInput.select();
+                };
+                labelInput.addEventListener('blur', finishEditing);
+                labelInput.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') { event.preventDefault(); labelInput.blur(); }
+                    if (event.key === 'Escape') { labelInput.value = item.display_label; labelInput.blur(); }
+                });
+                labelEditor.append(labelValue, labelInput, edit);
+                labelCell.append(labelEditor);
+                row.append(labelCell);
+                const orderCell = document.createElement('td');
+                const orderControls = document.createElement('div');
+                orderControls.className = 'evidence-order-controls';
+                const ordered = fields.filter(field => field.check_code === code).sort((left, right) => Number(left.sort_order) - Number(right.sort_order));
+                const currentPosition = ordered.indexOf(fields[item.index]);
+                const move = direction => {
+                    const nextPosition = currentPosition + direction;
+                    if (nextPosition < 0 || nextPosition >= ordered.length) return;
+                    [ordered[currentPosition], ordered[nextPosition]] = [ordered[nextPosition], ordered[currentPosition]];
+                    ordered.forEach((field, index) => { field.sort_order = index + 1; });
+                    sync();
+                    render();
+                };
+                const up = document.createElement('button');
+                up.type = 'button';
+                up.className = 'ghost';
+                up.textContent = '\u2191';
+                up.disabled = currentPosition === 0;
+                up.setAttribute('aria-label', `Move ${item.display_label} up`);
+                up.title = 'Move up';
+                up.onclick = () => move(-1);
+                const down = document.createElement('button');
+                down.type = 'button';
+                down.className = 'ghost';
+                down.textContent = '\u2193';
+                down.disabled = currentPosition === ordered.length - 1;
+                down.setAttribute('aria-label', `Move ${item.display_label} down`);
+                down.title = 'Move down';
+                down.onclick = () => move(1);
+                orderControls.append(up, down);
+                orderCell.append(orderControls);
+                row.insertBefore(orderCell, row.firstChild);
+                const actionCell = document.createElement('td');
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'danger';
+                remove.textContent = '🗑';
+                remove.setAttribute('aria-label', 'Remove field');
+                remove.title = 'Remove field';
+                remove.onclick = () => { fields.splice(item.index, 1); sync(); render(); };
+                actionCell.append(remove);
+                row.append(actionCell);
+                body.append(row);
+            });
+        });
+    }
+    document.querySelectorAll('.evidence-view').forEach(view => { const code=view.dataset.check, category=view.querySelector('.evidence-category'), field=view.querySelector('.evidence-field'), label=view.querySelector('.evidence-label'); category.onchange=async()=>{field.disabled=true;field.replaceChildren(new Option('Loading P6 fields…',''));label.value='';if(!category.value){field.replaceChildren(new Option('Choose a table first…',''));return}try{const response=await fetch('{% url "schedule_quality_p6_fields_api" %}?category=table%3A'+encodeURIComponent(category.value));const payload=await response.json();field.replaceChildren(new Option('Choose P6 field…',''));(payload.fields||[]).forEach(item=>field.append(new Option(item.label,item.identifier)));field.disabled=false}catch(_){field.replaceChildren(new Option('Could not load P6 fields',''))}};field.onchange=()=>label.value=field.options[field.selectedIndex]?.text||'';view.querySelector('.add-evidence-field').onclick=()=>{if(!category.value||!field.value||!label.value.trim())return;const item={check_code:code,source_category:category.value,source_identifier:field.value,display_label:label.value.trim(),sort_order:Math.max(0,...fields.filter(existing=>existing.check_code===code).map(existing=>Number(existing.sort_order)||0))+1};if(fields.some(existing=>existing.check_code===item.check_code&&existing.source_category===item.source_category&&existing.source_identifier===item.source_identifier))return;fields.push(item);sync();render();label.value='';field.selectedIndex=0} });
+    async function loadP6Tables() {
+        const selectors = document.querySelectorAll('.evidence-category');
+        try {
+            const response = await fetch('{% url "schedule_quality_p6_fields_api" %}?category=tables');
+            const payload = await response.json();
+            const tables = payload.tables || [];
+            selectors.forEach(selector => {
+                selector.replaceChildren(new Option('Choose table…', ''));
+                tables.forEach(table => selector.append(new Option(table, table)));
+                selector.disabled = false;
+            });
+        } catch (_) {
+            selectors.forEach(selector => selector.replaceChildren(new Option('Could not load P6 tables', '')));
+        }
+    }
+    normaliseFieldOrders(); sync(); render(); loadP6Tables();
+})();
+</script>
+{% endblock %}

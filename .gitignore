@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3*
+backup-temp/
+staticfiles/
+
+# Runtime state, deployment rollback snapshots, and local work products
+backups/.codex-live-backups/
+remote_edits/
+work/
+templates.backup-*/
+*.bak
+*.bak-*
+*.backup-*
+*.predeploy
+*.pre-*
+retention-prune-*.json
+.qa_annotation_server.py
+
+# Local visual QA captures
+/*.png

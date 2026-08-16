@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Remote Backups | {{ target.name }}{% endblock %}
+
+{% block content %}
+<style>
+    .remote-backups-hero { align-items: center; }
+    .remote-backups-hero h1 { margin: 0; }
+    .remote-backups-hero .subtle { margin: 6px 0 0; }
+    .remote-backups-hero-actions { display: flex; align-items: center; gap: 10px; }
+    .remote-backups-hero-actions > .button { box-sizing: border-box; min-width: 130px; min-height: 40px; height: 40px; padding: 8px 14px; line-height: 1.2; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+    .remote-restore-trigger { min-width: 104px; min-height: 34px; padding: 6px 12px; font-size: 13px; }
+    .remote-restore-dialog { width: min(520px, calc(100vw - 32px)); }
+    .remote-restore-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 14px 12px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #f8fbff 0%, #f0fdfa 100%); }
+    .remote-restore-header .operation-label { margin: 0; }
+    .remote-restore-dialog .maintenance-detail-table { overflow: hidden; }
+    .remote-restore-summary { display: grid; grid-template-columns: minmax(110px, 0.45fr) minmax(0, 1fr); margin: 18px 20px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .remote-restore-summary dt, .remote-restore-summary dd { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    .remote-restore-summary dt { background: #f8fafc; font-weight: 700; }
+    .remote-restore-summary dd { min-width: 0; overflow-wrap: anywhere; }
+    .remote-restore-summary dt:last-of-type, .remote-restore-summary dd:last-child { border-bottom: 0; }
+    .remote-restore-notice { margin: 0 20px 18px; padding: 12px 14px; border: 1px solid #fecdca; border-radius: 8px; background: #fff7f6; color: #9b1c1c; }
+    .remote-restore-form { display: grid; gap: 10px; padding: 0 20px 20px; }
+    .remote-restore-form label { font-weight: 700; }
+    .remote-restore-form input { width: 100%; box-sizing: border-box; }
+    .remote-restore-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+    @media (max-width: 760px) {
+        .remote-backups-hero { align-items: flex-start; }
+        .remote-backups-hero, .remote-backups-hero-actions { flex-direction: column; }
+        .remote-backups-hero-actions { width: 100%; }
+        .remote-backups-hero-actions > .button { width: 100%; }
+        .remote-restore-summary { grid-template-columns: 1fr; }
+        .remote-restore-summary dt { padding-bottom: 3px; border-bottom: 0; }
+        .remote-restore-summary dd { padding-top: 3px; }
+        .remote-restore-actions { flex-direction: column-reverse; }
+        .remote-restore-actions > button { width: 100%; }
+    }
+</style>
+
+<div class="toolbar page-hero remote-backups-hero">
+    <div>
+        <h1>{{ target.name }} Remote Backups</h1>
+        <p class="subtle">SharePoint folder: <code>{{ target.sharepoint_folder }}</code></p>
+    </div>
+    <div class="remote-backups-hero-actions">
+        <a class="button" href="{{ target.get_absolute_url }}">Settings</a>
+        <a class="button" href="{% url 'backup_dashboard' %}">Targets</a>
+    </div>
+</div>
+
+{% if error %}
+    <section class="panel danger-zone">
+        <h2>Could not load SharePoint backups</h2>
+        <p>{{ error }}</p>
+    </section>
+{% endif %}
+
+<section class="panel refresh-history">
+    <div class="toolbar">
+        <div>
+            <h2>Available Backups</h2>
+        </div>
+        <nav class="maintenance-filters" aria-label="Filter remote backups">
+            <span>Filter</span>
+            <span class="badge success">Type {{ target.sql_database }}</span>
+        </nav>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>Backup date</th>
+            <th>Size</th>
+            <th>Manifest</th>
+            <th>Restore</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for backup in backups %}
+            <tr>
+                <td>{{ backup.last_modified }}</td>
+                <td>{{ backup.size_mb }} MB</td>
+                <td>
+                    {% if backup.has_manifest %}
+                        <span class="badge success">Found</span>
+                    {% else %}
+                        <span class="badge failed">Missing</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if backup.has_manifest %}
+                        <button class="button ghost remote-restore-trigger" type="button" onclick="document.getElementById('restore-backup-{{ forloop.counter }}').showModal()">Restore</button>
+                        <dialog id="restore-backup-{{ forloop.counter }}" class="maintenance-details-modal remote-restore-dialog" aria-labelledby="restore-title-{{ forloop.counter }}">
+                            <div class="remote-restore-header">
+                                <div>
+                                    <p class="operation-label">Restore backup</p>
+                                    <strong id="restore-title-{{ forloop.counter }}">Confirm restore</strong>
+                                </div>
+                                <button class="button ghost maintenance-modal-close" type="button" aria-label="Close restore confirmation" onclick="this.closest('dialog').close()">&times;</button>
+                            </div>
+                            <dl class="remote-restore-summary">
+                                <dt>Backup time</dt>
+                                <dd>{{ backup.last_modified }}</dd>
+                                <dt>Target database</dt>
+                                <dd><code>{{ target.sql_database }}</code></dd>
+                            </dl>
+                            <p class="remote-restore-notice">This queues the selected backup for restore to the database shown above. Enter the random confirmation word before continuing.</p>
+                            <form class="remote-restore-form" method="post" action="{% url 'backup_target_restore' target.slug %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="download_url" value="{{ backup.download_url }}">
+                                <input type="hidden" name="file_name" value="{{ backup.name }}">
+                                <input type="hidden" name="manifest_download_url" value="{{ backup.manifest_download_url }}">
+                                <label for="restore-confirmation-{{ forloop.counter }}">Type <code>{{ restore_confirmation_word }}</code> to confirm</label>
+                                <input id="restore-confirmation-{{ forloop.counter }}" name="confirmation_word" placeholder="Enter confirmation word" autocomplete="off" required>
+                                <div class="remote-restore-actions">
+                                    <button class="button danger" type="submit">Queue restore</button>
+                                </div>
+                            </form>
+                        </dialog>
+                    {% else %}
+                        <span class="subtle">Restore blocked</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="4" class="subtle">No encrypted backups found for this target.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <span class="pagination-info">Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} backups</span>
+            <ul class="pagination">
+                <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                    {% if page_obj.has_previous %}
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% else %}
+                        <span class="page-link">Previous</span>
+                    {% endif %}
+                </li>
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p == page_obj.number %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% elif p <= 5 or p == page_obj.paginator.num_pages or p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                    {% if page_obj.has_next %}
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    {% else %}
+                        <span class="page-link">Next</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Power BI Refresh | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<section class="toolbar page-hero maintenance-page-heading schedule-quality-page-heading">
+    <div>
+        <h1>Schedule Quality</h1>
+        <p class="subtle">Power BI refresh and schedule controls.</p>
+    </div>
+</section>
+
+<section class="refresh-workspace">
+    <div class="refresh-workspace-body">
+        <div class="refresh-workspace-manual">
+            <p class="operation-label">Run refresh</p>
+            <strong>Refresh all data</strong>
+            <form method="post" action="{% url 'schedule_quality_refresh' %}">
+                {% csrf_token %}
+                <button type="submit">Run</button>
+            </form>
+        </div>
+
+        {% if can_edit_schedule_quality_schedule %}
+        <details class="refresh-workspace-schedule">
+            <summary>
+                <span>
+                    <span class="operation-label">Automatic schedule</span>
+                    <strong>{{ schedule_quality_display }}</strong>
+                </span>
+                <span class="button schedule-edit-button"><span class="schedule-show-label">Show</span><span class="schedule-hide-label">Hide</span></span>
+            </summary>
+        </details>
+        {% endif %}
+        {% if can_edit_schedule_quality_settings %}
+        <div class="refresh-workspace-settings">
+            <p class="operation-label">Quality settings</p>
+            <strong>Rules and evidence</strong>
+            <a class="button" href="{% url 'schedule_quality_settings' %}">Open</a>
+        </div>
+        {% endif %}
+    </div>
+ </section>
+    {% if can_edit_schedule_quality_schedule %}
+<section class="panel schedule-editor-card">
+    <div class="toolbar">
+        <div>
+            <p class="operation-label">Edit schedule</p>
+        </div>
+    </div>
+    <form method="post" action="{% url 'schedule_quality_schedule_update' %}" class="schedule-form">
+        {% csrf_token %}
+        <div class="schedule-form-body">
+            <div class="schedule-status-row">
+                <div class="schedule-status-copy">
+                    <strong>Automatic refresh</strong>
+                    <small>Run schedule-quality checks automatically at the configured time.</small>
+                </div>
+                <label class="schedule-status-control">
+                    <input type="checkbox" name="enabled" {% if schedule_quality_enabled %}checked{% endif %}>
+                    <span>Enabled</span>
+                </label>
+            </div>
+            <div class="schedule-config-grid">
+                <div class="field">
+                    <label for="schedule-frequency">Frequency</label>
+                    <select id="schedule-frequency" name="schedule_type" data-schedule-frequency>
+                        <option value="daily" {% if schedule_type == "daily" %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if schedule_type == "weekly" %}selected{% endif %}>Weekly</option>
+                    </select>
+                </div>
+                <div class="field schedule-time">
+                    <label for="schedule-time">Time</label>
+                    <input id="schedule-time" type="time" name="backup_time" value="{{ backup_time }}">
+                </div>
+                <div class="field schedule-days" data-weekly-days {% if schedule_type != "weekly" %}hidden{% endif %}>
+                    <label>Run on</label>
+                    <div class="weekday-grid">
+                    {% for value,label in day_labels %}
+                        <label><input type="checkbox" name="backup_days" value="{{ value }}" {% if value in backup_days %}checked{% endif %}> <span>{{ label }}</span></label>
+                    {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="schedule-form-footer">
+            <button type="submit">Save Schedule</button>
+        </div>
+    </form>
+</section>
+    {% endif %}
+
+<section class="panel refresh-history">
+    <div class="toolbar">
+        <div>
+            <h2>Refresh History</h2>
+        </div>
+        <nav class="maintenance-filters" aria-label="Filter refresh history">
+            <span>Filter</span>
+            <a class="badge {% if not selected_status %}success{% endif %}" href="{% url 'schedule_quality_dashboard' %}">All runs</a>
+            <a class="badge {% if selected_status == 'success' %}success{% endif %}" href="?status=success">Success</a>
+            <a class="badge {% if selected_status == 'failed' %}success{% endif %}" href="?status=failed">Failed</a>
+            <a class="badge {% if selected_status == 'running' %}success{% endif %}" href="?status=running">Running</a>
+        </nav>
+    </div>
+    {% if refresh_history_error %}
+        <p class="subtle">{{ refresh_history_error }}</p>
+    {% else %}
+        <table>
+            <thead>
+            <tr>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Completed</th>
+                <th>Duration</th>
+                <th>Projects</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for run in refresh_history %}
+                <tr>
+                    <td><span class="badge">{{ run.trigger_type|title }}</span></td>
+                    <td>
+                        {% if run.status == 'failed' %}
+                            <button type="button" class="badge failed" style="min-height: 0; border: 0; padding: 3px 8px; font-size: 12px; line-height: normal;" aria-haspopup="dialog" onclick="document.getElementById('schedule-quality-error-{{ run.check_run_id }}').showModal()">Failed</button>
+                            <dialog id="schedule-quality-error-{{ run.check_run_id }}" class="maintenance-details-modal" aria-label="Refresh run {{ run.check_run_id }} failure details">
+                                <div class="maintenance-modal-header">
+                                    <p class="operation-label">Refresh failed</p>
+                                    <form method="dialog"><button class="button ghost maintenance-modal-close" aria-label="Close failure details" title="Close failure details">&times;</button></form>
+                                </div>
+                                <div class="maintenance-detail-table">
+                                    <div class="maintenance-detail-toolbar"><p class="subtle">Run {{ run.check_run_id }} · {{ run.started_at|date:"d M Y H:i:s" }}</p></div>
+                                    <pre style="margin: 0; padding: 16px; max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 1.5;">{{ run.error_message|default:"No error message was recorded for this run." }}</pre>
+                                </div>
+                            </dialog>
+                        {% else %}
+                            <span class="badge {% if run.status == 'success' %}success{% else %}running{% endif %}">{{ run.status|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ run.started_at|date:"d M Y H:i:s" }}</td>
+                    <td>{{ run.completed_at|date:"d M Y H:i:s"|default:"-" }}</td>
+                    <td>{{ run.duration_display|default:"-" }}</td>
+                    <td>{{ run.processed_project_count|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="subtle">No refresh runs have been recorded yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if history_page.total_pages > 1 %}
+            <div class="pagination-container">
+                <span class="pagination-info">
+                    Showing {{ history_page.start_index }}-{{ history_page.end_index }} of {{ history_page.total_runs }} refresh runs
+                </span>
+                <ul class="pagination">
+                    <li class="page-item {% if not history_page.has_previous %}disabled{% endif %}">
+                        {% if history_page.has_previous %}
+                            <a class="page-link" href="?page={{ history_page.previous_page_number }}{% if selected_status %}&amp;status={{ selected_status }}{% endif %}">Previous</a>
+                        {% else %}
+                            <span class="page-link">Previous</span>
+                        {% endif %}
+                    </li>
+
+                    {% for p in history_page.page_range %}
+                        {% if p == history_page.number %}
+                            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                        {% elif p <= 5 or p == history_page.total_pages or p >= history_page.number|add:"-2" and p <= history_page.number|add:"2" %}
+                            <li class="page-item"><a class="page-link" href="?page={{ p }}{% if selected_status %}&amp;status={{ selected_status }}{% endif %}">{{ p }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <li class="page-item {% if not history_page.has_next %}disabled{% endif %}">
+                        {% if history_page.has_next %}
+                            <a class="page-link" href="?page={{ history_page.next_page_number }}{% if selected_status %}&amp;status={{ selected_status }}{% endif %}">Next</a>
+                        {% else %}
+                            <span class="page-link">Next</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        {% endif %}
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const frequency = document.querySelector('[data-schedule-frequency]');
+    const weeklyDays = document.querySelector('[data-weekly-days]');
+    if (!frequency || !weeklyDays) return;
+
+    const updateWeeklyDays = () => {
+        weeklyDays.hidden = frequency.value !== 'weekly';
+    };
+
+    frequency.addEventListener('change', updateWeeklyDays);
+    updateWeeklyDays();
+})();
+</script>
+{% endblock %}

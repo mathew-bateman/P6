@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target.name }} | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .target-form { display: flex; flex-direction: column; gap: 14px; }
+    .target-hero {
+        align-items: center;
+    }
+    .target-hero h1 { margin: 0; }
+    .target-hero .subtle { margin: 6px 0 0; }
+    .target-hero-actions { display: flex; align-items: center; gap: 10px; }
+    .target-hero-actions > .button,
+    .target-hero-actions > button { box-sizing: border-box; min-width: 130px; min-height: 40px; height: 40px; padding: 8px 14px; line-height: 1.2; text-align: center; }
+    .target-hero-actions > .button { display: inline-flex; align-items: center; justify-content: center; }
+    .target-hero-actions > button { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .recent-runs-card .toolbar > .button { box-sizing: border-box; min-width: 130px; min-height: 40px; height: 40px; padding: 8px 14px; line-height: 1.2; display: inline-flex; align-items: center; justify-content: center; }
+    .target-runs-card a.badge { text-decoration: none; }
+    .target-runs-card a.badge.view { background: #dbeafe; color: #1d4ed8; }
+    .target-panel { margin: 0; }
+    .target-panel > h2 {
+        margin: -18px -18px 16px;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
+        background: #f8fafc;
+    }
+    .target-panel .field.inline { gap: 18px; }
+    .target-save-actions { display: flex; justify-content: flex-end; margin: 18px -18px -18px; padding: 16px 18px; border-top: 1px solid var(--line); }
+    .target-save-actions button { min-width: 160px; }
+    .target-hero.is-compact { gap: 8px; }
+    .target-hero.is-compact .target-hero-actions { gap: 6px; }
+    .target-hero.is-compact .target-hero-actions > .button,
+    .target-hero.is-compact .target-hero-actions > button { min-height: 34px; height: 34px; padding: 6px 10px; }
+    @media (max-width: 760px) {
+        .target-hero { align-items: flex-start; }
+        .target-hero, .target-hero-actions { flex-direction: column; }
+        .target-hero-actions { width: 100%; }
+        .target-hero-actions > .button, .target-hero-actions > button { width: 100%; }
+        .target-hero.is-compact .target-hero-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+        .target-hero.is-compact .target-hero-actions > .button, .target-hero.is-compact .target-hero-actions > button { width: 100%; min-width: 0; }
+    }
+</style>
+
+<form method="post" action="{% url 'backup_target_update' target.slug %}" class="target-form">
+    {% csrf_token %}
+<div class="toolbar page-hero target-hero">
+    <div>
+        <h1>{{ target.name }}</h1>
+        <p class="subtle">{{ target.description }}</p>
+    </div>
+    <div class="target-hero-actions">
+        <button type="submit" form="target-backup-run-form">Run Backup</button>
+        <button type="submit">Save Target</button>
+    </div>
+</div>
+
+<section class="panel target-panel">
+    <h2>Target Settings</h2>
+    <div class="field inline">
+        <label><input type="checkbox" name="enabled" {% if target.enabled %}checked{% endif %}> Backups enabled</label>
+        <label><input type="checkbox" name="use_compression" {% if target.use_compression %}checked{% endif %}> SQL compression</label>
+        <label><input type="checkbox" name="verify_sharepoint_upload" {% if target.verify_sharepoint_upload %}checked{% endif %}> Verify upload hash</label>
+        <label><input type="checkbox" name="keep_local_files" {% if target.keep_local_files %}checked{% endif %}> Keep local files</label>
+    </div>
+
+    <div class="two-col">
+        <div class="field">
+            <label>SQL host</label>
+            <input name="sql_host" value="{{ target.sql_host }}">
+        </div>
+        <div class="field">
+            <label>SQL port</label>
+            <input name="sql_port" type="number" min="1" value="{{ target.sql_port }}">
+        </div>
+        <div class="field">
+            <label>Database</label>
+            <input name="sql_database" value="{{ target.sql_database }}">
+        </div>
+        <div class="field">
+            <label>SQL user</label>
+            <input name="sql_username" value="{{ target.sql_username }}">
+        </div>
+        <div class="field">
+            <label>SQL password</label>
+            <input name="sql_password" type="password" value="{{ target.sql_password_env }}" autocomplete="off">
+        </div>
+        <div class="field">
+            <label>App backup path</label>
+            <input name="app_backup_dir" value="{{ target.app_backup_dir }}">
+        </div>
+        <div class="field">
+            <label>SQL backup path</label>
+            <input name="sql_backup_dir" value="{{ target.sql_backup_dir }}">
+        </div>
+        <div class="field">
+            <label>SQL data directory</label>
+            <input name="sql_data_dir" value="{{ target.sql_data_dir }}">
+        </div>
+        <div class="field">
+            <label>Restore data file path</label>
+            <input name="data_file_path" value="{{ target.data_file_path }}">
+        </div>
+        <div class="field">
+            <label>Restore log file path</label>
+            <input name="log_file_path" value="{{ target.log_file_path }}">
+        </div>
+    </div>
+</section>
+
+<section class="panel target-panel">
+    <h2>Schedule</h2>
+    <div class="field inline">
+        <label><input type="radio" name="schedule_type" value="daily" {% if schedule_type == "daily" %}checked{% endif %}> Daily</label>
+        <label><input type="radio" name="schedule_type" value="weekly" {% if schedule_type == "weekly" %}checked{% endif %}> Weekly</label>
+        <label><input type="radio" name="schedule_type" value="custom" {% if schedule_type == "custom" %}checked{% endif %}> Cron</label>
+    </div>
+    <div class="two-col">
+        <div class="field">
+            <label>Time</label>
+            <input type="time" name="backup_time" value="{{ backup_time }}">
+        </div>
+        <div class="field">
+            <label>Cron expression</label>
+            <input name="backup_schedule" value="{{ target.backup_schedule }}">
+        </div>
+    </div>
+    <div class="field days">
+        <label>Weekly days</label>
+        {% for value,label in day_labels %}
+            <label><input type="checkbox" name="backup_days" value="{{ value }}" {% if value in backup_days %}checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="panel target-panel">
+    <h2>SharePoint And Retention</h2>
+    <div class="field">
+        <label>SharePoint folder URL</label>
+        <input name="backup_url" placeholder="Paste a SharePoint folder URL to fill site/folder fields">
+    </div>
+    <div class="two-col">
+        <div class="field">
+            <label>SharePoint site</label>
+            <input name="sharepoint_site" value="{{ target.sharepoint_site }}">
+        </div>
+        <div class="field">
+            <label>SharePoint folder</label>
+            <input name="sharepoint_folder" value="{{ target.sharepoint_folder }}">
+        </div>
+        <div class="field">
+            <label>Daily copies</label>
+            <input name="retention_daily" type="number" min="0" value="{{ target.retention_daily }}">
+        </div>
+        <div class="field">
+            <label>Weekly copies</label>
+            <input name="retention_weekly" type="number" min="0" value="{{ target.retention_weekly }}">
+        </div>
+        <div class="field">
+            <label>Monthly copies</label>
+            <input name="retention_monthly" type="number" min="0" value="{{ target.retention_monthly }}">
+        </div>
+    </div>
+    <div class="field">
+        <label>Notification emails</label>
+        <textarea name="notification_emails">{{ target.notification_emails }}</textarea>
+    </div>
+</section>
+
+</form>
+
+<form id="target-backup-run-form" method="post" action="{% url 'backup_target_run' target.slug %}">
+    {% csrf_token %}
+</form>
+
+<section class="panel recent-runs-card target-runs-card">
+    <div class="toolbar">
+        <h2>Recent Runs</h2>
+        <a class="button ghost" href="{% url 'backup_target_remote' target.slug %}">Remote Backups</a>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>Operation</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Finished</th>
+            <th>Backup date</th>
+            <th>SharePoint</th>
+            <th>Error</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for run in recent_runs %}
+            <tr>
+                <td>{{ run.get_operation_display }}</td>
+                <td><span class="badge {{ run.status }}">{{ run.get_status_display }}</span></td>
+                <td>{{ run.started_at|date:"d M Y H:i" }}</td>
+                <td>{{ run.finished_at|date:"d M Y H:i" }}</td>
+                <td>
+                    {% if run.backup_timestamp_display %}
+                        {{ run.backup_timestamp_display }}
+                    {% else %}
+                        <code>{{ run.encrypted_filename|default:run.restore_source_filename }}</code>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if run.sharepoint_backup_web_url %}
+                        <a class="badge view" href="{{ run.sharepoint_backup_web_url }}" target="_blank" rel="noopener">View</a>
+                    {% endif %}
+                </td>
+                <td class="subtle">{{ run.error_message|truncatechars:140 }}</td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="7" class="subtle">No runs yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <span class="pagination-info">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total runs)</span>
+            <ul class="pagination">
+                <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                    {% if page_obj.has_previous %}<a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
+                </li>
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p == page_obj.number %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% elif p <= 5 or p == page_obj.paginator.num_pages or p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                    {% if page_obj.has_next %}<a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

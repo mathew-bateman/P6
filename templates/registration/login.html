@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<section class="panel login-panel">
+    <form method="post">
+        {% csrf_token %}
+        {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+        <div class="login-field {% if form.username.errors %}has-error{% endif %}">
+            {{ form.username.label_tag }}
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+        <div class="login-field {% if form.password.errors %}has-error{% endif %}">
+            {{ form.password.label_tag }}
+            {{ form.password }}
+            {{ form.password.errors }}
+        </div>
+        {% if form.non_field_errors %}
+            <div class="login-error" id="login-error" role="alert" aria-live="assertive">
+                <div>{{ form.non_field_errors }}</div>
+                <button type="button" class="login-error-dismiss" data-login-error-dismiss aria-label="Dismiss sign-in error" title="Dismiss sign-in error">&times;</button>
+            </div>
+        {% endif %}
+        <button type="submit">Sign In</button>
+    </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    document.querySelector('[data-login-error-dismiss]')?.addEventListener('click', (event) => {
+        event.currentTarget.closest('.login-error')?.remove();
+    });
+})();
+</script>
+{% endblock %}

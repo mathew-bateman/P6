@@ -1,0 +1,69 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{{ subject|default:"P6 Backup Status" }}{% endblock %}
+
+{% block content %}
+<p>Hello,</p>
+
+<p>
+    Automated P6 {{ backup_run.get_operation_display|lower }} task for
+    <strong>{{ target.name }}</strong> has concluded.
+</p>
+
+<div class="card">
+    <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e5e7eb;">
+        <h2 style="margin: 0; font-size: 18px; color: #111827;">
+            {{ backup_run.get_operation_display }} {{ backup_run.get_status_display }}
+        </h2>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Target</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">{{ target.name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Database</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">{{ target.sql_database }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">File</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right; font-family: Consolas, monospace;">
+                {{ backup_run.encrypted_filename|default:backup_run.restore_source_filename }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Size</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">{{ size }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Started</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">{{ backup_run.started_at }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Finished</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">{{ backup_run.finished_at }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Destination</td>
+            <td style="padding: 8px 0; color: #111827; font-size: 14px; text-align: right;">SharePoint {{ backup_run.sharepoint_folder|default:target.sharepoint_folder }}</td>
+        </tr>
+    </table>
+</div>
+
+{% if backup_run.error_message %}
+<div class="info-box" style="background-color: #fef2f2; border-left-color: #dc2626;">
+    <p style="color: #991b1b;"><strong>Error:</strong> {{ backup_run.error_message }}</p>
+</div>
+{% endif %}
+
+{% if backup_run.sharepoint_backup_web_url or backup_run.sharepoint_manifest_web_url %}
+<div class="button-container">
+    {% if backup_run.sharepoint_backup_web_url %}
+        <a href="{{ backup_run.sharepoint_backup_web_url }}" class="button">Open Backup File</a>
+    {% elif backup_run.sharepoint_manifest_web_url %}
+        <a href="{{ backup_run.sharepoint_manifest_web_url }}" class="button">Open Manifest</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

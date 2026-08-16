@@ -1,0 +1,11 @@
+P6 {{ backup_run.get_operation_display }} {{ backup_run.get_status_display }}
+
+Target: {{ target.name }}
+Database: {{ target.sql_database }}
+File: {{ backup_run.encrypted_filename|default:backup_run.restore_source_filename }}
+Size: {{ size }}
+Started: {{ backup_run.started_at }}
+Finished: {{ backup_run.finished_at }}
+{% if backup_run.error_message %}
+Error: {{ backup_run.error_message }}
+{% endif %}

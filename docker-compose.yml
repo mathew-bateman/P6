@@ -1,0 +1,88 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: p6-backup-admin-web
+    command: python manage.py runserver 0.0.0.0:8000
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://p6-backup-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://p6-backup-redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8026:8000"
+    volumes:
+      - .:/app
+      - ${P6_AXIALP6_BACKUPS_PATH:-/home/AxialP6/backups}:/mnt/p6-backups/axialp6
+      - ${P6_P62212_BACKUPS_PATH:-/home/mat/P62212/backups}:/mnt/p6-backups/p62212
+    networks:
+      - default
+      - AxialP6
+      - p62212_default
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: p6-backup-admin-celery
+    command: celery -A p6_backup_admin worker -l info --concurrency=1
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://p6-backup-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://p6-backup-redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/app
+      - ${P6_AXIALP6_BACKUPS_PATH:-/home/AxialP6/backups}:/mnt/p6-backups/axialp6
+      - ${P6_P62212_BACKUPS_PATH:-/home/mat/P62212/backups}:/mnt/p6-backups/p62212
+    networks:
+      - default
+      - AxialP6
+      - p62212_default
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: p6-backup-admin-celery-beat
+    command: celery -A p6_backup_admin beat -l info -S django_celery_beat.schedulers:DatabaseScheduler
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://p6-backup-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://p6-backup-redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/app
+      - ${P6_AXIALP6_BACKUPS_PATH:-/home/AxialP6/backups}:/mnt/p6-backups/axialp6
+      - ${P6_P62212_BACKUPS_PATH:-/home/mat/P62212/backups}:/mnt/p6-backups/p62212
+    networks:
+      - default
+      - AxialP6
+      - p62212_default
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: p6-backup-redis
+    restart: unless-stopped
+
+networks:
+  AxialP6:
+    external: true
+  p62212_default:
+    external: true

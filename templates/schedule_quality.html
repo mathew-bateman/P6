@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Power BI Refresh | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<section class="refresh-workspace">
+    <div class="refresh-workspace-body">
+        <div class="refresh-workspace-manual">
+            <p class="operation-label">Run refresh</p>
+            <strong>Refresh all data</strong>
+            <form method="post" action="{% url 'schedule_quality_refresh' %}">
+                {% csrf_token %}
+                <button type="submit">Run</button>
+            </form>
+        </div>
+
+        {% if can_edit_schedule_quality_schedule %}
+        <details class="refresh-workspace-schedule">
+            <summary>
+                <span>
+                    <span class="operation-label">Automatic schedule</span>
+                    <strong>{{ schedule_quality_display }}</strong>
+                </span>
+                <span class="button schedule-edit-button">Edit</span>
+            </summary>
+        <form method="post" action="{% url 'schedule_quality_schedule_update' %}" class="schedule-form">
+            {% csrf_token %}
+            <label class="schedule-toggle">
+                <input type="checkbox" name="enabled" {% if schedule_quality_enabled %}checked{% endif %}>
+                <span>
+                    <strong>Enabled</strong>
+                    <small>Allow the automatic overnight refresh to run.</small>
+                </span>
+            </label>
+            <div class="schedule-options">
+                <label class="schedule-option">
+                    <input type="radio" name="schedule_type" value="daily" {% if schedule_type == "daily" %}checked{% endif %}>
+                    <span>Daily</span>
+                </label>
+                <label class="schedule-option">
+                    <input type="radio" name="schedule_type" value="weekly" {% if schedule_type == "weekly" %}checked{% endif %}>
+                    <span>Weekly</span>
+                </label>
+            </div>
+            <div class="field schedule-time">
+                <label>Time</label>
+                <input type="time" name="backup_time" value="{{ backup_time }}">
+            </div>
+            <div class="field schedule-days">
+                <label>Weekly days</label>
+                <div class="weekday-grid">
+                {% for value,label in day_labels %}
+                    <label><input type="checkbox" name="backup_days" value="{{ value }}" {% if value in backup_days %}checked{% endif %}> <span>{{ label }}</span></label>
+                {% endfor %}
+                </div>
+            </div>
+            <button type="submit">Save Schedule</button>
+        </form>
+        </details>
+        {% endif %}
+        {% if can_edit_schedule_quality_settings %}
+        <div class="refresh-workspace-settings">
+            <p class="operation-label">Quality settings</p>
+            <strong>Rules and evidence</strong>
+            <a class="button" href="{% url 'schedule_quality_settings' %}">Open</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel refresh-history">
+    <div class="toolbar">
+        <div>
+            <h2>Refresh History &amp; Audit Log</h2>
+        </div>
+    </div>
+    {% if refresh_history_error %}
+        <p class="subtle">{{ refresh_history_error }}</p>
+    {% else %}
+        <table>
+            <thead>
+            <tr>
+                <th>Run</th>
+                <th>Type</th>
+                <th>Settings</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Completed</th>
+                <th>Duration</th>
+                <th>Projects</th>
+                <th>Logic loop tasks</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for run in refresh_history %}
+                <tr>
+                    <td><code>{{ run.check_run_id }}</code></td>
+                    <td><span class="badge">{{ run.trigger_type|title }}</span></td>
+                    <td><code>{{ run.config_version_id|default:"-" }}</code></td>
+                    <td><span class="badge {% if run.status == 'success' %}success{% elif run.status == 'failed' %}failed{% else %}running{% endif %}">{{ run.status|title }}</span></td>
+                    <td>{{ run.started_at|date:"d M Y H:i:s" }}</td>
+                    <td>{{ run.completed_at|date:"d M Y H:i:s"|default:"-" }}</td>
+                    <td>{{ run.duration_display|default:"-" }}</td>
+                    <td>{{ run.processed_project_count|default:"-" }}</td>
+                    <td>{{ run.logic_loop_task_count|default:"-" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="9" class="subtle">No refresh runs have been recorded yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if history_page.total_pages > 1 %}
+            <div class="pagination-container">
+                <span class="pagination-info">
+                    Showing {{ history_page.start_index }}-{{ history_page.end_index }} of {{ history_page.total_runs }} refresh runs
+                </span>
+                <ul class="pagination">
+                    <li class="page-item {% if not history_page.has_previous %}disabled{% endif %}">
+                        {% if history_page.has_previous %}
+                            <a class="page-link" href="?page={{ history_page.previous_page_number }}">Previous</a>
+                        {% else %}
+                            <span class="page-link">Previous</span>
+                        {% endif %}
+                    </li>
+
+                    {% for p in history_page.page_range %}
+                        {% if p == history_page.number %}
+                            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                        {% elif p <= 5 or p == history_page.total_pages or p >= history_page.number|add:"-2" and p <= history_page.number|add:"2" %}
+                            <li class="page-item"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <li class="page-item {% if not history_page.has_next %}disabled{% endif %}">
+                        {% if history_page.has_next %}
+                            <a class="page-link" href="?page={{ history_page.next_page_number }}">Next</a>
+                        {% else %}
+                            <span class="page-link">Next</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

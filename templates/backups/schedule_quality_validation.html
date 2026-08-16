@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Validation Report | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .validation-tabs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; }
+    .validation-tabs .button { min-height: 34px; padding: 7px 11px; }
+    .validation-tabs .current { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .validation-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .validation-filter-panel { position: sticky; top: calc(var(--app-header-height, 62px) + 90px); margin: 0; }
+    .validation-filter-panel h2 { margin-bottom: 4px; }
+    .validation-filter-panel .field { margin-bottom: 12px; }
+    .validation-filter-panel label { color: #344054; font-size: 13px; }
+    .validation-filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .validation-filter-actions .button, .validation-filter-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
+    .validation-main { min-width: 0; }
+    .validation-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .validation-kpi { min-width: 0; margin: 0; padding: 14px 16px; border-left: 3px solid var(--accent); }
+    .validation-kpi span { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .validation-kpi strong { display: block; margin-top: 5px; font-size: 25px; line-height: 1.1; }
+    .validation-kpi small { display: block; margin-top: 5px; color: var(--muted); }
+    .validation-report-panel { overflow: hidden; margin: 0 0 16px; padding: 0; }
+    .validation-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    .validation-panel-header h2 { margin: 0; }
+    .validation-panel-header p { margin: 5px 0 0; }
+    .validation-table-wrap { overflow: auto; }
+    .validation-table-wrap table { display: table; min-width: 720px; border: 0; border-radius: 0; font-size: 13px; }
+    .validation-table-wrap th, .validation-table-wrap td { padding: 9px 10px; vertical-align: middle; }
+    .validation-summary th:first-child, .validation-summary td:first-child { width: 46px; text-align: center; }
+    .validation-summary th:nth-child(n+3), .validation-summary td:nth-child(n+3) { width: 125px; text-align: center; }
+    .validation-summary .numeric-value { display: inline-block; min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
+    .validation-summary .numeric-value.count { min-width: 4ch; }
+    .validation-summary tbody tr:hover td { background: #f8fafc; }
+    .validation-summary .qualifying-cell { font-weight: 700; }
+    .validation-summary tr.has-findings .qualifying-cell { background: #fff1f0; color: var(--danger); }
+    .validation-summary tr.is-clear .qualifying-cell { background: #ecfdf3; color: var(--success); }
+    .validation-evidence { margin-top: 18px; }
+    .validation-evidence table { min-width: 1080px; }
+    .validation-evidence th:nth-child(1) { width: 13%; }
+    .validation-evidence th:nth-child(2) { width: 15%; }
+    .validation-evidence th:nth-child(3) { width: 10%; }
+    .validation-evidence th:nth-child(4) { width: 12%; }
+    .validation-evidence th:nth-child(5) { width: 20%; }
+    .validation-evidence th:nth-child(6) { width: 30%; }
+    .validation-evidence .evidence-copy { white-space: pre-line; overflow-wrap: anywhere; color: #344054; line-height: 1.45; }
+    .validation-error { margin: 0 0 16px; border-color: #fecdca; background: #fff7f6; color: var(--danger); }
+    .validation-empty { padding: 34px 20px; text-align: center; color: var(--muted); }
+    .validation-report-panel .pagination-container { padding: 0 16px 16px; }
+    @media (max-width: 1040px) {
+        .validation-layout { grid-template-columns: 1fr; }
+        .validation-filter-panel { position: static; }
+        .validation-filter-panel form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+        .validation-filter-panel .field { margin: 0; }
+        .validation-filter-actions { grid-column: 1 / -1; justify-self: end; width: min(100%, 300px); }
+    }
+    @media (max-width: 760px) {
+        .validation-tabs { width: 100%; justify-content: flex-start; }
+        .validation-tabs .button { flex: 1; min-width: 0; }
+        .validation-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .validation-filter-panel form { grid-template-columns: 1fr; }
+        .validation-filter-actions { grid-column: auto; width: 100%; }
+        .validation-panel-header { flex-direction: column; }
+    }
+</style>
+
+<section class="toolbar page-hero maintenance-page-heading">
+    <div>
+        <h1>Schedule Quality Validation</h1>
+        <p class="subtle">Review check results and the activities behind them.</p>
+    </div>
+    <nav class="validation-tabs" aria-label="Schedule quality reports">
+        <a class="button ghost" href="{% url 'schedule_quality_overview' %}">Programme Overview</a>
+        <a class="button current" href="{% url 'schedule_quality_validation' %}" aria-current="page">Validation &amp; Evidence</a>
+    </nav>
+</section>
+
+{% if validation_report_error %}
+    <section class="panel validation-error" role="alert">
+        <strong>The validation report could not be loaded.</strong>
+        <p style="margin:6px 0 0;">{{ validation_report_error }}</p>
+    </section>
+{% endif %}
+
+<div class="validation-layout">
+    <aside class="panel validation-filter-panel">
+        <h2>Filters</h2>
+        <p class="subtle" style="margin:0 0 16px;">Narrow the checks and evidence together.</p>
+        <form method="get">
+            <div class="field">
+                <label for="validation-project">Project</label>
+                <select id="validation-project" name="project">
+                    <option value="">All projects</option>
+                    {% for project in projects %}
+                        <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="validation-portfolio">Portfolio</label>
+                <select id="validation-portfolio" name="portfolio">
+                    <option value="">All portfolios</option>
+                    {% for portfolio in portfolios %}
+                        <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="validation-date">Updated date</label>
+                <select id="validation-date" name="updated_date">
+                    <option value="">All update dates</option>
+                    {% for updated_date in updated_dates %}
+                        <option value="{{ updated_date|date:'Y-m-d' }}" {% if validation_filters.updated_date == updated_date %}selected{% endif %}>{{ updated_date|date:"d M Y" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="validation-planner">Lead planner</label>
+                <select id="validation-planner" name="lead_planner">
+                    <option value="">All lead planners</option>
+                    {% for lead_planner in lead_planners %}
+                        <option value="{{ lead_planner }}" {% if validation_filters.lead_planner == lead_planner %}selected{% endif %}>{{ lead_planner }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="validation-check">Check type</label>
+                <select id="validation-check" name="check">
+                    <option value="">All checks</option>
+                    {% for check in checks %}
+                        <option value="{{ check.check_code }}" {% if validation_filters.check_code == check.check_code %}selected{% endif %}>{{ check.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="validation-filter-actions">
+                <button type="submit">Apply</button>
+                <a class="button ghost" href="{% url 'schedule_quality_validation' %}">Clear</a>
+            </div>
+        </form>
+    </aside>
+
+    <div class="validation-main">
+        <section class="validation-kpis" aria-label="Validation summary">
+            <article class="panel validation-kpi">
+                <span>Checks shown</span>
+                <strong>{{ validation_totals.checks }}</strong>
+                <small>Enabled quality checks</small>
+            </article>
+            <article class="panel validation-kpi">
+                <span>Records checked</span>
+                <strong>{{ validation_totals.records_checked }}</strong>
+                <small>Largest active check scope</small>
+            </article>
+            <article class="panel validation-kpi">
+                <span>Results to review</span>
+                <strong>{{ validation_totals.qualifying_results }}</strong>
+                <small>Across the checks shown</small>
+            </article>
+            <article class="panel validation-kpi">
+                <span>Last refresh</span>
+                <strong style="font-size:18px;">{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
+                <small>{% if latest_refresh %}Run {{ latest_refresh.check_run_id }} · {{ latest_refresh.duration_display }}{% else %}No successful run found{% endif %}</small>
+            </article>
+        </section>
+
+        <section class="panel validation-report-panel">
+            <div class="validation-panel-header">
+                <div>
+                    <h2>Check results</h2>
+                    <p class="subtle">The same checks and qualifying percentages used by the reporting dataset.</p>
+                </div>
+                {% if validation_filters.check_code %}<span class="badge success">Filtered check</span>{% endif %}
+            </div>
+            <div class="validation-table-wrap validation-summary">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Check name</th>
+                            <th>Records checked</th>
+                            <th>Qualifying results</th>
+                            <th>Qualifying %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in summary_rows %}
+                            <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}">
+                                <td>{{ row.number }}</td>
+                                <td><strong>{{ row.check_name }}</strong></td>
+                                <td><span class="numeric-value count">{{ row.records_checked }}</span></td>
+                                <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
+                                <td><span class="numeric-value">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="5" class="validation-empty">No check results match these filters.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="panel validation-report-panel validation-evidence">
+    <div class="validation-panel-header">
+        <div>
+            <h2>Activity evidence</h2>
+            <p class="subtle">The exact tasks and evidence behind the selected validation results.</p>
+        </div>
+        <span class="badge">{{ validation_totals.evidence_rows }} row{{ validation_totals.evidence_rows|pluralize }}</span>
+    </div>
+    <div class="validation-table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Lead planner</th>
+                    <th>Project</th>
+                    <th>Check</th>
+                    <th>Activity code</th>
+                    <th>Activity name</th>
+                    <th>Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in evidence_rows %}
+                    <tr>
+                        <td>{{ row.lead_planner|default:"N/A" }}</td>
+                        <td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td>
+                        <td>{{ row.check_name }}</td>
+                        <td><code>{{ row.task_code }}</code></td>
+                        <td>{{ row.task_name }}</td>
+                        <td class="evidence-copy">{{ row.evidence_display|default:"No additional evidence recorded." }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="validation-empty">No activity evidence matches these filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if evidence_page.total_pages > 1 %}
+        <div class="pagination-container">
+            <span class="pagination-info">Showing {{ evidence_page.start_index }}-{{ evidence_page.end_index }} of {{ evidence_page.total_rows }} evidence rows</span>
+            <ul class="pagination">
+                <li class="page-item {% if not evidence_page.has_previous %}disabled{% endif %}">
+                    {% if evidence_page.has_previous %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.previous_page_number }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
+                </li>
+                {% for page in evidence_page.page_range %}
+                    {% if page == evidence_page.number %}
+                        <li class="page-item active"><span class="page-link">{{ page }}</span></li>
+                    {% elif page <= 3 or page == evidence_page.total_pages or page >= evidence_page.number|add:"-1" and page <= evidence_page.number|add:"1" %}
+                        <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page }}">{{ page }}</a></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not evidence_page.has_next %}disabled{% endif %}">
+                    {% if evidence_page.has_next %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.next_page_number }}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

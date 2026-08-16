@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Programme Check | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .overview-tabs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; }
+    .overview-tabs .button { min-height: 34px; padding: 7px 11px; }
+    .overview-tabs .current { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .overview-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .overview-filters { position: sticky; top: calc(var(--app-header-height, 62px) + 90px); margin: 0; }
+    .overview-filters h2 { margin-bottom: 4px; }
+    .overview-filters .field { margin-bottom: 12px; }
+    .overview-filters label { color: #344054; font-size: 13px; }
+    .overview-filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .overview-filter-actions .button, .overview-filter-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
+    .overview-update-card { margin: 16px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
+    .overview-update-card span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .overview-update-card strong { display: block; margin-top: 6px; font-size: 22px; }
+    .overview-main { min-width: 0; }
+    .overview-report { overflow: hidden; margin: 0; padding: 0; }
+    .overview-panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    .overview-panel-heading h2 { margin: 0; }
+    .overview-panel-heading p { margin: 5px 0 0; }
+    .overview-refresh { flex: 0 0 auto; text-align: right; color: var(--muted); font-size: 12px; }
+    .overview-refresh strong { display: block; color: var(--text); font-size: 13px; }
+    .overview-table-wrap { overflow: auto; }
+    .overview-table-wrap table { display: table; min-width: 1010px; border: 0; border-radius: 0; font-size: 12px; }
+    .overview-table-wrap th, .overview-table-wrap td { padding: 6px; vertical-align: middle; }
+    .overview-table-wrap th { white-space: normal; line-height: 1.25; text-align: center; }
+    .overview-table-wrap th:first-child, .overview-table-wrap td:first-child { min-width: 170px; text-align: left; }
+    .overview-table-wrap td:not(:first-child) { text-align: center; }
+    .overview-table-wrap .numeric-cell { text-align: center; }
+    .overview-table-wrap .numeric-value { display: inline-block; min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
+    .overview-table-wrap .numeric-value.count { min-width: 4ch; }
+    .overview-table-wrap .numeric-value.score { min-width: 3ch; }
+    .overview-table-wrap tbody tr:hover td { background-color: #f8fafc; }
+    .overview-result { min-width: 64px; font-weight: 800; }
+    .overview-result.green { background: #b7e4bd; color: #14532d; }
+    .overview-result.amber { background: #fef0c7; color: #8a4b0f; }
+    .overview-result.red { background: #ef9a9a; color: #7f1d1d; }
+    .overview-scorecards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; border-top: 1px solid var(--line); background: var(--line); }
+    .overview-scorecard { min-height: 88px; box-sizing: border-box; padding: 12px 14px; background: #fff; }
+    .overview-scorecard span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .overview-scorecard strong { display: block; margin-top: 8px; font-size: 24px; }
+    .overview-scorecard.outcome.pass { background: #c6efce; color: #14532d; }
+    .overview-scorecard.outcome.fail { background: #fee4e2; color: #991b1b; }
+    .overview-error { margin: 0 0 16px; border-color: #fecdca; background: #fff7f6; color: var(--danger); }
+    .overview-empty { padding: 34px 20px; text-align: center !important; color: var(--muted); }
+    @media (max-width: 1120px) {
+        .overview-layout { grid-template-columns: 1fr; }
+        .overview-filters { position: static; }
+        .overview-filters form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+        .overview-filters .field { margin: 0; }
+        .overview-filter-actions { grid-column: 1 / -1; justify-self: end; width: min(100%, 300px); }
+        .overview-update-card { grid-column: 1 / -1; margin: 0; }
+    }
+    @media (max-width: 760px) {
+        .overview-tabs { width: 100%; justify-content: flex-start; }
+        .overview-tabs .button { flex: 1; min-width: 0; }
+        .overview-filters form { grid-template-columns: 1fr; }
+        .overview-filter-actions, .overview-update-card { grid-column: auto; width: 100%; }
+        .overview-panel-heading { flex-direction: column; }
+        .overview-refresh { text-align: left; }
+        .overview-scorecards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .overview-scorecard.outcome { grid-column: 1 / -1; }
+    }
+</style>
+
+<section class="toolbar page-hero maintenance-page-heading">
+    <div>
+        <h1>Programme Check</h1>
+        <p class="subtle">Score the programme against the active schedule-quality checks.</p>
+    </div>
+    <nav class="overview-tabs" aria-label="Schedule quality reports">
+        <a class="button current" href="{% url 'schedule_quality_overview' %}" aria-current="page">Programme Overview</a>
+        <a class="button ghost" href="{% url 'schedule_quality_validation' %}">Validation &amp; Evidence</a>
+    </nav>
+</section>
+
+{% if overview_report_error %}
+    <section class="panel overview-error" role="alert">
+        <strong>The programme overview could not be loaded.</strong>
+        <p style="margin:6px 0 0;">{{ overview_report_error }}</p>
+    </section>
+{% endif %}
+
+<div class="overview-layout">
+    <aside class="panel overview-filters">
+        <h2>Filters</h2>
+        <p class="subtle" style="margin:0 0 16px;">Choose the programme slice to score.</p>
+        <form method="get">
+            <div class="field">
+                <label for="overview-project">Project</label>
+                <select id="overview-project" name="project">
+                    <option value="">All projects</option>
+                    {% for project in projects %}
+                        <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="overview-portfolio">Portfolio</label>
+                <select id="overview-portfolio" name="portfolio">
+                    <option value="">All portfolios</option>
+                    {% for portfolio in portfolios %}
+                        <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="overview-planner">Lead planner</label>
+                <select id="overview-planner" name="lead_planner">
+                    <option value="">All lead planners</option>
+                    {% for lead_planner in lead_planners %}
+                        <option value="{{ lead_planner }}" {% if validation_filters.lead_planner == lead_planner %}selected{% endif %}>{{ lead_planner }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="overview-date">Updated date</label>
+                <select id="overview-date" name="updated_date">
+                    <option value="">All update dates</option>
+                    {% for updated_date in updated_dates %}
+                        <option value="{{ updated_date|date:'Y-m-d' }}" {% if validation_filters.updated_date == updated_date %}selected{% endif %}>{{ updated_date|date:"d M Y" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="overview-filter-actions">
+                <button type="submit">Apply</button>
+                <a class="button ghost" href="{% url 'schedule_quality_overview' %}">Clear</a>
+            </div>
+            <div class="overview-update-card">
+                <span>Latest programme update</span>
+                <strong>{% if latest_updated_date %}{{ latest_updated_date|date:"d/m/Y" }}{% else %}N/A{% endif %}</strong>
+            </div>
+        </form>
+    </aside>
+
+    <div class="overview-main">
+        <section class="panel overview-report">
+            <div class="overview-panel-heading">
+                <div>
+                    <h2>Programme scorecard</h2>
+                    <p class="subtle">Green and amber limits mirror the PBIX scoring model.</p>
+                </div>
+                <div class="overview-refresh">
+                    <span>Last refresh</span>
+                    <strong>{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
+                </div>
+            </div>
+            <div class="overview-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Result</th>
+                            <th>Records<br>checked</th>
+                            <th>Qualifying<br>results</th>
+                            <th>Qualifying<br>display</th>
+                            <th>Green<br>limit</th>
+                            <th>Amber<br>limit</th>
+                            <th>Limit type</th>
+                            <th>Points available<br>(green)</th>
+                            <th>Points available<br>(amber)</th>
+                            <th>Points scored</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td><strong>{{ row.description }}</strong></td>
+                                <td class="overview-result {{ row.result|lower }}">{{ row.result }}</td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.records_checked }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value">{{ row.qualifying_display }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.green_limit|floatformat:"-2" }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.amber_limit|floatformat:"-2" }}</span></td>
+                                <td>{{ row.limit_type }}</td>
+                                <td class="numeric-cell"><span class="numeric-value score">{{ row.green_points }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value score">{{ row.amber_points }}</span></td>
+                                <td class="numeric-cell"><strong class="numeric-value score">{{ row.points_scored }}</strong></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="11" class="overview-empty">No programme checks match these filters.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="overview-scorecards" aria-label="Programme score summary">
+                <div class="overview-scorecard">
+                    <span>Total points available</span>
+                    <strong>{{ total_points_available }}</strong>
+                </div>
+                <div class="overview-scorecard">
+                    <span>Points achieved</span>
+                    <strong>{{ total_points_achieved }}</strong>
+                </div>
+                <div class="overview-scorecard">
+                    <span>Pass %</span>
+                    <strong>{{ pass_percent|floatformat:2 }}%</strong>
+                </div>
+                <div class="overview-scorecard">
+                    <span>Pass rate</span>
+                    <strong>{{ pass_rate|floatformat:2 }}%</strong>
+                </div>
+                <div class="overview-scorecard outcome {{ pass_or_fail|lower }}">
+                    <span>Pass or fail</span>
+                    <strong>{{ pass_or_fail }}</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

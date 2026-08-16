@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load tz %}
+
+{% block title %}Database Maintenance | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<section class="page-hero maintenance-page-heading">
+    <h1>Database Maintenance</h1>
+    <p class="subtle">Operational history and database housekeeping.</p>
+</section>
+
+<section class="maintenance-metrics" aria-label="Maintenance summary">
+    <article class="maintenance-kpi">
+        <p>Index defrag</p>
+        <strong>{{ defrag_runs_count }}</strong>
+        <small>Successful executions</small>
+    </article>
+    <article class="maintenance-kpi">
+        <p>Stale sessions</p>
+        <strong>{{ session_items_count }}</strong>
+        <small>Sessions cleared</small>
+    </article>
+    <article class="maintenance-kpi">
+        <p>Audit logs</p>
+        <strong>{{ log_items_count }}</strong>
+        <small>Historical records pruned</small>
+    </article>
+    <article class="maintenance-kpi accent">
+        <p>USERDATA freed</p>
+        <strong>{{ total_gb_freed }} GB</strong>
+        <small>{{ total_mb_freed }} MB reclaimed</small>
+    </article>
+</section>
+
+<section class="panel maintenance-history">
+    <div class="toolbar">
+        <h2>Maintenance History &amp; Audit Log</h2>
+        <nav class="maintenance-filters" aria-label="Filter maintenance history">
+            <span>Filter</span>
+            <a class="badge {% if not selected_type %}success{% endif %}" href="{% url 'maintenance_dashboard' %}">All tasks</a>
+            <a class="badge {% if selected_type == 'index_defrag' %}success{% endif %}" href="?run_type=index_defrag">Index defrag</a>
+            <a class="badge {% if selected_type == 'stale_session' %}success{% endif %}" href="?run_type=stale_session">Stale sessions</a>
+            <a class="badge {% if selected_type == 'log_pruning' %}success{% endif %}" href="?run_type=log_pruning">Log pruning</a>
+            <a class="badge {% if selected_type == 'userdata_prune' %}success{% endif %}" href="?run_type=userdata_prune">USERDATA bloat</a>
+        </nav>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Task type</th>
+                <th>Started</th>
+                <th>Trigger</th>
+                <th>Status</th>
+                <th>Targets</th>
+                <th>Outcome</th>
+                <th>Line item details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+                <tr>
+                    <td><strong>{{ run.get_run_type_display }}</strong></td>
+                    <td>{{ run.started_at|timezone:"Europe/London"|date:"d M Y H:i:s" }}</td>
+                    <td><span class="badge">{{ run.get_trigger_display }}</span></td>
+                    <td><span class="badge {{ run.status }}">{{ run.get_status_display }}</span></td>
+                    <td>{{ run.targets_scanned }}</td>
+                    <td>
+                        <div class="maintenance-outcome">
+                            {% if run.status != 'success' %}
+                                <strong>Needs attention</strong>
+                                <small>{{ run.metrics_summary|default:run.log_output|truncatewords:7 }}</small>
+                            {% elif not run.items_processed_count %}
+                                <strong>No changes</strong>
+                                <small>{{ run.targets_scanned }} database target{{ run.targets_scanned|pluralize }} checked</small>
+                            {% elif run.run_type == 'index_defrag' %}
+                                <strong>{{ run.items_processed_count }} table{{ run.items_processed_count|pluralize }}</strong>
+                                <small>Defragmented across {{ run.targets_scanned }} target{{ run.targets_scanned|pluralize }}</small>
+                            {% elif run.run_type == 'stale_session' %}
+                                <strong>{{ run.items_processed_count }} session{{ run.items_processed_count|pluralize }}</strong>
+                                <small>Purged across {{ run.targets_scanned }} target{{ run.targets_scanned|pluralize }}</small>
+                            {% elif run.run_type == 'log_pruning' %}
+                                <strong>{{ run.items_processed_count }} log record{{ run.items_processed_count|pluralize }}</strong>
+                                <small>Pruned across {{ run.targets_scanned }} target{{ run.targets_scanned|pluralize }}</small>
+                            {% elif run.run_type == 'userdata_prune' %}
+                                <strong>{{ run.items_processed_count }} user{{ run.items_processed_count|pluralize }}</strong>
+                                <small>Cleaned across {{ run.targets_scanned }} target{{ run.targets_scanned|pluralize }}</small>
+                            {% else %}
+                                <strong>{{ run.items_processed_count }} item{{ run.items_processed_count|pluralize }}</strong>
+                                <small>Processed across {{ run.targets_scanned }} target{{ run.targets_scanned|pluralize }}</small>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if run.details.all %}
+                            <button type="button" class="button ghost maintenance-details-button" aria-haspopup="dialog" onclick="document.getElementById('maintenance-details-{{ run.pk }}').showModal()">View details</button>
+                            <dialog id="maintenance-details-{{ run.pk }}" class="maintenance-details-modal" aria-label="{{ run.get_run_type_display }} line item details">
+                                <div class="maintenance-modal-header">
+                                    <p class="operation-label">{{ run.get_run_type_display }}</p>
+                                    <form method="dialog"><button class="button ghost maintenance-modal-close" aria-label="Close details" title="Close details">&times;</button></form>
+                                </div>
+                                <div class="maintenance-detail-table">
+                                    <div class="maintenance-detail-toolbar">
+                                        <p class="subtle">{{ run.details.count }} item{% if run.details.count > 1 %}s{% endif %} from {{ run.started_at|timezone:"Europe/London"|date:"d M Y H:i" }}</p>
+                                        <nav class="maintenance-detail-pagination" aria-label="Line item detail pages"></nav>
+                                    </div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Item label</th>
+                                                <th>Target DB</th>
+                                                <th>Before</th>
+                                                <th>After</th>
+                                                <th>Note</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in run.details.all %}
+                                                <tr>
+                                                    <td><strong>{{ item.item_label }}</strong></td>
+                                                    <td><code>{{ item.target_name }}</code></td>
+                                                    <td>{{ item.metric_before }}</td>
+                                                    <td><strong class="maintenance-success-value">{{ item.metric_after }}</strong></td>
+                                                    <td class="subtle">{{ item.detail_note }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </dialog>
+                        {% else %}
+                            <span class="subtle">No changes required</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="subtle maintenance-empty">No maintenance runs found for this filter.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <span class="pagination-info">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total runs)</span>
+            <ul class="pagination">
+                <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                    {% if page_obj.has_previous %}<a class="page-link" href="?page={{ page_obj.previous_page_number }}&run_type={{ selected_type }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
+                </li>
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p == page_obj.number %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% elif p <= 5 or p == page_obj.paginator.num_pages or p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item"><a class="page-link" href="?page={{ p }}&run_type={{ selected_type }}">{{ p }}</a></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                    {% if page_obj.has_next %}<a class="page-link" href="?page={{ page_obj.next_page_number }}&run_type={{ selected_type }}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelectorAll('.maintenance-details-modal').forEach((modal) => {
+        const rows = Array.from(modal.querySelectorAll('tbody tr'));
+        const pagination = modal.querySelector('.maintenance-detail-pagination');
+        const pageSize = 10;
+        const pageCount = Math.ceil(rows.length / pageSize);
+        if (pageCount < 2) return;
+
+        const renderPage = (page) => {
+            rows.forEach((row, index) => { row.hidden = Math.floor(index / pageSize) !== page; });
+            pagination.replaceChildren();
+            const list = document.createElement('ul');
+            list.className = 'pagination';
+            for (let index = 0; index < pageCount; index += 1) {
+                const item = document.createElement('li');
+                item.className = `page-item${index === page ? ' active' : ''}`;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'page-link';
+                button.textContent = index + 1;
+                button.setAttribute('aria-label', `Show detail page ${index + 1}`);
+                button.addEventListener('click', () => renderPage(index));
+                item.appendChild(button);
+                list.appendChild(item);
+            }
+            pagination.appendChild(list);
+        };
+        renderPage(0);
+    });
+</script>
+{% endblock %}

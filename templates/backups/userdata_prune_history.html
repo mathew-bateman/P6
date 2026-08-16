@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load tz %}
+
+{% block title %}USERDATA Pruning History | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<div class="toolbar page-hero">
+    <div>
+        <h1>P6 USERDATA Bloat Maintenance</h1>
+        <p class="subtle">Automated & manual cleanup history for Primavera P6 <code>pm_settings</code> BLOB bloat across all databases.</p>
+    </div>
+    <form method="post" action="{% url 'userdata_prune_trigger' %}" class="inline">
+        {% csrf_token %}
+        <label for="threshold_mb" style="margin:0; font-weight:normal;">Size Threshold:</label>
+        <select name="threshold_mb" id="threshold_mb" style="width: auto;">
+            <option value="5" selected>5 MB (Recommended)</option>
+            <option value="2">2 MB (Aggressive)</option>
+            <option value="10">10 MB (Conservative)</option>
+            <option value="1">1 MB (Strict)</option>
+        </select>
+        <button type="submit">Run Cleanup Now</button>
+    </form>
+</div>
+
+<div class="grid">
+    <section class="panel">
+        <p class="subtle" style="margin:0 0 4px;">Total Capacity Freed</p>
+        <h2 style="margin:0; font-size:26px; color:var(--accent);">{{ total_gb_freed }} GB</h2>
+        <p class="subtle" style="margin:4px 0 0; font-size:12px;">({{ total_mb_freed }} MB purged across all runs)</p>
+    </section>
+    <section class="panel">
+        <p class="subtle" style="margin:0 0 4px;">Total User Cleanups</p>
+        <h2 style="margin:0; font-size:26px;">{{ total_users_cleaned }}</h2>
+        <p class="subtle" style="margin:4px 0 0; font-size:12px;">Individual user settings reset</p>
+    </section>
+    <section class="panel">
+        <p class="subtle" style="margin:0 0 4px;">Total Maintenance Runs</p>
+        <h2 style="margin:0; font-size:26px;">{{ total_runs }}</h2>
+        <p class="subtle" style="margin:4px 0 0; font-size:12px;">Scheduled & manual executions</p>
+    </section>
+    <section class="panel">
+        <p class="subtle" style="margin:0 0 4px;">Last Maintenance Run</p>
+        {% if last_run %}
+            <p style="margin:0 0 4px;">
+                <span class="badge {{ last_run.status }}">{{ last_run.get_status_display }}</span>
+                <span class="badge">{{ last_run.get_trigger_display }}</span>
+            </p>
+            <p class="subtle" style="margin:0; font-size:12px;">{{ last_run.started_at|timezone:"Europe/London"|date:"M d, Y H:i:s" }}</p>
+        {% else %}
+            <p class="subtle" style="margin:0;">No maintenance runs recorded yet.</p>
+        {% endif %}
+    </section>
+</div>
+
+<section class="panel">
+    <h2>Maintenance Run Audit Log</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Started</th>
+                <th>Trigger</th>
+                <th>Status</th>
+                <th>Targets</th>
+                <th>Users Cleaned</th>
+                <th>Space Freed</th>
+                <th>User Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+                <tr>
+                    <td>{{ run.started_at|timezone:"Europe/London"|date:"Y-m-d H:i:s" }}</td>
+                    <td><span class="badge">{{ run.get_trigger_display }}</span></td>
+                    <td><span class="badge {{ run.status }}">{{ run.get_status_display }}</span></td>
+                    <td>{{ run.targets_scanned }}</td>
+                    <td><strong>{{ run.users_pruned_count }}</strong></td>
+                    <td><strong style="color:var(--accent);">{{ run.total_mb_freed }} MB</strong></td>
+                    <td>
+                        {% if run.items.all %}
+                            <details>
+                                <summary class="button ghost" style="padding: 2px 8px; min-height:28px; font-size:12px;">
+                                    View {{ run.users_pruned_count }} user{% if run.users_pruned_count > 1 %}s{% endif %}
+                                </summary>
+                                <div style="margin-top:10px; max-width:600px;">
+                                    <table style="font-size:13px;">
+                                        <thead>
+                                            <tr>
+                                                <th>User Account</th>
+                                                <th>Database Target</th>
+                                                <th>Original Size</th>
+                                                <th>Cleaned Size</th>
+                                                <th>Freed</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in run.items.all %}
+                                                <tr>
+                                                    <td><strong>{{ item.user_name }}</strong> {% if item.actual_name %}<span class="subtle">({{ item.actual_name }})</span>{% endif %}</td>
+                                                    <td><code>{{ item.target_name }}</code></td>
+                                                    <td>{{ item.original_mb }} MB</td>
+                                                    <td>{{ item.pruned_mb }} MB</td>
+                                                    <td><strong style="color:var(--success);">{{ item.mb_freed }} MB</strong></td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </details>
+                        {% else %}
+                            <span class="subtle">No users exceeded threshold</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="subtle" style="text-align:center; padding: 24px;">
+                        No maintenance runs found. Click <strong>"Run Cleanup Now"</strong> above to perform the first maintenance run.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            <span class="subtle">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total runs)</span>
+            <div class="pagination-links">
+                {% if page_obj.has_previous %}
+                    <a class="button ghost" href="?page={{ page_obj.previous_page_number }}">&laquo; Previous</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                    <a class="button ghost" href="?page={{ page_obj.next_page_number }}">Next &raquo;</a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

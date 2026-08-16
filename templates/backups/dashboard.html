@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load tz %}
+
+{% block title %}Targets | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .backup-targets-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .backup-target-card { display: grid; gap: 13px; margin: 0; padding: 16px; border-left-width: 5px; }
+    .backup-target-card.is-enabled { border-left-color: var(--accent); }
+    .backup-target-card.is-disabled { border-left-color: var(--danger); }
+    .backup-target-card h2 { margin: 0; font-size: 21px; line-height: 1.2; }
+    .backup-target-details { display: grid; gap: 7px; }
+    .backup-target-details p { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; align-items: center; margin: 0; font-size: 14px; }
+    .backup-target-details strong { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+    .backup-target-details code { width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
+    .backup-target-schedule { color: var(--text); }
+    .backup-target-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+    .backup-target-actions .button { box-sizing: border-box; min-width: 0; min-height: 34px; height: 34px; padding: 6px 11px; font-size: 13px; line-height: 1; }
+    @media (max-width: 520px) {
+        .backup-target-card { padding: 14px; }
+        .backup-target-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .backup-target-actions .button { width: 100%; min-width: 0; }
+    }
+</style>
+
+<section class="page-hero maintenance-page-heading backup-targets-page-heading">
+    <h1>Backup Targets</h1>
+    <p class="subtle">Manage P6 database backups and restores.</p>
+</section>
+
+<div class="grid backup-targets-grid">
+    {% for target in targets %}
+        <section class="panel backup-target-card {% if target.enabled %}is-enabled{% else %}is-disabled{% endif %}">
+            <h2>{{ target.name }}</h2>
+            <div class="backup-target-details">
+                <p><strong>Database</strong><code>{{ target.sql_database }}</code></p>
+                <p><strong>Server</strong><code>{{ target.sql_host }}:{{ target.sql_port }}</code></p>
+                <p><strong>Schedule</strong><span class="backup-target-schedule">{{ target.schedule_display }}</span></p>
+            </div>
+            <div class="backup-target-actions">
+                <a class="button" href="{{ target.get_absolute_url }}">Manage</a>
+                <a class="button ghost" href="{% url 'backup_target_remote' target.slug %}">Restore</a>
+            </div>
+        </section>
+    {% empty %}
+        <section class="panel">
+            <h2>No targets</h2>
+            <p class="subtle">Run <code>python manage.py bootstrap_p6_targets</code>.</p>
+        </section>
+    {% endfor %}
+</div>
+
+<section class="panel recent-runs-card">
+    <div class="toolbar">
+        <h2>Recent Runs</h2>
+        <nav class="maintenance-filters" aria-label="Filter recent runs by target">
+            <span>Filter</span>
+            <a class="badge {% if not selected_target %}success{% endif %}" href="{% url 'backup_dashboard' %}">All targets</a>
+            {% for target in targets %}
+                <a class="badge {% if selected_target == target.slug %}success{% endif %}" href="?target={{ target.slug }}">{{ target.name }}</a>
+            {% endfor %}
+        </nav>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>Target</th>
+            <th>Operation</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Backup date</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for run in recent_runs %}
+            <tr>
+                <td>{{ run.target.name }}</td>
+                <td>{{ run.get_operation_display }}</td>
+                <td><span class="badge {{ run.status }}">{{ run.get_status_display }}</span></td>
+                <td>{{ run.started_at|timezone:"Europe/London"|date:"d M Y H:i" }}</td>
+                <td>
+                    {% if run.backup_timestamp_display %}
+                        {{ run.backup_timestamp_display }}
+                    {% else %}
+                        <code>{{ run.encrypted_filename|default:run.restore_source_filename }}</code>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr><td colspan="5" class="subtle">No backup or restore runs yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <span class="pagination-info">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total runs)</span>
+            <ul class="pagination">
+                <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                    {% if page_obj.has_previous %}
+                        <a class="page-link" href="?target={{ selected_target }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>
+                    {% else %}
+                        <span class="page-link">Previous</span>
+                    {% endif %}
+                </li>
+
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p == page_obj.number %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% elif p <= 5 or p == page_obj.paginator.num_pages or p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item"><a class="page-link" href="?target={{ selected_target }}&amp;page={{ p }}">{{ p }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                    {% if page_obj.has_next %}
+                        <a class="page-link" href="?target={{ selected_target }}&amp;page={{ page_obj.next_page_number }}">Next</a>
+                    {% else %}
+                        <span class="page-link">Next</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
