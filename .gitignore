@@ -10,6 +10,8 @@ staticfiles/
 
 # Runtime state, deployment rollback snapshots, and local work products
 backups/.codex-live-backups/
+backups/.codex-deploy-staging/
+backups/.codex-live-staging/
 remote_edits/
 work/
 templates.backup-*/
