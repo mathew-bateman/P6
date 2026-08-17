@@ -9,14 +9,23 @@ SET XACT_ABORT ON;
 IF DB_NAME() <> N'P62212_1'
     THROW 51660, 'This hotfix must be run against P62212_1.', 1;
 
+/* Apply the additive column in its own batch so altered procedure bodies can
+   compile against it on every supported SQL Server build. */
+IF COL_LENGTH(N'powerbitables.xertoolkit_schedule_quality_detail_field', N'display_format') IS NULL
+    ALTER TABLE [powerbitables].[xertoolkit_schedule_quality_detail_field]
+        ADD display_format varchar(40) NOT NULL
+            CONSTRAINT [DF_xertoolkit_schedule_quality_detail_field_display_format]
+            DEFAULT N'native';
+GO
+
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+IF DB_NAME() <> N'P62212_1'
+    THROW 51660, 'This hotfix must be run against P62212_1.', 1;
+
 BEGIN TRY
     BEGIN TRANSACTION;
-
-    IF COL_LENGTH(N'powerbitables.xertoolkit_schedule_quality_detail_field', N'display_format') IS NULL
-        ALTER TABLE [powerbitables].[xertoolkit_schedule_quality_detail_field]
-            ADD display_format varchar(40) NOT NULL
-                CONSTRAINT [DF_xertoolkit_schedule_quality_detail_field_display_format]
-                DEFAULT N'native';
 
     IF NOT EXISTS
     (
@@ -31,11 +40,13 @@ BEGIN TRY
 
     DECLARE @save_definition nvarchar(max) =
         OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_save_schedule_quality_draft]'));
-    DECLARE @field_list nvarchar(max) = N'display_label,' + NCHAR(13) + NCHAR(10) + N'            sort_order';
-    DECLARE @field_list_with_format nvarchar(max) = N'display_label,' + NCHAR(13) + NCHAR(10) + N'            display_format,' + NCHAR(13) + NCHAR(10) + N'            sort_order';
+    DECLARE @field_list nvarchar(max) = N'display_label,' + NCHAR(10) + N'            sort_order';
+    DECLARE @field_list_with_format nvarchar(max) = N'display_label,' + NCHAR(10) + N'            display_format,' + NCHAR(10) + N'            sort_order';
 
     IF @save_definition IS NULL
         THROW 51661, 'The settings-draft procedure could not be read.', 1;
+
+    SET @save_definition = REPLACE(@save_definition, NCHAR(13) + NCHAR(10), NCHAR(10));
 
     IF CHARINDEX(N'display_format', @save_definition) = 0
     BEGIN
@@ -47,12 +58,12 @@ BEGIN TRY
         SET @save_definition = REPLACE(
             @save_definition,
             N'display_label nvarchar(120) NOT NULL,',
-            N'display_label nvarchar(120) NOT NULL,' + NCHAR(13) + NCHAR(10) + N'        display_format varchar(40) NOT NULL,'
+            N'display_label nvarchar(120) NOT NULL,' + NCHAR(10) + N'        display_format varchar(40) NOT NULL,'
         );
         SET @save_definition = REPLACE(
             @save_definition,
             N'display_label nvarchar(120) ''$.display_label'',',
-            N'display_label nvarchar(120) ''$.display_label'',' + NCHAR(13) + N'            display_format varchar(40) ''$.display_format'', '
+            N'display_label nvarchar(120) ''$.display_label'',' + NCHAR(10) + N'            display_format varchar(40) ''$.display_format'', '
         );
         SET @save_definition = REPLACE(@save_definition, @field_list, @field_list_with_format);
         SET @save_definition = REPLACE(
@@ -91,6 +102,8 @@ BEGIN TRY
     IF @refresh_definition IS NULL
         THROW 51663, 'The refresh procedure could not be read.', 1;
 
+    SET @refresh_definition = REPLACE(@refresh_definition, NCHAR(13) + NCHAR(10), NCHAR(10));
+
     IF CHARINDEX(N'Configured evidence pass v8', @refresh_definition) = 0
     BEGIN
         IF CHARINDEX(N'Configured evidence pass v6', @refresh_definition) = 0
@@ -105,13 +118,13 @@ BEGIN TRY
         );
         SET @refresh_definition = REPLACE(
             @refresh_definition,
-            N'@sort_order int,' + NCHAR(13) + NCHAR(10) + N'                @source_table sysname,',
-            N'@sort_order int,' + NCHAR(13) + NCHAR(10) + N'                @display_format varchar(40),' + NCHAR(13) + NCHAR(10) + N'                @source_table sysname,'
+            N'@sort_order int,' + NCHAR(10) + N'                @source_table sysname,',
+            N'@sort_order int,' + NCHAR(10) + N'                @display_format varchar(40),' + NCHAR(10) + N'                @source_table sysname,'
         );
         SET @refresh_definition = REPLACE(
             @refresh_definition,
-            N'field.sort_order,' + NCHAR(13) + NCHAR(10) + N'                    CASE LOWER(field.source_category)',
-            N'field.sort_order,' + NCHAR(13) + NCHAR(10) + N'                    field.display_format,' + NCHAR(13) + NCHAR(10) + N'                    CASE LOWER(field.source_category)'
+            N'field.sort_order,' + NCHAR(10) + N'                    CASE LOWER(field.source_category)',
+            N'field.sort_order,' + NCHAR(10) + N'                    field.display_format,' + NCHAR(10) + N'                    CASE LOWER(field.source_category)'
         );
         SET @refresh_definition = REPLACE(
             @refresh_definition,
