@@ -3,7 +3,21 @@
 {% block title %}Validation Report | P6 Operations Hub{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
+    .schedule-quality-date-picker { cursor: pointer; }
+    .flatpickr-calendar { width: 318px; padding: 10px 12px 12px; border: 1px solid #d0d5dd; border-radius: 12px; background: #fff; box-shadow: 0 14px 32px rgba(16, 24, 40, .18); font-family: inherit; }
+    .flatpickr-months { align-items: center; margin-bottom: 4px; }
+    .flatpickr-current-month { padding-top: 5px; color: #101828; font-size: 15px; font-weight: 700; }
+    .flatpickr-current-month .flatpickr-monthDropdown-months, .numInputWrapper span { font-weight: 700; }
+    .flatpickr-weekdays { height: 30px; background: transparent; }
+    span.flatpickr-weekday { color: #667085; font-size: 11px; font-weight: 700; }
+    .flatpickr-day { position: relative; max-width: 38px; height: 38px; line-height: 38px; border: 0; border-radius: 50%; color: #344054; font-weight: 600; }
+    .flatpickr-day:hover, .flatpickr-day:focus { border-color: transparent; background: #e8f5f2; color: #087f70; }
+    .flatpickr-day.selected, .flatpickr-day.selected:hover, .flatpickr-day.selected:focus { border-color: #0d897c; background: #0d897c; color: #fff; }
+    .flatpickr-day.flatpickr-disabled { color: #c5cbd6; }
+    .flatpickr-day.has-update::after { position: absolute; bottom: 4px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: #0d897c; content: ""; transform: translateX(-50%); }
+    .flatpickr-day.selected.has-update::after { background: #fff; }
     .validation-tabs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; }
     .validation-tabs .button { min-height: 34px; padding: 7px 11px; }
     .validation-tabs .current { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -112,9 +126,12 @@
             <div class="field">
                 <label for="validation-date">Updated date</label>
                 <input id="validation-date"
-                       type="date"
+                       class="schedule-quality-date-picker"
+                       type="text"
                        name="updated_date"
                        value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}"
+                       data-updated-dates="{% for updated_date in updated_dates %}{{ updated_date|date:'Y-m-d' }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                       placeholder="Select update date"
                        aria-label="Filter by updated date">
             </div>
             <div class="field">
@@ -150,4 +167,35 @@
         {% include "backups/partials/schedule_quality_validation_results.html" %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+(() => {
+    const initDatePickers = (root = document) => {
+        if (!window.flatpickr) return;
+        root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
+            if (input._flatpickr) return;
+            const availableDates = input.dataset.updatedDates ? input.dataset.updatedDates.split(',') : [];
+            const availableDateSet = new Set(availableDates);
+            flatpickr(input, {
+                altInput: true,
+                altFormat: 'j M Y',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                enable: availableDates.length ? availableDates : undefined,
+                onDayCreate: (_dateObject, _dateString, instance, dayElement) => {
+                    if (availableDateSet.has(instance.formatDate(dayElement.dateObj, 'Y-m-d'))) {
+                        dayElement.classList.add('has-update');
+                    }
+                },
+                onChange: () => input.dispatchEvent(new Event('change', { bubbles: true })),
+            });
+        });
+    };
+    document.addEventListener('DOMContentLoaded', () => initDatePickers());
+    document.addEventListener('htmx:afterSwap', (event) => initDatePickers(event.target));
+})();
+</script>
 {% endblock %}

@@ -35,9 +35,12 @@
             <div class="field">
                 <label for="overview-date">Updated date</label>
                 <input id="overview-date"
-                       type="date"
+                       class="schedule-quality-date-picker"
+                       type="text"
                        name="updated_date"
                        value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}"
+                       data-updated-dates="{% for updated_date in updated_dates %}{{ updated_date|date:'Y-m-d' }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                       placeholder="Select update date"
                        aria-label="Filter by updated date">
             </div>
             <div class="overview-filter-actions">

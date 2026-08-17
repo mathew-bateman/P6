@@ -528,7 +528,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
             ],
             "portfolios": ["Rail", "Road"],
             "lead_planners": [],
-            "updated_dates": [],
+            "updated_dates": [date(2026, 8, 1)],
             "checks": [],
         },
     )
@@ -549,7 +549,8 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, 'value="9" selected')
         self.assertContains(response, "✓ 01/08/2026 — Rail Latest")
         self.assertContains(response, 'id="overview-date"')
-        self.assertContains(response, 'type="date"')
+        self.assertContains(response, 'class="schedule-quality-date-picker"')
+        self.assertContains(response, 'data-updated-dates="2026-08-01"')
         self.assertLess(
             response.content.find(b"Rail Latest"),
             response.content.find(b"Rail Old"),
