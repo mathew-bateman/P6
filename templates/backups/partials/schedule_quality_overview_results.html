@@ -52,14 +52,37 @@
     </aside>
 
     <div class="overview-main">
+        <section class="overview-score-summary" aria-label="Score summary">
+            <article class="panel overview-scorecard">
+                <span>Total points available</span>
+                <strong>{{ total_points_available }}</strong>
+            </article>
+            <article class="panel overview-scorecard">
+                <span>Points achieved</span>
+                <strong>{{ total_points_achieved }}</strong>
+            </article>
+            <article class="panel overview-scorecard">
+                <span>Pass %</span>
+                <strong>{{ pass_percent|floatformat:2 }}%</strong>
+            </article>
+            <article class="panel overview-scorecard">
+                <span>Pass rate</span>
+                <strong>{{ pass_rate|floatformat:2 }}%</strong>
+            </article>
+            <article class="panel overview-scorecard outcome {{ pass_or_fail|lower }}">
+                <span>Pass or fail</span>
+                <strong>{{ pass_or_fail }}</strong>
+            </article>
+        </section>
+
         <section class="panel overview-report">
             <div class="overview-panel-heading">
                 <div class="overview-heading-title">
-                    <h2>Programme scorecard</h2>
+                    <h2>Scorecard</h2>
                 </div>
-                <div class="overview-heading-kpis" aria-label="Programme update and refresh summary">
+                <div class="overview-heading-kpis" aria-label="Update and refresh summary">
                     <div class="overview-heading-kpi">
-                        <span>Latest programme update</span>
+                        <span>Latest update</span>
                         <strong>{% if latest_updated_date %}{{ latest_updated_date|date:"d/m/Y" }}{% else %}N/A{% endif %}</strong>
                     </div>
                     <div class="overview-heading-kpi">
@@ -108,28 +131,4 @@
             </div>
         </section>
 
-        <section class="panel overview-score-summary" aria-label="Programme score summary">
-            <div class="overview-scorecards" aria-label="Programme score summary">
-                <div class="overview-scorecard">
-                    <span>Total points available</span>
-                    <strong>{{ total_points_available }}</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Points achieved</span>
-                    <strong>{{ total_points_achieved }}</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Pass %</span>
-                    <strong>{{ pass_percent|floatformat:2 }}%</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Pass rate</span>
-                    <strong>{{ pass_rate|floatformat:2 }}%</strong>
-                </div>
-                <div class="overview-scorecard outcome {{ pass_or_fail|lower }}">
-                    <span>Pass or fail</span>
-                    <strong>{{ pass_or_fail }}</strong>
-                </div>
-            </div>
-        </section>
     </div>
