@@ -116,6 +116,14 @@
                 dateFormat: 'Y-m-d',
                 disableMobile: true,
                 enable: availableDates.length ? availableDates : undefined,
+                onReady: (_selectedDates, _dateString, instance) => {
+                    instance.altInput.setAttribute('aria-label', 'Filter by updated date');
+                },
+                onOpen: (_selectedDates, _dateString, instance) => {
+                    if (!instance.selectedDates.length && availableDates.length) {
+                        instance.jumpToDate(availableDates[0]);
+                    }
+                },
                 onDayCreate: (_dateObject, _dateString, instance, dayElement) => {
                     if (availableDateSet.has(instance.formatDate(dayElement.dateObj, 'Y-m-d'))) {
                         dayElement.classList.add('has-update');

@@ -551,6 +551,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, 'id="overview-date"')
         self.assertContains(response, 'class="schedule-quality-date-picker"')
         self.assertContains(response, 'data-updated-dates="2026-08-01"')
+        self.assertContains(response, 'instance.jumpToDate(availableDates[0])')
         self.assertLess(
             response.content.find(b"Rail Latest"),
             response.content.find(b"Rail Old"),
