@@ -414,3 +414,47 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Logical Loops")
         self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")
+        self.assertContains(response, 'hx-trigger="change from:select"')
+        self.assertNotContains(response, ">Apply<")
+
+    @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
+    @patch(
+        "backups.views.fetch_programme_overview",
+        return_value={
+            "rows": [],
+            "latest_updated_date": None,
+            "total_points_available": 0,
+            "total_points_achieved": 0,
+            "pass_percent": Decimal("0"),
+            "pass_rate": Decimal("85"),
+            "pass_or_fail": "FAIL",
+        },
+    )
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [],
+            "portfolios": [],
+            "lead_planners": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    def test_htmx_filter_request_returns_overview_fragment(
+        self,
+        _filter_options,
+        _overview,
+        _refresh_history,
+    ):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(
+            reverse("schedule_quality_overview"),
+            {"project": "7"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="overview-results"')
+        self.assertNotContains(response, "Programme Check")
+        self.assertNotContains(response, "<html")

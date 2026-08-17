@@ -403,6 +403,11 @@ class ScheduleQualityOverviewView(
 ):
     template_name = "backups/schedule_quality_overview.html"
 
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request") == "true":
+            return ["backups/partials/schedule_quality_overview_results.html"]
+        return [self.template_name]
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         filters = self._filters()

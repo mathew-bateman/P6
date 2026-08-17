@@ -12,7 +12,7 @@
     .overview-filters h2 { margin-bottom: 4px; }
     .overview-filters .field { margin-bottom: 12px; }
     .overview-filters label { color: #344054; font-size: 13px; }
-    .overview-filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .overview-filter-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .overview-filter-actions .button, .overview-filter-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
     .overview-update-card { margin: 16px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; }
     .overview-update-card span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
@@ -86,130 +86,6 @@
 {% endif %}
 
 <div class="overview-layout">
-    <aside class="panel overview-filters">
-        <h2>Filters</h2>
-        <p class="subtle" style="margin:0 0 16px;">Choose the programme slice to score.</p>
-        <form method="get">
-            <div class="field">
-                <label for="overview-project">Project</label>
-                <select id="overview-project" name="project">
-                    <option value="">All projects</option>
-                    {% for project in projects %}
-                        <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="field">
-                <label for="overview-portfolio">Portfolio</label>
-                <select id="overview-portfolio" name="portfolio">
-                    <option value="">All portfolios</option>
-                    {% for portfolio in portfolios %}
-                        <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="field">
-                <label for="overview-planner">Lead planner</label>
-                <select id="overview-planner" name="lead_planner">
-                    <option value="">All lead planners</option>
-                    {% for lead_planner in lead_planners %}
-                        <option value="{{ lead_planner }}" {% if validation_filters.lead_planner == lead_planner %}selected{% endif %}>{{ lead_planner }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="field">
-                <label for="overview-date">Updated date</label>
-                <select id="overview-date" name="updated_date">
-                    <option value="">All update dates</option>
-                    {% for updated_date in updated_dates %}
-                        <option value="{{ updated_date|date:'Y-m-d' }}" {% if validation_filters.updated_date == updated_date %}selected{% endif %}>{{ updated_date|date:"d M Y" }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="overview-filter-actions">
-                <button type="submit">Apply</button>
-                <a class="button ghost" href="{% url 'schedule_quality_overview' %}">Clear</a>
-            </div>
-            <div class="overview-update-card">
-                <span>Latest programme update</span>
-                <strong>{% if latest_updated_date %}{{ latest_updated_date|date:"d/m/Y" }}{% else %}N/A{% endif %}</strong>
-            </div>
-        </form>
-    </aside>
-
-    <div class="overview-main">
-        <section class="panel overview-report">
-            <div class="overview-panel-heading">
-                <div>
-                    <h2>Programme scorecard</h2>
-                    <p class="subtle">Green and amber limits mirror the PBIX scoring model.</p>
-                </div>
-                <div class="overview-refresh">
-                    <span>Last refresh</span>
-                    <strong>{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
-                </div>
-            </div>
-            <div class="overview-table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Description</th>
-                            <th>Result</th>
-                            <th>Records<br>checked</th>
-                            <th>Qualifying<br>results</th>
-                            <th>Qualifying<br>display</th>
-                            <th>Green<br>limit</th>
-                            <th>Amber<br>limit</th>
-                            <th>Limit type</th>
-                            <th>Points available<br>(green)</th>
-                            <th>Points available<br>(amber)</th>
-                            <th>Points scored</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rows %}
-                            <tr>
-                                <td><strong>{{ row.description }}</strong></td>
-                                <td class="overview-result {{ row.result|lower }}">{{ row.result }}</td>
-                                <td class="numeric-cell"><span class="numeric-value count">{{ row.records_checked }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value">{{ row.qualifying_display }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value count">{{ row.green_limit|floatformat:"-2" }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value count">{{ row.amber_limit|floatformat:"-2" }}</span></td>
-                                <td>{{ row.limit_type }}</td>
-                                <td class="numeric-cell"><span class="numeric-value score">{{ row.green_points }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value score">{{ row.amber_points }}</span></td>
-                                <td class="numeric-cell"><strong class="numeric-value score">{{ row.points_scored }}</strong></td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="11" class="overview-empty">No programme checks match these filters.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="overview-scorecards" aria-label="Programme score summary">
-                <div class="overview-scorecard">
-                    <span>Total points available</span>
-                    <strong>{{ total_points_available }}</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Points achieved</span>
-                    <strong>{{ total_points_achieved }}</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Pass %</span>
-                    <strong>{{ pass_percent|floatformat:2 }}%</strong>
-                </div>
-                <div class="overview-scorecard">
-                    <span>Pass rate</span>
-                    <strong>{{ pass_rate|floatformat:2 }}%</strong>
-                </div>
-                <div class="overview-scorecard outcome {{ pass_or_fail|lower }}">
-                    <span>Pass or fail</span>
-                    <strong>{{ pass_or_fail }}</strong>
-                </div>
-            </div>
-        </section>
-    </div>
+    {% include "backups/partials/schedule_quality_overview_results.html" %}
 </div>
 {% endblock %}
