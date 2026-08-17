@@ -60,7 +60,7 @@ DECLARE @activities_definition nvarchar(max) =
 IF @activities_definition IS NULL
     THROW 51697, 'The Activities view definition could not be read.', 1;
 
-IF CHARINDEX(N't.delete_session_id IS NULL', @activities_definition) = 0
+IF CHARINDEX(N'WHERE t.delete_session_id IS NULL', @activities_definition) = 0
 BEGIN
     IF CHARINDEX(N'AND deleted.task_id = t.task_id;', @activities_definition) = 0
         THROW 51698, 'The Activities view did not match the expected 029 shape.', 1;
@@ -113,8 +113,8 @@ BEGIN
 END;
 GO
 
-IF CHARINDEX(N't.delete_session_id IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_vw_PBI_Activities]'))) = 0
-   OR CHARINDEX(N't.delete_date IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_vw_PBI_Activities]'))) = 0
+IF CHARINDEX(N'WHERE t.delete_session_id IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_vw_PBI_Activities]'))) = 0
+   OR CHARINDEX(N'AND t.delete_date IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_vw_PBI_Activities]'))) = 0
    OR CHARINDEX(N'pred.delete_session_id IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_fn_out_of_sequence]'))) = 0
    OR CHARINDEX(N'succ.delete_session_id IS NULL', OBJECT_DEFINITION(OBJECT_ID(N'[powerbitables].[xertoolkit_fn_out_of_sequence]'))) = 0
     THROW 51701, 'The soft-deleted TASK predicates were not deployed.', 1;

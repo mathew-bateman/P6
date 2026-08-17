@@ -456,6 +456,7 @@ class ScheduleQualitySqlAssetTests(TestCase):
 
         self.assertIn("t.delete_session_id IS NULL", sql)
         self.assertIn("t.delete_date IS NULL", sql)
+        self.assertIn("WHERE t.delete_session_id IS NULL", sql)
         self.assertIn("pred.delete_session_id IS NULL", sql)
         self.assertIn("succ.delete_session_id IS NULL", sql)
         self.assertIn("schedule_quality_20260817_soft_deleted_task_modules", sql)
