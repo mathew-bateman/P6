@@ -547,6 +547,11 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertEqual(filters.portfolio, "Rail")
         self.assertEqual(filters.project_id, 9)
         self.assertContains(response, 'value="9" selected')
+        self.assertContains(response, "✓ 01/08/2026 — Rail Latest")
+        self.assertLess(
+            response.content.find(b"Rail Latest"),
+            response.content.find(b"Rail Old"),
+        )
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
     @patch(

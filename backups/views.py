@@ -421,11 +421,20 @@ class ScheduleQualityReportFiltersMixin:
         elif filters.project_id is not None and not filters.portfolio and project_portfolio:
             filters = replace(filters, portfolio=project_portfolio)
 
-        scoped_projects = [
-            project
-            for project in projects
-            if filters.portfolio and project.get("portfolio") == filters.portfolio
-        ]
+        scoped_projects = sorted(
+            (
+                project
+                for project in projects
+                if filters.portfolio and project.get("portfolio") == filters.portfolio
+            ),
+            key=lambda project: (
+                project.get("updated_date") is not None,
+                project.get("updated_date") or date.min,
+                project.get("proj_short_name") or "",
+                project["proj_id"],
+            ),
+            reverse=True,
+        )
         if filters.portfolio and filters.project_id is None and scoped_projects:
             # A portfolio represents successive programme submissions.  Its
             # default report must therefore be the newest linked submission,
