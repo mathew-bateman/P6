@@ -88,7 +88,7 @@
         <p class="subtle" style="margin:0 0 16px;">Narrow the checks and evidence together.</p>
         <form method="get"
               hx-get="{% url 'schedule_quality_validation' %}"
-              hx-trigger="change from:select"
+              hx-trigger="change from:select, change from:input"
               hx-target="#validation-results"
               hx-push-url="true">
             <div class="field">
@@ -111,12 +111,11 @@
             </div>
             <div class="field">
                 <label for="validation-date">Updated date</label>
-                <select id="validation-date" name="updated_date">
-                    <option value="">All update dates</option>
-                    {% for updated_date in updated_dates %}
-                        <option value="{{ updated_date|date:'Y-m-d' }}" {% if validation_filters.updated_date == updated_date %}selected{% endif %}>{{ updated_date|date:"d M Y" }}</option>
-                    {% endfor %}
-                </select>
+                <input id="validation-date"
+                       type="date"
+                       name="updated_date"
+                       value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}"
+                       aria-label="Filter by updated date">
             </div>
             <div class="field">
                 <label for="validation-planner">Lead planner</label>

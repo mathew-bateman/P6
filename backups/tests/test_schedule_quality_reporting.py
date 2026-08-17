@@ -264,7 +264,7 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertContains(response, "13.18%")
         self.assertContains(response, "Build platform")
         self.assertContains(response, "Total Float: 90.00 days")
-        self.assertContains(response, 'hx-trigger="change from:select"')
+        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
         self.assertNotContains(response, ">Apply<")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
@@ -276,7 +276,7 @@ class ScheduleQualityValidationViewTests(TestCase):
             "projects": [],
             "portfolios": [],
             "lead_planners": [],
-            "updated_dates": [],
+            "updated_dates": [date(2026, 8, 1)],
             "checks": [],
         },
     )
@@ -420,7 +420,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
         self.assertNotContains(response, "Score the programme against the active schedule-quality checks.")
         self.assertNotContains(response, "Choose the programme slice to score.")
-        self.assertContains(response, 'hx-trigger="change from:select"')
+        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
         self.assertNotContains(response, ">Apply<")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
@@ -442,7 +442,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
             "projects": [],
             "portfolios": [],
             "lead_planners": [],
-            "updated_dates": [],
+            "updated_dates": [date(2026, 8, 1)],
             "checks": [],
         },
     )
@@ -487,7 +487,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
             ],
             "portfolios": ["Rail", "Road"],
             "lead_planners": [],
-            "updated_dates": [],
+            "updated_dates": [date(2026, 8, 1)],
             "checks": [],
         },
     )
@@ -548,6 +548,8 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertEqual(filters.project_id, 9)
         self.assertContains(response, 'value="9" selected')
         self.assertContains(response, "✓ 01/08/2026 — Rail Latest")
+        self.assertContains(response, 'id="overview-date"')
+        self.assertContains(response, 'type="date"')
         self.assertLess(
             response.content.find(b"Rail Latest"),
             response.content.find(b"Rail Old"),

@@ -2,7 +2,7 @@
         <h2>Filters</h2>
         <form method="get"
               hx-get="{% url 'schedule_quality_overview' %}"
-              hx-trigger="change from:select"
+              hx-trigger="change from:select, change from:input"
               hx-target=".overview-layout"
               hx-push-url="true">
             <div class="field">
@@ -34,12 +34,11 @@
             </div>
             <div class="field">
                 <label for="overview-date">Updated date</label>
-                <select id="overview-date" name="updated_date">
-                    <option value="">All update dates</option>
-                    {% for updated_date in updated_dates %}
-                        <option value="{{ updated_date|date:'Y-m-d' }}" {% if validation_filters.updated_date == updated_date %}selected{% endif %}>{{ updated_date|date:"d M Y" }}</option>
-                    {% endfor %}
-                </select>
+                <input id="overview-date"
+                       type="date"
+                       name="updated_date"
+                       value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}"
+                       aria-label="Filter by updated date">
             </div>
             <div class="overview-filter-actions">
                 <a class="button ghost"
