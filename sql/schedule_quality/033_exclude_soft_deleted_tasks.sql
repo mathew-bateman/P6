@@ -73,6 +73,8 @@ BEGIN
         + N'WHERE t.delete_session_id IS NULL' + NCHAR(10)
         + N'  AND t.delete_date IS NULL;'
     );
+    SET @activities_definition = REPLACE(@activities_definition, N'CREATE   VIEW', N'ALTER VIEW');
+    SET @activities_definition = REPLACE(@activities_definition, N'CREATE VIEW', N'ALTER VIEW');
     EXEC sys.sp_executesql @activities_definition;
 END;
 GO
@@ -105,6 +107,8 @@ BEGIN
         + N'     AND succ.delete_session_id IS NULL' + NCHAR(10)
         + N'     AND succ.delete_date IS NULL'
     );
+    SET @out_of_sequence_definition = REPLACE(@out_of_sequence_definition, N'CREATE   FUNCTION', N'ALTER FUNCTION');
+    SET @out_of_sequence_definition = REPLACE(@out_of_sequence_definition, N'CREATE FUNCTION', N'ALTER FUNCTION');
     EXEC sys.sp_executesql @out_of_sequence_definition;
 END;
 GO

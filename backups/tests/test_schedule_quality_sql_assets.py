@@ -460,6 +460,8 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("succ.delete_session_id IS NULL", sql)
         self.assertIn("schedule_quality_20260817_soft_deleted_task_modules", sql)
         self.assertIn("rollback snapshot is incomplete", sql)
+        self.assertIn("ALTER VIEW", sql)
+        self.assertIn("ALTER FUNCTION", sql)
         self.assertIn("schedule_quality_20260817_soft_deleted_task_modules", rollback_sql)
         self.assertIn("EXEC sys.sp_executesql @definition", rollback_sql)
 
