@@ -414,6 +414,8 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Logical Loops")
         self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")
+        self.assertContains(response, "Latest programme update")
+        self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
         self.assertContains(response, 'hx-trigger="change from:select"')
         self.assertNotContains(response, ">Apply<")
 

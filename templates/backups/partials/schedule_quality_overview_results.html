@@ -49,10 +49,6 @@
                    hx-target=".overview-layout"
                    hx-push-url="true">Clear filters</a>
             </div>
-            <div class="overview-update-card">
-                <span>Latest programme update</span>
-                <strong>{% if latest_updated_date %}{{ latest_updated_date|date:"d/m/Y" }}{% else %}N/A{% endif %}</strong>
-            </div>
         </form>
     </aside>
 
@@ -61,11 +57,16 @@
             <div class="overview-panel-heading">
                 <div>
                     <h2>Programme scorecard</h2>
-                    <p class="subtle">Green and amber limits mirror the PBIX scoring model.</p>
                 </div>
-                <div class="overview-refresh">
-                    <span>Last refresh</span>
-                    <strong>{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
+                <div class="overview-heading-kpis" aria-label="Programme update and refresh summary">
+                    <div class="overview-heading-kpi">
+                        <span>Latest programme update</span>
+                        <strong>{% if latest_updated_date %}{{ latest_updated_date|date:"d/m/Y" }}{% else %}N/A{% endif %}</strong>
+                    </div>
+                    <div class="overview-heading-kpi">
+                        <span>Last refresh</span>
+                        <strong>{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
+                    </div>
                 </div>
             </div>
             <div class="overview-table-wrap">
