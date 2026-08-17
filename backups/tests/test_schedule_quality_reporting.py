@@ -585,4 +585,4 @@ class ScheduleQualityOverviewViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Select a portfolio first")
-        self.assertContains(response, 'id="overview-project" name="project" disabled')
+        self.assertContains(response, 'id="overview-project" class="schedule-quality-select" name="project" disabled')

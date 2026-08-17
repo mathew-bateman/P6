@@ -7,7 +7,7 @@
               hx-push-url="true">
             <div class="field">
                 <label for="overview-portfolio">Portfolio</label>
-                <select id="overview-portfolio" name="portfolio" onchange="this.form.elements.project.value = ''">
+                <select id="overview-portfolio" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
                     <option value="">All portfolios</option>
                     {% for portfolio in portfolios %}
                         <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
@@ -16,7 +16,7 @@
             </div>
             <div class="field">
                 <label for="overview-project">Project</label>
-                <select id="overview-project" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
+                <select id="overview-project" class="schedule-quality-select" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
                     <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}Select a portfolio first{% endif %}</option>
                     {% for project in projects %}
                         <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if validation_filters.project_id == project.proj_id %}✓ {% endif %}{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} — {% endif %}{{ project.proj_short_name|default:"Unnamed project" }}</option>
@@ -25,7 +25,7 @@
             </div>
             <div class="field">
                 <label for="overview-planner">Lead planner</label>
-                <select id="overview-planner" name="lead_planner">
+                <select id="overview-planner" class="schedule-quality-select" name="lead_planner">
                     <option value="">All lead planners</option>
                     {% for lead_planner in lead_planners %}
                         <option value="{{ lead_planner }}" {% if validation_filters.lead_planner == lead_planner %}selected{% endif %}>{{ lead_planner }}</option>

@@ -3,8 +3,20 @@
 {% block title %}Validation Report | P6 Operations Hub{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
+    .ts-wrapper { min-height: 42px; }
+    .ts-wrapper.single .ts-control, .ts-control { min-height: 42px; padding: 9px 38px 9px 12px; border: 1px solid #d0d5dd; border-radius: 7px; background: #fff; box-shadow: none; color: #101828; font: inherit; }
+    .ts-wrapper.focus .ts-control { border-color: #0d897c; box-shadow: 0 0 0 3px rgba(13, 137, 124, .12); }
+    .ts-wrapper.disabled .ts-control { background: #f8fafc; color: #98a2b3; opacity: 1; }
+    .ts-control input { font: inherit; }
+    .ts-wrapper.single .ts-control::after { right: 14px; border-color: #667085 transparent transparent; }
+    .ts-wrapper.single.dropdown-active .ts-control::after { border-color: transparent transparent #667085; }
+    .ts-dropdown { z-index: 1000; margin-top: 5px; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: 0 12px 24px rgba(16, 24, 40, .14); font: inherit; }
+    .ts-dropdown .option { padding: 9px 12px; color: #344054; }
+    .ts-dropdown .active { background: #e8f5f2; color: #087f70; }
+    .ts-dropdown .create, .ts-dropdown .no-results { padding: 10px 12px; color: #667085; }
     .schedule-quality-date-picker { cursor: pointer; }
     .flatpickr-calendar { width: 344px; box-sizing: border-box; padding: 10px 12px 12px; border: 1px solid #d0d5dd; border-radius: 12px; background: #fff; box-shadow: 0 14px 32px rgba(16, 24, 40, .18); font-family: inherit; }
     .flatpickr-months { align-items: center; margin-bottom: 4px; }
@@ -108,7 +120,7 @@
               hx-push-url="true">
             <div class="field">
                 <label for="validation-portfolio">Portfolio</label>
-                <select id="validation-portfolio" name="portfolio" onchange="this.form.elements.project.value = ''">
+                <select id="validation-portfolio" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
                     <option value="">All portfolios</option>
                     {% for portfolio in portfolios %}
                         <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
@@ -117,7 +129,7 @@
             </div>
             <div class="field">
                 <label for="validation-project">Project</label>
-                <select id="validation-project" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
+                <select id="validation-project" class="schedule-quality-select" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
                     <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}Select a portfolio first{% endif %}</option>
                     {% for project in projects %}
                         <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if validation_filters.project_id == project.proj_id %}✓ {% endif %}{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} — {% endif %}{{ project.proj_short_name|default:"Unnamed project" }}</option>
@@ -137,7 +149,7 @@
             </div>
             <div class="field">
                 <label for="validation-planner">Lead planner</label>
-                <select id="validation-planner" name="lead_planner">
+                <select id="validation-planner" class="schedule-quality-select" name="lead_planner">
                     <option value="">All lead planners</option>
                     {% for lead_planner in lead_planners %}
                         <option value="{{ lead_planner }}" {% if validation_filters.lead_planner == lead_planner %}selected{% endif %}>{{ lead_planner }}</option>
@@ -146,7 +158,7 @@
             </div>
             <div class="field">
                 <label for="validation-check">Check type</label>
-                <select id="validation-check" name="check">
+                <select id="validation-check" class="schedule-quality-select" name="check">
                     <option value="">All checks</option>
                     {% for check in checks %}
                         <option value="{{ check.check_code }}" {% if validation_filters.check_code == check.check_code %}selected{% endif %}>{{ check.display_name }}</option>
@@ -159,7 +171,7 @@
                    hx-get="{% url 'schedule_quality_validation' %}"
                    hx-target="#validation-results"
                    hx-push-url="true"
-                   hx-on::after-request="this.closest('form').querySelectorAll('select').forEach((select) => select.selectedIndex = 0)">Clear filters</a>
+                   hx-on::after-request="window.resetScheduleQualityFilters(this.closest('form'))">Clear filters</a>
             </div>
         </form>
     </aside>
@@ -171,9 +183,31 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script>
 (() => {
+    const initTomSelects = (root = document) => {
+        if (!window.TomSelect) return;
+        root.querySelectorAll('.schedule-quality-select').forEach((select) => {
+            if (select.tomselect) return;
+            new TomSelect(select, {
+                allowEmptyOption: true,
+                closeAfterSelect: true,
+                create: false,
+                maxItems: 1,
+                maxOptions: null,
+                searchField: ['text'],
+            });
+        });
+    };
+    window.resetScheduleQualityFilters = (form) => {
+        form.querySelectorAll('.schedule-quality-select').forEach((select) => {
+            if (select.tomselect) select.tomselect.clear(true);
+            else select.selectedIndex = 0;
+        });
+        form.querySelectorAll('.schedule-quality-date-picker').forEach((input) => input._flatpickr?.clear(false));
+    };
     const initDatePickers = (root = document) => {
         if (!window.flatpickr) return;
         root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
@@ -203,8 +237,8 @@
             });
         });
     };
-    document.addEventListener('DOMContentLoaded', () => initDatePickers());
-    document.addEventListener('htmx:afterSwap', (event) => initDatePickers(event.target));
+    document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
+    document.addEventListener('htmx:afterSwap', (event) => { initTomSelects(event.target); initDatePickers(event.target); });
 })();
 </script>
 {% endblock %}
