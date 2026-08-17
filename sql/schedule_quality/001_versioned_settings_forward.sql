@@ -869,16 +869,7 @@ RETURN
                          AND pred_source.task_id IS NOT NULL
                          AND pred.is_loe = 0
                          AND pred.is_wbs_summary = 0
-                         AND EXISTS
-                         (
-                             SELECT 1
-                             FROM dbo.TASKPRED AS paired_relationship
-                             WHERE paired_relationship.proj_id = r.proj_id
-                               AND paired_relationship.pred_task_id = r.pred_task_id
-                               AND paired_relationship.task_id = r.task_id
-                               AND paired_relationship.pred_type = 'PR_FF'
-                               AND paired_relationship.delete_session_id IS NULL
-                         )
+                         AND paired_relationship.task_id IS NOT NULL
                         THEN 1 ELSE 0
                     END
                 )
@@ -891,6 +882,16 @@ RETURN
           ON pred_source.proj_id = r.proj_id
          AND pred_source.task_id = r.pred_task_id
          AND pred_source.delete_session_id IS NULL
+        LEFT JOIN
+        (
+            SELECT DISTINCT proj_id, pred_task_id, task_id
+            FROM dbo.TASKPRED
+            WHERE pred_type = 'PR_FF'
+              AND delete_session_id IS NULL
+        ) AS paired_relationship
+          ON paired_relationship.proj_id = r.proj_id
+         AND paired_relationship.pred_task_id = r.pred_task_id
+         AND paired_relationship.task_id = r.task_id
         WHERE r.delete_session_id IS NULL
         GROUP BY r.proj_id, r.task_id
     ),
@@ -917,16 +918,7 @@ RETURN
                          AND succ_source.task_id IS NOT NULL
                          AND succ.is_loe = 0
                          AND succ.is_wbs_summary = 0
-                         AND EXISTS
-                         (
-                             SELECT 1
-                             FROM dbo.TASKPRED AS paired_relationship
-                             WHERE paired_relationship.proj_id = r.proj_id
-                               AND paired_relationship.pred_task_id = r.pred_task_id
-                               AND paired_relationship.task_id = r.task_id
-                               AND paired_relationship.pred_type = 'PR_SS'
-                               AND paired_relationship.delete_session_id IS NULL
-                         )
+                         AND paired_relationship.task_id IS NOT NULL
                         THEN 1 ELSE 0
                     END
                 )
@@ -939,6 +931,16 @@ RETURN
           ON succ_source.proj_id = r.proj_id
          AND succ_source.task_id = r.task_id
          AND succ_source.delete_session_id IS NULL
+        LEFT JOIN
+        (
+            SELECT DISTINCT proj_id, pred_task_id, task_id
+            FROM dbo.TASKPRED
+            WHERE pred_type = 'PR_SS'
+              AND delete_session_id IS NULL
+        ) AS paired_relationship
+          ON paired_relationship.proj_id = r.proj_id
+         AND paired_relationship.pred_task_id = r.pred_task_id
+         AND paired_relationship.task_id = r.task_id
         WHERE r.delete_session_id IS NULL
         GROUP BY r.proj_id, r.pred_task_id
     ),

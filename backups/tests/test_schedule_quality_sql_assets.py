@@ -167,8 +167,9 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertNotIn("LOWER(a.task_name)", open_ends)
         self.assertIn("pred_source.delete_session_id IS NULL", open_ends)
         self.assertIn("succ_source.delete_session_id IS NULL", open_ends)
-        self.assertIn("paired_relationship.pred_type = 'PR_FF'", open_ends)
-        self.assertIn("paired_relationship.pred_type = 'PR_SS'", open_ends)
+        self.assertIn("WHERE pred_type = 'PR_FF'", open_ends)
+        self.assertIn("WHERE pred_type = 'PR_SS'", open_ends)
+        self.assertEqual(open_ends.count("SELECT DISTINCT proj_id, pred_task_id, task_id"), 2)
         self.assertIn(
             "source_activity.delete_session_id IS NULL",
             open_ends,
