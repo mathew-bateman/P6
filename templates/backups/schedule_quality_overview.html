@@ -98,8 +98,8 @@
         <h1>Programme Check</h1>
     </div>
     <nav class="overview-tabs" aria-label="Schedule quality reports">
-        <a class="button current" href="{% url 'schedule_quality_overview' %}" aria-current="page">Overview</a>
-        <a class="button ghost" href="{% url 'schedule_quality_validation' %}">Validation &amp; Evidence</a>
+        <a class="button current" href="{% url 'schedule_quality_overview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" aria-current="page">Overview</a>
+        <a class="button ghost" href="{% url 'schedule_quality_validation' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Validation &amp; Evidence</a>
     </nav>
 </section>
 

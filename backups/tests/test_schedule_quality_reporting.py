@@ -357,6 +357,10 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertEqual(filters.project_state, "Live")
         self.assertTrue(filters.exclude_blanks)
         self.assertEqual(evidence.call_args.args[0], filters)
+        self.assertContains(
+            response,
+            'href="/schedule-quality/overview/?project=7&amp;portfolio=Rail&amp;lead_planner=Alex&amp;project_status=Client+Submitted&amp;project_state=Live&amp;exclude_blanks=1&amp;updated_date=2026-08-14&amp;check=high_float"',
+        )
 
 
 class ScheduleQualityOverviewViewTests(TestCase):
@@ -529,6 +533,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "All projects in Rail")
         self.assertContains(response, "Rail Project")
         self.assertNotContains(response, "Road Project")
+        self.assertContains(response, 'href="/schedule-quality/validation/?project=7"')
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
     @patch(
