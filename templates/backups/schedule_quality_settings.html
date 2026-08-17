@@ -382,6 +382,11 @@
                         sync();
                     };
                     displayCell.append(showDays);
+                } else {
+                    const unavailable = document.createElement('span');
+                    unavailable.className = 'subtle';
+                    unavailable.textContent = 'Not an hours field';
+                    displayCell.append(unavailable);
                 }
                 row.append(displayCell);
                 const orderCell = document.createElement('td');
