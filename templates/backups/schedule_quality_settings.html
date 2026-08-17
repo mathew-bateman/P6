@@ -166,7 +166,7 @@
                 <summary><strong>{{ check.display_name }}</strong> <span class="subtle evidence-count"></span></summary>
                 <div class="evidence-builder" aria-label="Add evidence field for {{ check.display_name }}">
                     <div class="field"><label>P6 table<select class="evidence-category" disabled><option>Loading P6 tables…</option></select></label></div>
-                    <div class="field"><label>P6 field<select class="evidence-field" disabled><option>Choose a source first…</option></select></label></div><div class="field"><label>Evidence label<input class="evidence-label" type="text" maxlength="120" placeholder="Shown in Power BI"></label></div><label class="schedule-toggle evidence-days-toggle"><input class="evidence-days" type="checkbox" disabled><span>Show calculated days</span></label><button class="secondary add-evidence-field" type="button">Add field</button>
+                    <div class="field"><label>P6 field<select class="evidence-field" disabled><option>Choose a source first…</option></select></label></div><div class="field"><label>Evidence label<input class="evidence-label" type="text" maxlength="120" placeholder="Shown in Power BI"></label></div><button class="secondary add-evidence-field" type="button">Add field</button>
                 </div><table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Show days</th><th>Actions</th></tr></thead><tbody></tbody></table>
             </details>
         {% endfor %}
@@ -371,18 +371,18 @@
                 labelCell.append(labelEditor);
                 row.append(labelCell);
                 const displayCell = document.createElement('td');
-                const showDays = document.createElement('input');
                 const supportsCalculatedDays = item.source_identifier.toLowerCase().endsWith('_hr_cnt');
-                showDays.type = 'checkbox';
-                showDays.checked = item.display_format === 'p6_hours_and_days';
-                showDays.disabled = !supportsCalculatedDays;
-                showDays.setAttribute('aria-label', `Show calculated days for ${item.source_identifier}`);
-                if (!supportsCalculatedDays) showDays.title = 'Calculated days are available for P6 hour-count fields only';
-                showDays.onchange = () => {
-                    fields[item.index].display_format = showDays.checked ? 'p6_hours_and_days' : 'native';
-                    sync();
-                };
-                displayCell.append(showDays);
+                if (supportsCalculatedDays) {
+                    const showDays = document.createElement('input');
+                    showDays.type = 'checkbox';
+                    showDays.checked = item.display_format === 'p6_hours_and_days';
+                    showDays.setAttribute('aria-label', `Show calculated days for ${item.source_identifier}`);
+                    showDays.onchange = () => {
+                        fields[item.index].display_format = showDays.checked ? 'p6_hours_and_days' : 'native';
+                        sync();
+                    };
+                    displayCell.append(showDays);
+                }
                 row.append(displayCell);
                 const orderCell = document.createElement('td');
                 const orderControls = document.createElement('div');
@@ -430,7 +430,7 @@
             });
         });
     }
-    document.querySelectorAll('.evidence-view').forEach(view => { const code=view.dataset.check, category=view.querySelector('.evidence-category'), field=view.querySelector('.evidence-field'), label=view.querySelector('.evidence-label'), showDays=view.querySelector('.evidence-days'); category.onchange=async()=>{field.disabled=true;field.replaceChildren(new Option('Loading P6 fields…',''));label.value='';showDays.checked=false;showDays.disabled=true;if(!category.value){field.replaceChildren(new Option('Choose a table first…',''));return}try{const response=await fetch('{% url "schedule_quality_p6_fields_api" %}?category=table%3A'+encodeURIComponent(category.value));const payload=await response.json();field.replaceChildren(new Option('Choose P6 field…',''));(payload.fields||[]).forEach(item=>field.append(new Option(item.label,item.identifier)));field.disabled=false}catch(_){field.replaceChildren(new Option('Could not load P6 fields',''))}};field.onchange=()=>{label.value=field.options[field.selectedIndex]?.text||'';showDays.checked=false;showDays.disabled=!field.value.endsWith('_hr_cnt')};view.querySelector('.add-evidence-field').onclick=()=>{if(!category.value||!field.value||!label.value.trim())return;const item={check_code:code,source_category:category.value,source_identifier:field.value,display_label:label.value.trim(),display_format:showDays.checked?'p6_hours_and_days':'native',sort_order:Math.max(0,...fields.filter(existing=>existing.check_code===code).map(existing=>Number(existing.sort_order)||0))+1};if(fields.some(existing=>existing.check_code===item.check_code&&existing.source_category===item.source_category&&existing.source_identifier===item.source_identifier))return;fields.push(item);sync();render();label.value='';showDays.checked=false;showDays.disabled=true;field.selectedIndex=0} });
+    document.querySelectorAll('.evidence-view').forEach(view => { const code=view.dataset.check, category=view.querySelector('.evidence-category'), field=view.querySelector('.evidence-field'), label=view.querySelector('.evidence-label'); category.onchange=async()=>{field.disabled=true;field.replaceChildren(new Option('Loading P6 fields…',''));label.value='';if(!category.value){field.replaceChildren(new Option('Choose a table first…',''));return}try{const response=await fetch('{% url "schedule_quality_p6_fields_api" %}?category=table%3A'+encodeURIComponent(category.value));const payload=await response.json();field.replaceChildren(new Option('Choose P6 field…',''));(payload.fields||[]).forEach(item=>field.append(new Option(item.label,item.identifier)));field.disabled=false}catch(_){field.replaceChildren(new Option('Could not load P6 fields',''))}};field.onchange=()=>{label.value=field.options[field.selectedIndex]?.text||''};view.querySelector('.add-evidence-field').onclick=()=>{if(!category.value||!field.value||!label.value.trim())return;const item={check_code:code,source_category:category.value,source_identifier:field.value,display_label:label.value.trim(),display_format:'native',sort_order:Math.max(0,...fields.filter(existing=>existing.check_code===code).map(existing=>Number(existing.sort_order)||0))+1};if(fields.some(existing=>existing.check_code===item.check_code&&existing.source_category===item.source_category&&existing.source_identifier===item.source_identifier))return;fields.push(item);sync();render();label.value='';field.selectedIndex=0} });
     async function loadP6Tables() {
         const selectors = document.querySelectorAll('.evidence-category');
         try {
