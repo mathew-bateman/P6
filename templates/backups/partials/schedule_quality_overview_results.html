@@ -1,11 +1,10 @@
-<div id="overview-results" aria-live="polite">
-    <aside class="panel overview-filters">
+<aside class="panel overview-filters" aria-live="polite">
         <h2>Filters</h2>
         <p class="subtle" style="margin:0 0 16px;">Choose the programme slice to score.</p>
         <form method="get"
               hx-get="{% url 'schedule_quality_overview' %}"
               hx-trigger="change from:select"
-              hx-target="#overview-results"
+              hx-target=".overview-layout"
               hx-push-url="true">
             <div class="field">
                 <label for="overview-project">Project</label>
@@ -47,7 +46,7 @@
                 <a class="button ghost"
                    href="{% url 'schedule_quality_overview' %}"
                    hx-get="{% url 'schedule_quality_overview' %}"
-                   hx-target="#overview-results"
+                   hx-target=".overview-layout"
                    hx-push-url="true">Clear filters</a>
             </div>
             <div class="overview-update-card">
@@ -131,4 +130,3 @@
             </div>
         </section>
     </div>
-</div>

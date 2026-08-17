@@ -455,6 +455,6 @@ class ScheduleQualityOverviewViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="overview-results"')
+        self.assertContains(response, 'class="panel overview-filters"')
         self.assertNotContains(response, "Programme Check")
         self.assertNotContains(response, "<html")
