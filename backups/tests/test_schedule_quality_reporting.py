@@ -521,6 +521,45 @@ class ScheduleQualityOverviewViewTests(TestCase):
     @patch(
         "backups.views.fetch_validation_filter_options",
         return_value={
+            "projects": [
+                {"proj_id": 7, "proj_short_name": "Rail Old", "portfolio": "Rail", "updated_date": date(2026, 7, 1)},
+                {"proj_id": 9, "proj_short_name": "Rail Latest", "portfolio": "Rail", "updated_date": date(2026, 8, 1)},
+                {"proj_id": 8, "proj_short_name": "Road Latest", "portfolio": "Road", "updated_date": date(2026, 8, 2)},
+            ],
+            "portfolios": ["Rail", "Road"],
+            "lead_planners": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    def test_portfolio_selection_defaults_to_its_latest_submission(
+        self,
+        _filter_options,
+        overview,
+        _refresh_history,
+    ):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("schedule_quality_overview"), {"portfolio": "Rail"})
+
+        self.assertEqual(response.status_code, 200)
+        filters = overview.call_args.args[0]
+        self.assertEqual(filters.portfolio, "Rail")
+        self.assertEqual(filters.project_id, 9)
+        self.assertContains(response, 'value="9" selected')
+
+    @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
+    @patch(
+        "backups.views.fetch_programme_overview",
+        return_value={
+            "rows": [], "latest_updated_date": None, "total_points_available": 0,
+            "total_points_achieved": 0, "pass_percent": Decimal("0"),
+            "pass_rate": Decimal("85"), "pass_or_fail": "FAIL",
+        },
+    )
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
             "projects": [{"proj_id": 7, "proj_short_name": "Project Seven", "portfolio": None}],
             "portfolios": [], "lead_planners": [], "updated_dates": [], "checks": [],
         },

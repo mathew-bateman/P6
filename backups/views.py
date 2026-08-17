@@ -426,6 +426,19 @@ class ScheduleQualityReportFiltersMixin:
             for project in projects
             if filters.portfolio and project.get("portfolio") == filters.portfolio
         ]
+        if filters.portfolio and filters.project_id is None and scoped_projects:
+            # A portfolio represents successive programme submissions.  Its
+            # default report must therefore be the newest linked submission,
+            # rather than an aggregate of every historical version.
+            latest_project = max(
+                scoped_projects,
+                key=lambda project: (
+                    project.get("updated_date") is not None,
+                    project.get("updated_date") or date.min,
+                    project["proj_id"],
+                ),
+            )
+            filters = replace(filters, project_id=int(latest_project["proj_id"]))
         return filters, {
             **options,
             "projects": scoped_projects,
