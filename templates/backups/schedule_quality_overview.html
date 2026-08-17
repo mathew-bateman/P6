@@ -6,13 +6,14 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
     .schedule-quality-date-picker { cursor: pointer; }
-    .flatpickr-calendar { width: 318px; padding: 10px 12px 12px; border: 1px solid #d0d5dd; border-radius: 12px; background: #fff; box-shadow: 0 14px 32px rgba(16, 24, 40, .18); font-family: inherit; }
+    .flatpickr-calendar { width: 344px; box-sizing: border-box; padding: 10px 12px 12px; border: 1px solid #d0d5dd; border-radius: 12px; background: #fff; box-shadow: 0 14px 32px rgba(16, 24, 40, .18); font-family: inherit; }
     .flatpickr-months { align-items: center; margin-bottom: 4px; }
     .flatpickr-current-month { padding-top: 5px; color: #101828; font-size: 15px; font-weight: 700; }
     .flatpickr-current-month .flatpickr-monthDropdown-months, .numInputWrapper span { font-weight: 700; }
     .flatpickr-weekdays { height: 30px; background: transparent; }
     span.flatpickr-weekday { color: #667085; font-size: 11px; font-weight: 700; }
-    .flatpickr-day { position: relative; max-width: 38px; height: 38px; line-height: 38px; border: 0; border-radius: 50%; color: #344054; font-weight: 600; }
+    .flatpickr-days, .dayContainer { width: 100%; min-width: 100%; max-width: 100%; }
+    .flatpickr-day { position: relative; flex-basis: 14.285714%; max-width: none; height: 38px; line-height: 38px; border: 0; border-radius: 50%; color: #344054; font-weight: 600; }
     .flatpickr-day:hover, .flatpickr-day:focus { border-color: transparent; background: #e8f5f2; color: #087f70; }
     .flatpickr-day.selected, .flatpickr-day.selected:hover, .flatpickr-day.selected:focus { border-color: #0d897c; background: #0d897c; color: #fff; }
     .flatpickr-day.flatpickr-disabled { color: #c5cbd6; }
