@@ -69,7 +69,7 @@ BEGIN
     (
         @activities_definition,
         N'AND deleted.task_id = t.task_id;',
-        N'AND deleted.task_id = t.task_id;' + NCHAR(10)
+        N'AND deleted.task_id = t.task_id' + NCHAR(10)
         + N'WHERE t.delete_session_id IS NULL' + NCHAR(10)
         + N'  AND t.delete_date IS NULL;'
     );
