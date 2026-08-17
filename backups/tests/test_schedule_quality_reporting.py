@@ -508,3 +508,33 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "All projects in Rail")
         self.assertContains(response, "Rail Project")
         self.assertNotContains(response, "Road Project")
+
+    @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
+    @patch(
+        "backups.views.fetch_programme_overview",
+        return_value={
+            "rows": [], "latest_updated_date": None, "total_points_available": 0,
+            "total_points_achieved": 0, "pass_percent": Decimal("0"),
+            "pass_rate": Decimal("85"), "pass_or_fail": "FAIL",
+        },
+    )
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [{"proj_id": 7, "proj_short_name": "Project Seven", "portfolio": None}],
+            "portfolios": [], "lead_planners": [], "updated_dates": [], "checks": [],
+        },
+    )
+    def test_missing_portfolio_data_keeps_all_projects_available(
+        self,
+        _filter_options,
+        _overview,
+        _refresh_history,
+    ):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("schedule_quality_overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "All projects")
+        self.assertNotContains(response, 'id="overview-project" name="project" disabled')

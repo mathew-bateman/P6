@@ -16,8 +16,8 @@
             </div>
             <div class="field">
                 <label for="overview-project">Project</label>
-                <select id="overview-project" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
-                    <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}Select a portfolio first{% endif %}</option>
+                <select id="overview-project" name="project" {% if portfolio_hierarchy_available and not validation_filters.portfolio %}disabled{% endif %}>
+                    <option value="">{% if portfolio_hierarchy_available and validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% elif portfolio_hierarchy_available %}Select a portfolio first{% else %}All projects{% endif %}</option>
                     {% for project in projects %}
                         <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
                     {% endfor %}
