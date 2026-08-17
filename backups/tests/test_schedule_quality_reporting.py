@@ -464,3 +464,47 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, 'class="panel overview-filters"')
         self.assertNotContains(response, "Programme Check")
         self.assertNotContains(response, "<html")
+
+    @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
+    @patch(
+        "backups.views.fetch_programme_overview",
+        return_value={
+            "rows": [],
+            "latest_updated_date": None,
+            "total_points_available": 0,
+            "total_points_achieved": 0,
+            "pass_percent": Decimal("0"),
+            "pass_rate": Decimal("85"),
+            "pass_or_fail": "FAIL",
+        },
+    )
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [
+                {"proj_id": 7, "proj_short_name": "Rail Project", "portfolio": "Rail"},
+                {"proj_id": 8, "proj_short_name": "Road Project", "portfolio": "Road"},
+            ],
+            "portfolios": ["Rail", "Road"],
+            "lead_planners": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    def test_project_selection_resolves_and_scopes_its_portfolio(
+        self,
+        _filter_options,
+        overview,
+        _refresh_history,
+    ):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(reverse("schedule_quality_overview"), {"project": "7"})
+
+        self.assertEqual(response.status_code, 200)
+        filters = overview.call_args.args[0]
+        self.assertEqual(filters.project_id, 7)
+        self.assertEqual(filters.portfolio, "Rail")
+        self.assertContains(response, "All projects in Rail")
+        self.assertContains(response, "Rail Project")
+        self.assertNotContains(response, "Road Project")

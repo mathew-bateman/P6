@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from dataclasses import replace
 from datetime import date
 
 from django.contrib import messages
@@ -395,6 +396,38 @@ class ScheduleQualityReportFiltersMixin:
             check_code=self.request.GET.get("check", "").strip()[:50],
         )
 
+    def _filter_options_for_filters(
+        self,
+        filters: ScheduleQualityValidationFilters,
+    ) -> tuple[ScheduleQualityValidationFilters, dict[str, list[object]]]:
+        options = fetch_validation_filter_options()
+        projects = options["projects"]
+        selected_project = next(
+            (
+                project
+                for project in projects
+                if project["proj_id"] == filters.project_id
+            ),
+            None,
+        )
+        project_portfolio = (
+            str(selected_project["portfolio"])
+            if selected_project and selected_project.get("portfolio")
+            else ""
+        )
+
+        if filters.portfolio and project_portfolio and filters.portfolio != project_portfolio:
+            filters = replace(filters, project_id=None)
+        elif filters.project_id is not None and not filters.portfolio and project_portfolio:
+            filters = replace(filters, portfolio=project_portfolio)
+
+        scoped_projects = [
+            project
+            for project in projects
+            if filters.portfolio and project.get("portfolio") == filters.portfolio
+        ]
+        return filters, {**options, "projects": scoped_projects}
+
 
 class ScheduleQualityOverviewView(
     StaffRequiredMixin,
@@ -413,8 +446,9 @@ class ScheduleQualityOverviewView(
         filters = self._filters()
         context["validation_filters"] = filters
         try:
-            options = fetch_validation_filter_options()
+            filters, options = self._filter_options_for_filters(filters)
             overview = fetch_programme_overview(filters)
+            context["validation_filters"] = filters
             context.update(options)
             context.update(overview)
             latest_runs = fetch_schedule_quality_refresh_history(
@@ -461,11 +495,12 @@ class ScheduleQualityValidationView(
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         filters = self._filters()
+        context["validation_filters"] = filters
         page_number = parse_non_negative_int(self.request.GET.get("page"), 1) or 1
         page_size = SCHEDULE_QUALITY_EVIDENCE_PAGE_SIZE
-        context["validation_filters"] = filters
         try:
-            options = fetch_validation_filter_options()
+            filters, options = self._filter_options_for_filters(filters)
+            context["validation_filters"] = filters
             summary_rows = fetch_validation_summary(filters)
             evidence_rows, evidence_count = fetch_validation_evidence(
                 filters,

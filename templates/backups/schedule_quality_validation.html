@@ -92,20 +92,20 @@
               hx-target="#validation-results"
               hx-push-url="true">
             <div class="field">
-                <label for="validation-project">Project</label>
-                <select id="validation-project" name="project">
-                    <option value="">All projects</option>
-                    {% for project in projects %}
-                        <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
+                <label for="validation-portfolio">Portfolio</label>
+                <select id="validation-portfolio" name="portfolio" onchange="this.form.elements.project.value = ''">
+                    <option value="">All portfolios</option>
+                    {% for portfolio in portfolios %}
+                        <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="field">
-                <label for="validation-portfolio">Portfolio</label>
-                <select id="validation-portfolio" name="portfolio">
-                    <option value="">All portfolios</option>
-                    {% for portfolio in portfolios %}
-                        <option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>
+                <label for="validation-project">Project</label>
+                <select id="validation-project" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
+                    <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}Select a portfolio first{% endif %}</option>
+                    {% for project in projects %}
+                        <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{{ project.proj_short_name|default:"Unnamed project" }}</option>
                     {% endfor %}
                 </select>
             </div>
