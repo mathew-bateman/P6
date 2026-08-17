@@ -16,9 +16,10 @@
     .settings-form { display: flex; flex-direction: column; }
     .settings-scope-panel { order: 1; }
     .settings-constraints-panel { order: 2; }
-    .settings-thresholds-panel { order: 3; }
-    .settings-evidence-panel { order: 4; }
-    .settings-actions-panel { order: 5; }
+    .settings-exclusions-panel { order: 3; }
+    .settings-thresholds-panel { order: 4; }
+    .settings-evidence-panel { order: 5; }
+    .settings-actions-panel { order: 6; }
     .settings-info-button {
         margin-left: auto;
         width: 34px;
@@ -66,7 +67,7 @@
     .settings-table th:not(:first-child), .settings-table td:not(:first-child) { text-align: center; }
     .settings-table td:first-child { min-width: 220px; }
     .settings-table input[type="checkbox"] { transform: scale(1.15); }
-    .settings-global-scope { margin: 12px 0 18px; align-items: flex-start; }
+    .settings-exclusion-toggle { margin: 0; align-items: flex-start; }
     .settings-na { color: var(--muted); font-size: 13px; }
     .settings-options { max-width: 920px; }
     .settings-options td:first-child { width: 55%; }
@@ -202,12 +203,6 @@
     <section class="panel settings-scope-panel">
             <div class="settings-advanced-section">
                 <h2>Check scope</h2>
-                {% for row in settings_form.scope_option_rows %}
-                    <label class="schedule-toggle settings-global-scope">
-                        {{ row.field }}
-                        <span><strong>{{ row.option.display_name }}</strong><br><span class="subtle">Uses the P6 Activity Status code DEL.</span></span>
-                    </label>
-                {% endfor %}
                 <p class="subtle">A selected checkbox is included; a clear checkbox is excluded. N/A settings cannot be changed for that check.</p>
                 <table class="settings-table">
                     <thead>
@@ -255,6 +250,21 @@
                 {% endfor %}
                 </div>
             </div>
+    </section>
+
+    <section class="panel settings-exclusions-panel">
+        <div class="settings-advanced-section">
+            <h2>Exclusions</h2>
+            <p class="subtle">Choose which P6 records should be excluded from schedule-quality calculations. More exclusion controls can be added here.</p>
+            {% for row in settings_form.scope_option_rows %}
+                <label class="schedule-toggle settings-exclusion-toggle">
+                    {{ row.field }}
+                    <span><strong>{{ row.option.display_name }}</strong><br><span class="subtle">Uses the P6 Activity Status code DEL.</span></span>
+                </label>
+            {% empty %}
+                <p class="subtle">No exclusions are available.</p>
+            {% endfor %}
+        </div>
     </section>
 
 </form>
