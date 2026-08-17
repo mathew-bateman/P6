@@ -18,8 +18,8 @@
             </div>
             <div class="field">
                 <label for="overview-project">Project</label>
-                <select id="overview-project" class="schedule-quality-select" name="project" {% if not validation_filters.portfolio %}disabled{% endif %}>
-                    <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}Select a portfolio first{% endif %}</option>
+                <select id="overview-project" class="schedule-quality-select" name="project">
+                    <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}All projects{% endif %}</option>
                     {% for project in projects %}
                         <option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if validation_filters.project_id == project.proj_id %}✓ {% endif %}{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} — {% endif %}{{ project.proj_short_name|default:"Unnamed project" }}</option>
                     {% endfor %}

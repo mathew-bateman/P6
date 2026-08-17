@@ -432,7 +432,7 @@ class ScheduleQualityReportFiltersMixin:
             (
                 project
                 for project in projects
-                if filters.portfolio and project.get("portfolio") == filters.portfolio
+                if not filters.portfolio or project.get("portfolio") == filters.portfolio
             ),
             key=lambda project: (
                 project.get("updated_date") is not None,
