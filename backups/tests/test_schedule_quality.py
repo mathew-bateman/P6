@@ -70,6 +70,16 @@ def build_settings_snapshot() -> ScheduleQualitySettingsSnapshot:
         ),
         options=(
             ScheduleQualityOption(
+                option_code="exclude_deleted_activities",
+                display_name="Exclude activities marked as deleted",
+                data_type="bit",
+                bit_value=True,
+                numeric_value=None,
+                text_value=None,
+                unit_code=None,
+                sort_order=5,
+            ),
+            ScheduleQualityOption(
                 option_code="high_float_days",
                 display_name="High float",
                 data_type="integer",
@@ -328,6 +338,7 @@ class ScheduleQualitySettingsFormTests(SimpleTestCase):
                 "check__missing_predecessor__include_milestones": "on",
                 "check__missing_predecessor__exclude_complete": "on",
                 "check__invalid_dates__is_enabled": "on",
+                "option__exclude_deleted_activities": "on",
                 "option__high_float_days": "84",
                 "option__excessive_ss_percent": "50",
                 "constraint__mandatory_start": "on",
@@ -344,9 +355,47 @@ class ScheduleQualitySettingsFormTests(SimpleTestCase):
         invalid_dates = payload["checks"][1]
         self.assertIsNone(invalid_dates["include_loe"])
         self.assertIsNone(invalid_dates["exclude_complete"])
-        self.assertEqual(payload["options"][0]["numeric_value"], 84)
-        self.assertEqual(payload["options"][1]["numeric_value"], Decimal("50"))
+        self.assertTrue(payload["options"][0]["bit_value"])
+        self.assertEqual(payload["options"][1]["numeric_value"], 84)
+        self.assertEqual(payload["options"][2]["numeric_value"], Decimal("50"))
         self.assertTrue(payload["constraint_types"][0]["is_checked"])
+
+    def test_deleted_activity_option_is_rendered_as_global_scope_control(self):
+        form = ScheduleQualitySettingsForm(
+            settings_snapshot=build_settings_snapshot(),
+        )
+
+        self.assertEqual(len(form.scope_option_rows), 1)
+        self.assertEqual(
+            form.scope_option_rows[0]["option"].option_code,
+            "exclude_deleted_activities",
+        )
+        self.assertEqual(
+            [row["option"].option_code for row in form.option_rows],
+            ["high_float_days", "excessive_ss_percent"],
+        )
+
+    def test_clear_deleted_activity_option_is_saved_as_include_deleted(self):
+        form = ScheduleQualitySettingsForm(
+            {
+                "config_version_id": "11",
+                "expected_settings_hash": SETTINGS_HASH,
+                "check__missing_predecessor__is_enabled": "on",
+                "check__invalid_dates__is_enabled": "on",
+                "option__high_float_days": "84",
+                "option__excessive_ss_percent": "50",
+                "constraint__mandatory_start": "on",
+            },
+            settings_snapshot=build_settings_snapshot(),
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        deleted_option = next(
+            option
+            for option in form.build_payload()["options"]
+            if option["option_code"] == "exclude_deleted_activities"
+        )
+        self.assertFalse(deleted_option["bit_value"])
 
     def test_form_rejects_negative_threshold(self):
         form = ScheduleQualitySettingsForm(

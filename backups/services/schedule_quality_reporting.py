@@ -13,6 +13,9 @@ class ScheduleQualityValidationFilters:
     project_id: int | None = None
     portfolio: str = ""
     lead_planner: str = ""
+    project_status: str = ""
+    project_state: str = ""
+    exclude_blanks: bool = False
     updated_date: date | None = None
     check_code: str = ""
 
@@ -87,26 +90,18 @@ WITH project_dimensions AS
         project.proj_short_name,
         project.[Updated Date] AS updated_date,
         project.[Lead Planner] AS lead_planner,
-        MAX(CASE
-            -- In this P6 instance, the linked parent programme is held in the
-            -- project-category type named "Project ID".  Each category value
-            -- is the portfolio; PROJPCAT links it to its child projects.
-            WHEN category_type.proj_catg_type = N'Project ID'
-            THEN category_value.proj_catg_name
-        END) AS portfolio
+        project.[Account] AS portfolio,
+        project.[Project Status] AS project_status,
+        project.[Project State] AS project_state
     FROM [powerbitables].[xertoolkit_vw_PBI_Projects] AS project
-    LEFT JOIN dbo.PROJPCAT AS category
-      ON category.proj_id = project.proj_id
-    LEFT JOIN dbo.PCATTYPE AS category_type
-      ON category_type.proj_catg_type_id = category.proj_catg_type_id
-    LEFT JOIN dbo.PCATVAL AS category_value
-      ON category_value.proj_catg_id = category.proj_catg_id
-     AND category_value.proj_catg_type_id = category.proj_catg_type_id
     GROUP BY
         project.proj_id,
         project.proj_short_name,
         project.[Updated Date],
-        project.[Lead Planner]
+        project.[Lead Planner],
+        project.[Account],
+        project.[Project Status],
+        project.[Project State]
 )
 """
 
@@ -128,6 +123,17 @@ def _validation_where(
     if filters.lead_planner:
         clauses.append(f"{project_alias}.lead_planner = ?")
         parameters.append(filters.lead_planner)
+    if filters.project_status:
+        clauses.append(f"{project_alias}.project_status = ?")
+        parameters.append(filters.project_status)
+    if filters.project_state:
+        clauses.append(f"{project_alias}.project_state = ?")
+        parameters.append(filters.project_state)
+    if filters.exclude_blanks:
+        for field in ("portfolio", "lead_planner", "project_status", "project_state"):
+            clauses.append(
+                f"NULLIF(LTRIM(RTRIM({project_alias}.{field})), '') IS NOT NULL"
+            )
     if filters.updated_date is not None:
         clauses.append(f"CONVERT(date, {project_alias}.updated_date) = ?")
         parameters.append(filters.updated_date)
@@ -143,7 +149,14 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
         target,
         PROJECT_DIMENSIONS_CTE
         + """
-        SELECT proj_id, proj_short_name, portfolio, lead_planner, updated_date
+        SELECT
+            proj_id,
+            proj_short_name,
+            portfolio,
+            lead_planner,
+            project_status,
+            project_state,
+            updated_date
         FROM project_dimensions
         ORDER BY proj_short_name, proj_id;
         """,
@@ -170,6 +183,12 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
         ),
         "lead_planners": sorted(
             {str(row["lead_planner"]) for row in projects if row.get("lead_planner")}
+        ),
+        "project_statuses": sorted(
+            {str(row["project_status"]) for row in projects if row.get("project_status")}
+        ),
+        "project_states": sorted(
+            {str(row["project_state"]) for row in projects if row.get("project_state")}
         ),
         "updated_dates": sorted(
             {row["updated_date"] for row in projects if row.get("updated_date")},

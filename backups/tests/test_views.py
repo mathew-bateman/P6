@@ -58,6 +58,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
             "check__missing_predecessor__include_milestones": "on",
             "check__missing_predecessor__exclude_complete": "on",
             "check__invalid_dates__is_enabled": "on",
+            "option__exclude_deleted_activities": "on",
             "option__high_float_days": "84",
             "option__excessive_ss_percent": "50",
             "constraint__mandatory_start": "on",
@@ -274,6 +275,8 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertContains(response, 'class="settings-advanced"')
         self.assertNotContains(response, 'class="settings-advanced" open')
         self.assertContains(response, "Check scope")
+        self.assertContains(response, "Exclude activities marked as deleted")
+        self.assertContains(response, "Activity Status code DEL")
         self.assertContains(response, "Constraint types checked")
         self.assertNotContains(response, "Allowed constraint types")
         self.assertContains(response, SETTINGS_HASH)

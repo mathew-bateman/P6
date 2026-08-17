@@ -61,6 +61,8 @@ BEGIN TRY
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS a
         JOIN #TargetProjects AS tp
           ON tp.proj_id = a.proj_id
+        WHERE @exclude_deleted_activities = 0
+           OR a.is_deleted = 0
         GROUP BY a.proj_id
         OPTION (RECOMPILE);
 

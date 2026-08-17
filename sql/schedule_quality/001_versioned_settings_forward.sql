@@ -355,6 +355,7 @@ BEGIN
     FROM
     (
         VALUES
+        ('exclude_deleted_activities', N'Exclude activities marked as deleted', 'bit', CAST(1 AS bit), CAST(NULL AS decimal(18,4)), NULL, 5),
         ('high_float_days', N'High float threshold', 'integer', CAST(NULL AS bit), CAST(84 AS decimal(18,4)), 'days', 10),
         ('negative_float_days', N'Negative float threshold', 'integer', NULL, CAST(0 AS decimal(18,4)), 'days', 20),
         ('high_duration_days', N'High duration threshold', 'integer', NULL, CAST(84 AS decimal(18,4)), 'days', 30),
@@ -594,6 +595,23 @@ GO
 
 CREATE OR ALTER VIEW [powerbitables].[xertoolkit_vw_PBI_Activities]
 AS
+WITH deleted_activities AS
+(
+    SELECT DISTINCT assignment.proj_id, assignment.task_id
+    FROM dbo.TASKACTV AS assignment
+    JOIN dbo.ACTVTYPE AS code_type
+      ON code_type.actv_code_type_id = assignment.actv_code_type_id
+     AND code_type.delete_session_id IS NULL
+     AND code_type.delete_date IS NULL
+    JOIN dbo.ACTVCODE AS code
+      ON code.actv_code_id = assignment.actv_code_id
+     AND code.delete_session_id IS NULL
+     AND code.delete_date IS NULL
+    WHERE assignment.delete_session_id IS NULL
+      AND assignment.delete_date IS NULL
+      AND code_type.actv_code_type = 'Activity Status'
+      AND code.short_name = 'DEL'
+)
 SELECT
     t.proj_id,
     t.task_id,
@@ -632,6 +650,7 @@ SELECT
     CONVERT(bit, CASE WHEN t.task_type = 'TT_FinMile' THEN 1 ELSE 0 END) AS is_finish_milestone,
     CONVERT(bit, CASE WHEN t.task_type = 'TT_Mile' THEN 1 ELSE 0 END) AS is_start_milestone,
     CONVERT(bit, CASE WHEN t.status_code = 'TK_Complete' THEN 1 ELSE 0 END) AS is_complete,
+    CONVERT(bit, CASE WHEN deleted.task_id IS NULL THEN 0 ELSE 1 END) AS is_deleted,
     CONVERT
     (
         bit,
@@ -641,7 +660,10 @@ SELECT
             THEN 1 ELSE 0
         END
     ) AS is_dcma_activity
-FROM dbo.TASK AS t;
+FROM dbo.TASK AS t
+LEFT JOIN deleted_activities AS deleted
+  ON deleted.proj_id = t.proj_id
+ AND deleted.task_id = t.task_id;
 GO
 
 CREATE OR ALTER VIEW [powerbitables].[xertoolkit_vw_PBI_LogicLoops]
@@ -734,7 +756,9 @@ SELECT
     pred.is_milestone AS predecessor_is_milestone,
     succ.is_milestone AS successor_is_milestone,
     pred.is_complete AS predecessor_is_complete,
-    succ.is_complete AS successor_is_complete
+    succ.is_complete AS successor_is_complete,
+    pred.is_deleted AS predecessor_is_deleted,
+    succ.is_deleted AS successor_is_deleted
 FROM dbo.TASKPRED AS tp
 LEFT JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS pred
   ON pred.proj_id = tp.proj_id
@@ -759,10 +783,14 @@ RETURN
       ON s.config_version_id = @config_version_id
      AND s.check_code = @check_code
      AND s.is_enabled = 1
+    LEFT JOIN [powerbitables].[xertoolkit_schedule_quality_option] AS deleted_option
+      ON deleted_option.config_version_id = @config_version_id
+     AND deleted_option.option_code = 'exclude_deleted_activities'
     WHERE (ISNULL(s.include_loe, 0) = 1 OR a.is_loe = 0)
       AND (ISNULL(s.include_wbs_summary, 0) = 1 OR a.is_wbs_summary = 0)
       AND (s.include_milestones IS NULL OR s.include_milestones = 1 OR a.is_milestone = 0)
       AND (ISNULL(s.exclude_complete, 0) = 0 OR a.is_complete = 0)
+      AND (ISNULL(deleted_option.bit_value, 1) = 0 OR a.is_deleted = 0)
 );
 GO
 
@@ -781,6 +809,9 @@ RETURN
       ON s.config_version_id = @config_version_id
      AND s.check_code = @check_code
      AND s.is_enabled = 1
+    LEFT JOIN [powerbitables].[xertoolkit_schedule_quality_option] AS deleted_option
+      ON deleted_option.config_version_id = @config_version_id
+     AND deleted_option.option_code = 'exclude_deleted_activities'
     WHERE r.predecessor_is_loe IS NOT NULL
       AND r.successor_is_loe IS NOT NULL
       AND
@@ -816,6 +847,15 @@ RETURN
               AND r.successor_is_complete = 0
           )
       )
+      AND
+      (
+          ISNULL(deleted_option.bit_value, 1) = 0
+          OR
+          (
+              r.predecessor_is_deleted = 0
+              AND r.successor_is_deleted = 0
+          )
+      )
 );
 GO
 
@@ -827,7 +867,13 @@ RETURNS TABLE
 AS
 RETURN
 (
-    WITH deleted_activities AS
+    WITH options AS
+    (
+        SELECT MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
+        FROM [powerbitables].[xertoolkit_schedule_quality_option]
+        WHERE config_version_id = @config_version_id
+    ),
+    deleted_activities AS
     (
         SELECT DISTINCT
             assignment.proj_id,
@@ -976,7 +1022,6 @@ RETURN
                 bit,
                 CASE
                     WHEN (scope.missing_predecessor_scope & 1) = 1
-                     AND deleted.task_id IS NULL
                      AND ((scope.missing_predecessor_scope & 2) = 2 OR a.is_loe = 0)
                      AND ((scope.missing_predecessor_scope & 4) = 4 OR a.is_wbs_summary = 0)
                      AND ((scope.missing_predecessor_scope & 8) = 8 OR a.is_milestone = 0)
@@ -989,7 +1034,6 @@ RETURN
                 bit,
                 CASE
                     WHEN (scope.missing_successor_scope & 1) = 1
-                     AND deleted.task_id IS NULL
                      AND ((scope.missing_successor_scope & 2) = 2 OR a.is_loe = 0)
                      AND ((scope.missing_successor_scope & 4) = 4 OR a.is_wbs_summary = 0)
                      AND ((scope.missing_successor_scope & 8) = 8 OR a.is_milestone = 0)
@@ -1030,6 +1074,9 @@ RETURN
           ON deleted.proj_id = a.proj_id
          AND deleted.task_id = a.task_id
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
+        WHERE ISNULL(o.exclude_deleted_activities, 1) = 0
+           OR deleted.task_id IS NULL
     )
     SELECT
         @config_version_id AS config_version_id,
@@ -1099,7 +1146,8 @@ RETURN
     (
         SELECT
             MAX(CASE WHEN option_code = 'excessive_ss_percent' THEN numeric_value END) AS excessive_ss_percent,
-            MAX(CASE WHEN option_code = 'excessive_ff_percent' THEN numeric_value END) AS excessive_ff_percent
+            MAX(CASE WHEN option_code = 'excessive_ff_percent' THEN numeric_value END) AS excessive_ff_percent,
+            MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
         FROM [powerbitables].[xertoolkit_schedule_quality_option]
         WHERE config_version_id = @config_version_id
     ),
@@ -1191,8 +1239,18 @@ RETURN
             ) AS in_excessive_ff_scope
         FROM [powerbitables].[xertoolkit_vw_PBI_Relationships] AS r
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
         WHERE r.predecessor_is_loe IS NOT NULL
           AND r.successor_is_loe IS NOT NULL
+          AND
+          (
+              ISNULL(o.exclude_deleted_activities, 1) = 0
+              OR
+              (
+                  r.predecessor_is_deleted = 0
+                  AND r.successor_is_deleted = 0
+              )
+          )
     )
     SELECT
         @config_version_id AS config_version_id,
@@ -1260,7 +1318,8 @@ RETURN
             MAX(CASE WHEN option_code = 'invalid_actual_after_progress' THEN CONVERT(int, bit_value) END) AS invalid_actual_after_progress,
             MAX(CASE WHEN option_code = 'progress_started_zero_percent' THEN CONVERT(int, bit_value) END) AS progress_started_zero_percent,
             MAX(CASE WHEN option_code = 'progress_finished_below_100' THEN CONVERT(int, bit_value) END) AS progress_finished_below_100,
-            MAX(CASE WHEN option_code = 'progress_percent_without_start' THEN CONVERT(int, bit_value) END) AS progress_percent_without_start
+            MAX(CASE WHEN option_code = 'progress_percent_without_start' THEN CONVERT(int, bit_value) END) AS progress_percent_without_start,
+            MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
         FROM [powerbitables].[xertoolkit_schedule_quality_option]
         WHERE config_version_id = @config_version_id
     ),
@@ -1404,6 +1463,9 @@ RETURN
             ) AS in_near_critical_tasks_scope
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS a
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
+        WHERE ISNULL(o.exclude_deleted_activities, 1) = 0
+           OR a.is_deleted = 0
     )
     SELECT
         @config_version_id AS config_version_id,
@@ -1680,16 +1742,21 @@ RETURN
       ON scope.config_version_id = @config_version_id
      AND scope.check_code = 'out_of_sequence'
      AND scope.is_enabled = 1
-    JOIN dbo.TASK AS pred
+    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS pred
       ON pred.proj_id = r.proj_id
      AND pred.task_id = r.predecessor_task_id
-     AND pred.delete_session_id IS NULL
-    JOIN dbo.TASK AS succ
+    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS succ
       ON succ.proj_id = r.proj_id
      AND succ.task_id = r.successor_task_id
-     AND succ.delete_session_id IS NULL
-    WHERE ISNULL(scope.exclude_complete, 0) = 0
-       OR succ.status_code <> 'TK_Complete'
+    LEFT JOIN [powerbitables].[xertoolkit_schedule_quality_option] AS deleted_option
+      ON deleted_option.config_version_id = @config_version_id
+     AND deleted_option.option_code = 'exclude_deleted_activities'
+    WHERE (ISNULL(scope.exclude_complete, 0) = 0 OR succ.status_code <> 'TK_Complete')
+      AND
+      (
+          ISNULL(deleted_option.bit_value, 1) = 0
+          OR (pred.is_deleted = 0 AND succ.is_deleted = 0)
+      )
 );
 GO
 
@@ -2550,7 +2617,7 @@ BEGIN
         IF (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_check_scope]
             WHERE config_version_id = @config_version_id) <> 20
            OR (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_option]
-               WHERE config_version_id = @config_version_id) <> 12
+               WHERE config_version_id = @config_version_id) <> 13
            OR (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_constraint_type]
                WHERE config_version_id = @config_version_id) <> 10
             THROW 51311, 'The configuration is incomplete and cannot be refreshed.', 1;
@@ -2565,6 +2632,17 @@ BEGIN
 
         CREATE UNIQUE CLUSTERED INDEX [IX_ProjectMetricsStage_proj_id]
             ON #ProjectMetricsStage (proj_id);
+
+        DECLARE @exclude_deleted_activities bit = ISNULL
+        (
+            (
+                SELECT bit_value
+                FROM [powerbitables].[xertoolkit_schedule_quality_option]
+                WHERE config_version_id = @config_version_id
+                  AND option_code = 'exclude_deleted_activities'
+            ),
+            1
+        );
 
         DECLARE @logical_loops_enabled bit =
         (
@@ -2592,8 +2670,19 @@ BEGIN
             FROM dbo.TASKPRED AS tpred
             JOIN #TargetProjects AS tp
               ON tp.proj_id = tpred.proj_id
+            JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS predecessor
+              ON predecessor.proj_id = tpred.proj_id
+             AND predecessor.task_id = tpred.pred_task_id
+            JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS successor
+              ON successor.proj_id = tpred.proj_id
+             AND successor.task_id = tpred.task_id
             WHERE tpred.pred_task_id IS NOT NULL
-              AND tpred.task_id IS NOT NULL;
+              AND tpred.task_id IS NOT NULL
+              AND
+              (
+                  @exclude_deleted_activities = 0
+                  OR (predecessor.is_deleted = 0 AND successor.is_deleted = 0)
+              );
 
             INSERT INTO #LogicLoopStage
             (
@@ -2767,6 +2856,8 @@ BEGIN
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS a
         JOIN #TargetProjects AS tp
           ON tp.proj_id = a.proj_id
+        WHERE @exclude_deleted_activities = 0
+           OR a.is_deleted = 0
         GROUP BY a.proj_id
         OPTION (RECOMPILE);
 

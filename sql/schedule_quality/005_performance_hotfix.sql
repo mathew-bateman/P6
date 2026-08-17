@@ -26,7 +26,13 @@ RETURNS TABLE
 AS
 RETURN
 (
-    WITH deleted_activities AS
+    WITH options AS
+    (
+        SELECT MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
+        FROM [powerbitables].[xertoolkit_schedule_quality_option]
+        WHERE config_version_id = @config_version_id
+    ),
+    deleted_activities AS
     (
         SELECT DISTINCT
             assignment.proj_id,
@@ -175,7 +181,6 @@ RETURN
                 bit,
                 CASE
                     WHEN (scope.missing_predecessor_scope & 1) = 1
-                     AND deleted.task_id IS NULL
                      AND ((scope.missing_predecessor_scope & 2) = 2 OR a.is_loe = 0)
                      AND ((scope.missing_predecessor_scope & 4) = 4 OR a.is_wbs_summary = 0)
                      AND ((scope.missing_predecessor_scope & 8) = 8 OR a.is_milestone = 0)
@@ -188,7 +193,6 @@ RETURN
                 bit,
                 CASE
                     WHEN (scope.missing_successor_scope & 1) = 1
-                     AND deleted.task_id IS NULL
                      AND ((scope.missing_successor_scope & 2) = 2 OR a.is_loe = 0)
                      AND ((scope.missing_successor_scope & 4) = 4 OR a.is_wbs_summary = 0)
                      AND ((scope.missing_successor_scope & 8) = 8 OR a.is_milestone = 0)
@@ -229,6 +233,9 @@ RETURN
           ON deleted.proj_id = a.proj_id
          AND deleted.task_id = a.task_id
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
+        WHERE ISNULL(o.exclude_deleted_activities, 1) = 0
+           OR deleted.task_id IS NULL
     )
     SELECT
         @config_version_id AS config_version_id,
@@ -298,7 +305,8 @@ RETURN
     (
         SELECT
             MAX(CASE WHEN option_code = 'excessive_ss_percent' THEN numeric_value END) AS excessive_ss_percent,
-            MAX(CASE WHEN option_code = 'excessive_ff_percent' THEN numeric_value END) AS excessive_ff_percent
+            MAX(CASE WHEN option_code = 'excessive_ff_percent' THEN numeric_value END) AS excessive_ff_percent,
+            MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
         FROM [powerbitables].[xertoolkit_schedule_quality_option]
         WHERE config_version_id = @config_version_id
     ),
@@ -390,8 +398,18 @@ RETURN
             ) AS in_excessive_ff_scope
         FROM [powerbitables].[xertoolkit_vw_PBI_Relationships] AS r
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
         WHERE r.predecessor_is_loe IS NOT NULL
           AND r.successor_is_loe IS NOT NULL
+          AND
+          (
+              ISNULL(o.exclude_deleted_activities, 1) = 0
+              OR
+              (
+                  r.predecessor_is_deleted = 0
+                  AND r.successor_is_deleted = 0
+              )
+          )
     )
     SELECT
         @config_version_id AS config_version_id,
@@ -459,7 +477,8 @@ RETURN
             MAX(CASE WHEN option_code = 'invalid_actual_after_progress' THEN CONVERT(int, bit_value) END) AS invalid_actual_after_progress,
             MAX(CASE WHEN option_code = 'progress_started_zero_percent' THEN CONVERT(int, bit_value) END) AS progress_started_zero_percent,
             MAX(CASE WHEN option_code = 'progress_finished_below_100' THEN CONVERT(int, bit_value) END) AS progress_finished_below_100,
-            MAX(CASE WHEN option_code = 'progress_percent_without_start' THEN CONVERT(int, bit_value) END) AS progress_percent_without_start
+            MAX(CASE WHEN option_code = 'progress_percent_without_start' THEN CONVERT(int, bit_value) END) AS progress_percent_without_start,
+            MAX(CASE WHEN option_code = 'exclude_deleted_activities' THEN CONVERT(int, bit_value) END) AS exclude_deleted_activities
         FROM [powerbitables].[xertoolkit_schedule_quality_option]
         WHERE config_version_id = @config_version_id
     ),
@@ -603,6 +622,9 @@ RETURN
             ) AS in_near_critical_tasks_scope
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS a
         CROSS JOIN scope_settings AS scope
+        CROSS JOIN options AS o
+        WHERE ISNULL(o.exclude_deleted_activities, 1) = 0
+           OR a.is_deleted = 0
     )
     SELECT
         @config_version_id AS config_version_id,

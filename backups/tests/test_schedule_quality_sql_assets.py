@@ -163,7 +163,9 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("FROM dbo.TASKACTV AS assignment", open_ends)
         self.assertIn("code_type.actv_code_type = 'Activity Status'", open_ends)
         self.assertIn("code.short_name = 'DEL'", open_ends)
-        self.assertEqual(open_ends.count("AND deleted.task_id IS NULL"), 2)
+        self.assertNotIn("AND deleted.task_id IS NULL", open_ends)
+        self.assertIn("exclude_deleted_activities", open_ends)
+        self.assertIn("OR deleted.task_id IS NULL", open_ends)
         self.assertNotIn("LOWER(a.task_name)", open_ends)
         self.assertIn("pred_source.delete_session_id IS NULL", open_ends)
         self.assertIn("succ_source.delete_session_id IS NULL", open_ends)
@@ -331,6 +333,55 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("N''Required Paired Relationship''", sql)
         self.assertNotIn("SCHEDULE_QUALITY_OPEN_END_CONTEXT", sql)
         self.assertIn("N''N/A''", sql)
+
+    def test_configured_evidence_display_format_keeps_p6_hours_and_adds_days(self):
+        sql = (
+            SCHEDULE_QUALITY_SQL
+            / "028_configured_evidence_display_formats.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("display_format", sql)
+        self.assertIn("p6_hours_and_days", sql)
+        self.assertIn("%[_]hr[_]cnt", sql)
+        self.assertIn("P6: ", sql)
+        self.assertIn("Calculated: ", sql)
+        self.assertIn("/ 8.0 AS decimal(38,2)", sql)
+        self.assertIn("days (8h/day)", sql)
+        self.assertIn("Configured evidence pass v8", sql)
+
+    def test_deleted_activity_scope_uses_structured_p6_status_and_all_check_families(self):
+        migration_sql = (
+            SCHEDULE_QUALITY_SQL / "029_exclude_deleted_activities.sql"
+        ).read_text(encoding="utf-8")
+        forward_sql = (
+            SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"
+        ).read_text(encoding="utf-8")
+        hotfix_sql = (
+            SCHEDULE_QUALITY_SQL / "005_performance_hotfix.sql"
+        ).read_text(encoding="utf-8")
+
+        for sql in (migration_sql, forward_sql):
+            self.assertIn("code_type.actv_code_type = 'Activity Status'", sql)
+            self.assertIn("code.short_name = 'DEL'", sql)
+            self.assertIn("AS is_deleted", sql)
+
+        for function_name in (
+            "xertoolkit_fn_open_ends",
+            "xertoolkit_fn_relationship_quality",
+            "xertoolkit_fn_activity_quality",
+        ):
+            function_sql = self._module_batch(
+                hotfix_sql, "FUNCTION", function_name
+            )
+            self.assertIn("exclude_deleted_activities", function_sql)
+
+        self.assertIn("predecessor_is_deleted", forward_sql)
+        self.assertIn("successor_is_deleted", forward_sql)
+        self.assertIn("@exclude_deleted_activities", forward_sql)
+        self.assertIn("predecessor.is_deleted = 0", forward_sql)
+        self.assertIn("a.is_deleted = 0", forward_sql)
+        self.assertIn(") <> 13", forward_sql)
+        self.assertIn("settings_hash", migration_sql)
 
     def test_refresh_cycle_pruning_has_both_edge_indexes(self):
         forward_sql = (

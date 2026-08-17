@@ -374,6 +374,10 @@ class ScheduleQualityDashboardView(LoginRequiredMixin, TemplateView):
 
 class ScheduleQualityReportFiltersMixin:
     def _filters(self) -> ScheduleQualityValidationFilters:
+        def project_filter_value(name: str, default: str) -> str:
+            value = self.request.GET.get(name, default).strip()[:200]
+            return "" if value == "__all__" else value
+
         raw_project_id = self.request.GET.get("project", "").strip()
         try:
             project_id = int(raw_project_id) if raw_project_id else None
@@ -392,6 +396,9 @@ class ScheduleQualityReportFiltersMixin:
             project_id=project_id,
             portfolio=self.request.GET.get("portfolio", "").strip()[:200],
             lead_planner=self.request.GET.get("lead_planner", "").strip()[:200],
+            project_status=project_filter_value("project_status", "Client Submitted"),
+            project_state=project_filter_value("project_state", "Live"),
+            exclude_blanks=self.request.GET.get("exclude_blanks", "1") != "0",
             updated_date=updated_date,
             check_code=self.request.GET.get("check", "").strip()[:50],
         )
@@ -489,6 +496,8 @@ class ScheduleQualityOverviewView(
                     "projects": [],
                     "portfolios": [],
                     "lead_planners": [],
+                    "project_statuses": [],
+                    "project_states": [],
                     "updated_dates": [],
                     "checks": [],
                     "rows": [],
@@ -582,6 +591,8 @@ class ScheduleQualityValidationView(
                     "projects": [],
                     "portfolios": [],
                     "lead_planners": [],
+                    "project_statuses": [],
+                    "project_states": [],
                     "updated_dates": [],
                     "checks": [],
                     "summary_rows": [],

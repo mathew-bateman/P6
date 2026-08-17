@@ -79,6 +79,24 @@ refresh the materialised schedule-quality results. Use
 `915_critical_float_rounding_boundary_rollback.sql` to restore the original
 zero-hour boundary.
 
+Run `028_configured_evidence_display_formats.sql` on an existing deployment
+to add a **Display** choice to every configured evidence field. `Native P6
+value` is the default. `P6 hours + calculated days` is intended for P6
+hour-count fields (for example, `*_hr_cnt`) and displays both the unchanged
+P6 value and the reporting calculation: `P6: 80.00 hours | Calculated: 10.00
+days (8h/day)`. Publish the settings and run a refresh to rebuild the
+materialised evidence.
+
+Run `029_exclude_deleted_activities.sql` on an existing deployment to add the
+global **Exclude activities marked as deleted** scope control. It defaults to
+enabled and identifies deleted activities from the structured P6 chain
+`TASKACTV -> ACTVTYPE -> ACTVCODE`, where the activity-code type is
+`Activity Status` and the short code is `DEL`. The script preserves later
+evidence-formatting procedure changes, updates configuration hashes, and
+applies the setting to activity, relationship, open-end, out-of-sequence, and
+logical-loop results. Publish the desired setting to rebuild the materialised
+Power BI rows.
+
 For a performance-only rollback, run `906_refresh_performance_hotfix_rollback.sql` and then `905_performance_hotfix_rollback.sql`. They restore the exact procedure and function definitions that were live before these hotfixes. Do not rerun the full pre-versioning rollback.
 
 Measure refresh duration from `xertoolkit_refresh_run_history`. The deep reconciliation is a separate audit query that recalculates the detail results and must not be included in the refresh-duration comparison.

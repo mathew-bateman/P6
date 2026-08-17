@@ -160,7 +160,7 @@ BEGIN
         IF (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_check_scope]
             WHERE config_version_id = @config_version_id) <> 20
            OR (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_option]
-               WHERE config_version_id = @config_version_id) <> 12
+               WHERE config_version_id = @config_version_id) <> 13
            OR (SELECT COUNT(*) FROM [powerbitables].[xertoolkit_schedule_quality_constraint_type]
                WHERE config_version_id = @config_version_id) <> 10
             THROW 51311, 'The configuration is incomplete and cannot be refreshed.', 1;
@@ -175,6 +175,17 @@ BEGIN
 
         CREATE UNIQUE CLUSTERED INDEX [IX_ProjectMetricsStage_proj_id]
             ON #ProjectMetricsStage (proj_id);
+
+        DECLARE @exclude_deleted_activities bit = ISNULL
+        (
+            (
+                SELECT bit_value
+                FROM [powerbitables].[xertoolkit_schedule_quality_option]
+                WHERE config_version_id = @config_version_id
+                  AND option_code = 'exclude_deleted_activities'
+            ),
+            1
+        );
 
         DECLARE @logical_loops_enabled bit =
         (
@@ -202,8 +213,19 @@ BEGIN
             FROM dbo.TASKPRED AS tpred
             JOIN #TargetProjects AS tp
               ON tp.proj_id = tpred.proj_id
+            JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS predecessor
+              ON predecessor.proj_id = tpred.proj_id
+             AND predecessor.task_id = tpred.pred_task_id
+            JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS successor
+              ON successor.proj_id = tpred.proj_id
+             AND successor.task_id = tpred.task_id
             WHERE tpred.pred_task_id IS NOT NULL
-              AND tpred.task_id IS NOT NULL;
+              AND tpred.task_id IS NOT NULL
+              AND
+              (
+                  @exclude_deleted_activities = 0
+                  OR (predecessor.is_deleted = 0 AND successor.is_deleted = 0)
+              );
 
             INSERT INTO #LogicLoopStage
             (
@@ -377,6 +399,8 @@ BEGIN
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS a
         JOIN #TargetProjects AS tp
           ON tp.proj_id = a.proj_id
+        WHERE @exclude_deleted_activities = 0
+           OR a.is_deleted = 0
         GROUP BY a.proj_id
         OPTION (RECOMPILE);
 

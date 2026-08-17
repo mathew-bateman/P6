@@ -27,6 +27,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
                     "proj_short_name": "Project Seven",
                     "portfolio": "Rail",
                     "lead_planner": "Alex",
+                    "project_status": "Client Submitted",
+                    "project_state": "Live",
                     "updated_date": date(2026, 8, 14),
                 },
                 {
@@ -34,6 +36,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
                     "proj_short_name": "Project Eight",
                     "portfolio": "Rail",
                     "lead_planner": "Beth",
+                    "project_status": "In Progress",
+                    "project_state": "Draft",
                     "updated_date": date(2026, 8, 13),
                 },
             ],
@@ -44,6 +48,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
 
         self.assertEqual(result["portfolios"], ["Rail"])
         self.assertEqual(result["lead_planners"], ["Alex", "Beth"])
+        self.assertEqual(result["project_statuses"], ["Client Submitted", "In Progress"])
+        self.assertEqual(result["project_states"], ["Draft", "Live"])
         self.assertEqual(
             result["updated_dates"],
             [date(2026, 8, 14), date(2026, 8, 13)],
@@ -93,6 +99,9 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
             project_id=7,
             portfolio="Rail",
             lead_planner="Alex",
+            project_status="Client Submitted",
+            project_state="Live",
+            exclude_blanks=True,
             updated_date=date(2026, 8, 14),
             check_code="high_float",
         )
@@ -105,8 +114,9 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         page_parameters = fetch_rows.call_args_list[1].kwargs["parameters"]
         self.assertEqual(
             count_parameters,
-            (7, "Rail", "Alex", date(2026, 8, 14), "high_float"),
+            (7, "Rail", "Alex", "Client Submitted", "Live", date(2026, 8, 14), "high_float"),
         )
+        self.assertIn("NULLIF(LTRIM(RTRIM(project.project_status)), '') IS NOT NULL", fetch_rows.call_args_list[0].args[1])
         self.assertEqual(page_parameters[-2:], (50, 25))
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
@@ -330,6 +340,9 @@ class ScheduleQualityValidationViewTests(TestCase):
                 "project": "7",
                 "portfolio": "Rail",
                 "lead_planner": "Alex",
+                "project_status": "Client Submitted",
+                "project_state": "Live",
+                "exclude_blanks": "1",
                 "updated_date": "2026-08-14",
                 "check": "high_float",
             },
@@ -340,6 +353,9 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertEqual(filters.project_id, 7)
         self.assertEqual(filters.updated_date, date(2026, 8, 14))
         self.assertEqual(filters.check_code, "high_float")
+        self.assertEqual(filters.project_status, "Client Submitted")
+        self.assertEqual(filters.project_state, "Live")
+        self.assertTrue(filters.exclude_blanks)
         self.assertEqual(evidence.call_args.args[0], filters)
 
 
@@ -397,7 +413,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
                     "limit_type": "Number",
                     "green_points": 50,
                     "amber_points": 40,
-                    "points_scored": 50,
+                    "points_scored": 0,
                 }
             ],
             "latest_updated_date": date(2026, 6, 4),
@@ -418,6 +434,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Validation &amp; Evidence")
         self.assertContains(response, "Latest update")
         self.assertContains(response, "Scorecard")
+        self.assertContains(response, 'class="numeric-cell points-scored-zero"')
         self.assertContains(response, ">Overview<")
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
         self.assertNotContains(response, "Score the programme against the active schedule-quality checks.")

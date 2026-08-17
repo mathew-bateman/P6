@@ -33,6 +33,33 @@
                 </select>
             </div>
             <div class="field">
+                <label for="overview-project-status">Project status</label>
+                <select id="overview-project-status" class="schedule-quality-select" name="project_status">
+                    <option value="__all__" {% if not validation_filters.project_status %}selected{% endif %}>All project statuses</option>
+                    <option value="Client Submitted" {% if validation_filters.project_status == "Client Submitted" %}selected{% endif %}>Client Submitted</option>
+                    {% for project_status in project_statuses %}
+                        {% if project_status != "Client Submitted" %}<option value="{{ project_status }}" {% if validation_filters.project_status == project_status %}selected{% endif %}>{{ project_status }}</option>{% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="overview-project-state">Project state</label>
+                <select id="overview-project-state" class="schedule-quality-select" name="project_state">
+                    <option value="__all__" {% if not validation_filters.project_state %}selected{% endif %}>All project states</option>
+                    <option value="Live" {% if validation_filters.project_state == "Live" %}selected{% endif %}>Live</option>
+                    {% for project_state in project_states %}
+                        {% if project_state != "Live" %}<option value="{{ project_state }}" {% if validation_filters.project_state == project_state %}selected{% endif %}>{{ project_state }}</option>{% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="overview-exclude-blanks">Project metadata</label>
+                <select id="overview-exclude-blanks" class="schedule-quality-select" name="exclude_blanks">
+                    <option value="1" {% if validation_filters.exclude_blanks %}selected{% endif %}>Exclude blanks</option>
+                    <option value="0" {% if not validation_filters.exclude_blanks %}selected{% endif %}>Include blanks</option>
+                </select>
+            </div>
+            <div class="field">
                 <label for="overview-date">Updated date</label>
                 <input id="overview-date"
                        class="schedule-quality-date-picker"
@@ -123,7 +150,7 @@
                                 <td>{{ row.limit_type }}</td>
                                 <td class="numeric-cell"><span class="numeric-value score">{{ row.green_points }}</span></td>
                                 <td class="numeric-cell"><span class="numeric-value score">{{ row.amber_points }}</span></td>
-                                <td class="numeric-cell"><strong class="numeric-value score">{{ row.points_scored }}</strong></td>
+                                <td class="numeric-cell{% if row.points_scored == 0 %} points-scored-zero{% endif %}"><strong class="numeric-value score">{{ row.points_scored }}</strong></td>
                             </tr>
                         {% empty %}
                             <tr><td colspan="11" class="overview-empty">No programme checks match these filters.</td></tr>

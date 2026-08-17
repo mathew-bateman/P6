@@ -74,16 +74,21 @@ RETURN
       ON scope.config_version_id = @config_version_id
      AND scope.check_code = 'out_of_sequence'
      AND scope.is_enabled = 1
-    JOIN dbo.TASK AS pred
+    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS pred
       ON pred.proj_id = r.proj_id
      AND pred.task_id = r.predecessor_task_id
-     AND pred.delete_session_id IS NULL
-    JOIN dbo.TASK AS succ
+    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS succ
       ON succ.proj_id = r.proj_id
      AND succ.task_id = r.successor_task_id
-     AND succ.delete_session_id IS NULL
-    WHERE ISNULL(scope.exclude_complete, 0) = 0
-       OR succ.status_code <> 'TK_Complete'
+    LEFT JOIN [powerbitables].[xertoolkit_schedule_quality_option] AS deleted_option
+      ON deleted_option.config_version_id = @config_version_id
+     AND deleted_option.option_code = 'exclude_deleted_activities'
+    WHERE (ISNULL(scope.exclude_complete, 0) = 0 OR succ.status_code <> 'TK_Complete')
+      AND
+      (
+          ISNULL(deleted_option.bit_value, 1) = 0
+          OR (pred.is_deleted = 0 AND succ.is_deleted = 0)
+      )
 );
 GO
 

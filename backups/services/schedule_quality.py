@@ -67,6 +67,7 @@ class ScheduleQualityDetailField:
     source_category: str
     source_identifier: str
     display_label: str
+    display_format: str
     sort_order: int
 
 
@@ -244,6 +245,7 @@ def fetch_schedule_quality_settings(
             source_category,
             source_identifier,
             display_label,
+            display_format,
             sort_order
         FROM [{SCHEDULE_QUALITY_SCHEMA}].[xertoolkit_schedule_quality_detail_field]
         WHERE config_version_id = ?
@@ -298,6 +300,7 @@ def fetch_schedule_quality_settings(
             source_category=str(row["source_category"]),
             source_identifier=str(row["source_identifier"]),
             display_label=str(row["display_label"]),
+            display_format=str(row.get("display_format") or "native"),
             sort_order=int(row["sort_order"]),
         )
         for row in (result_sets[4] if len(result_sets) > 4 else [])

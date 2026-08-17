@@ -28,6 +28,7 @@ NUMERIC_OPTION_BOUNDS = {
     "excessive_ss_percent": (Decimal("0"), Decimal("100")),
     "excessive_ff_percent": (Decimal("0"), Decimal("100")),
 }
+SCOPE_OPTION_CODES = {"exclude_deleted_activities"}
 
 
 def _field_name(*parts: str) -> str:
@@ -80,7 +81,8 @@ class ScheduleQualitySettingsForm(forms.Form):
                         "check_code": field.check_code,
                         "source_category": field.source_category,
                         "source_identifier": field.source_identifier,
-                        "display_label": field.display_label,
+                    "display_label": field.display_label,
+                    "display_format": field.display_format,
                         "sort_order": field.sort_order,
                     }
                     for field in settings_snapshot.detail_fields
@@ -133,11 +135,16 @@ class ScheduleQualitySettingsForm(forms.Form):
             )
 
         self.option_rows: list[dict[str, Any]] = []
+        self.scope_option_rows: list[dict[str, Any]] = []
         for option in settings_snapshot.options:
             name = _field_name("option", option.option_code)
             field = self._build_option_field(option)
             self.fields[name] = field
-            self.option_rows.append({"option": option, "field": self[name]})
+            row = {"option": option, "field": self[name]}
+            if option.option_code in SCOPE_OPTION_CODES:
+                self.scope_option_rows.append(row)
+            else:
+                self.option_rows.append(row)
 
         self.constraint_rows: list[dict[str, Any]] = []
         for constraint in settings_snapshot.constraint_types:
@@ -234,6 +241,7 @@ class ScheduleQualitySettingsForm(forms.Form):
             category = str(field.get("source_category") or "")
             identifier = str(field.get("source_identifier") or "").strip()
             label = str(field.get("display_label") or "").strip()
+            display_format = str(field.get("display_format") or "native").strip()
             try:
                 sort_order = int(field.get("sort_order"))
             except (TypeError, ValueError) as error:
@@ -248,6 +256,15 @@ class ScheduleQualitySettingsForm(forms.Form):
                 raise forms.ValidationError("Each evidence field needs a check, source, field, and label.")
             if len(identifier) > 120 or len(label) > 120:
                 raise forms.ValidationError("Evidence field identifiers and labels must be 120 characters or fewer.")
+            if display_format not in {"native", "p6_hours_and_days"}:
+                raise forms.ValidationError("Each evidence field needs a valid display format.")
+            if (
+                display_format == "p6_hours_and_days"
+                and not identifier.lower().endswith("_hr_cnt")
+            ):
+                raise forms.ValidationError(
+                    "Calculated days can only be selected for a P6 hour-count field."
+                )
             key = (check_code, category, identifier)
             if key in seen:
                 raise forms.ValidationError("The same evidence field cannot be added twice to one check.")
@@ -256,7 +273,7 @@ class ScheduleQualitySettingsForm(forms.Form):
             if order_key in used_orders:
                 raise forms.ValidationError("Each evidence field needs a unique send order within its check.")
             used_orders.add(order_key)
-            cleaned.append({"check_code": check_code, "source_category": category, "source_identifier": identifier, "display_label": label, "sort_order": sort_order})
+            cleaned.append({"check_code": check_code, "source_category": category, "source_identifier": identifier, "display_label": label, "display_format": display_format, "sort_order": sort_order})
         return cleaned
 
     def build_payload(self) -> dict[str, list[dict[str, object]]]:
