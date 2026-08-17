@@ -431,6 +431,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Programme Check")
         self.assertContains(response, "Logical Loops")
         self.assertContains(response, "htmx:beforeSwap")
+        self.assertContains(response, "const swapTarget = event.detail.target;")
         self.assertContains(response, "select.tomselect?.destroy();")
         self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")

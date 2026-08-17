@@ -263,8 +263,9 @@
     };
     document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
     document.addEventListener('htmx:beforeSwap', (event) => {
-        if (!event.target.matches('#validation-results')) return;
-        event.target.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        const swapTarget = event.detail.target;
+        if (!swapTarget.matches('#validation-results')) return;
+        swapTarget.querySelectorAll('.schedule-quality-select').forEach((select) => {
             select.tomselect?.destroy();
         });
     });
