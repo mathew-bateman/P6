@@ -1,3 +1,5 @@
+{% load humanize %}
+
 <div id="validation-results">
     <div class="validation-main">
         <section class="validation-kpis" aria-label="Validation summary">
@@ -8,12 +10,12 @@
             </article>
             <article class="panel validation-kpi">
                 <span>Records checked</span>
-                <strong>{{ validation_totals.records_checked }}</strong>
+                <strong>{{ validation_totals.records_checked|intcomma }}</strong>
                 <small>Largest active check scope</small>
             </article>
             <article class="panel validation-kpi">
                 <span>Results to review</span>
-                <strong>{{ validation_totals.qualifying_results }}</strong>
+                <strong>{{ validation_totals.qualifying_results|intcomma }}</strong>
                 <small>Across the checks shown</small>
             </article>
             <article class="panel validation-kpi">
@@ -46,8 +48,8 @@
                             <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}">
                                 <td>{{ row.number }}</td>
                                 <td><strong>{{ row.check_name }}</strong></td>
-                                <td><span class="numeric-value count">{{ row.records_checked }}</span></td>
-                                <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
+                                <td><span class="numeric-value count">{{ row.records_checked|intcomma }}</span></td>
+                                <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results|intcomma }}</span></td>
                                 <td><span class="numeric-value">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
                             </tr>
                         {% empty %}
@@ -65,7 +67,7 @@
                 <h2>Activity evidence</h2>
                 <p class="subtle">The exact tasks and evidence behind the selected validation results.</p>
             </div>
-            <span class="badge">{{ validation_totals.evidence_rows }} row{{ validation_totals.evidence_rows|pluralize }}</span>
+            <span class="badge">{{ validation_totals.evidence_rows|intcomma }} row{{ validation_totals.evidence_rows|pluralize }}</span>
         </div>
         <div class="validation-table-wrap">
             <table>
@@ -97,7 +99,7 @@
         </div>
         {% if evidence_page.total_pages > 1 %}
             <div class="pagination-container">
-                <span class="pagination-info">Showing {{ evidence_page.start_index }}-{{ evidence_page.end_index }} of {{ evidence_page.total_rows }} evidence rows</span>
+                <span class="pagination-info">Showing {{ evidence_page.start_index|intcomma }}-{{ evidence_page.end_index|intcomma }} of {{ evidence_page.total_rows|intcomma }} evidence rows</span>
                 <ul class="pagination">
                     <li class="page-item {% if not evidence_page.has_previous %}disabled{% endif %}">
                         {% if evidence_page.has_previous %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.previous_page_number }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}

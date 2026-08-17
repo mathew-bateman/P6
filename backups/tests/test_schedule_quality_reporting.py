@@ -227,9 +227,9 @@ class ScheduleQualityValidationViewTests(TestCase):
                 "number": 1,
                 "check_code": "high_float",
                 "check_name": "High Total Float",
-                "records_checked": 258,
-                "qualifying_results": 34,
-                "qualifying_percent": Decimal("13.18"),
+                "records_checked": 143287,
+                "qualifying_results": 2779,
+                "qualifying_percent": Decimal("1.94"),
                 "status": "review",
             }
         ]
@@ -261,7 +261,9 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Schedule Quality Validation")
         self.assertContains(response, "High Total Float")
-        self.assertContains(response, "13.18%")
+        self.assertContains(response, "1.94%")
+        self.assertContains(response, "143,287")
+        self.assertContains(response, "2,779")
         self.assertContains(response, "Build platform")
         self.assertContains(response, "Total Float: 90.00 days")
         self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
