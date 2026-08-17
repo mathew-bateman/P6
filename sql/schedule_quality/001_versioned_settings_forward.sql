@@ -858,11 +858,27 @@ RETURN
                 (
                     bigint,
                     CASE
-                        WHEN r.pred_type IN ('PR_FS', 'PR_SS')
+                        WHEN r.pred_type = 'PR_FS'
                          AND pred.task_id IS NOT NULL
                          AND pred_source.task_id IS NOT NULL
                          AND pred.is_loe = 0
                          AND pred.is_wbs_summary = 0
+                        THEN 1
+                        WHEN r.pred_type = 'PR_SS'
+                         AND pred.task_id IS NOT NULL
+                         AND pred_source.task_id IS NOT NULL
+                         AND pred.is_loe = 0
+                         AND pred.is_wbs_summary = 0
+                         AND EXISTS
+                         (
+                             SELECT 1
+                             FROM dbo.TASKPRED AS paired_relationship
+                             WHERE paired_relationship.proj_id = r.proj_id
+                               AND paired_relationship.pred_task_id = r.pred_task_id
+                               AND paired_relationship.task_id = r.task_id
+                               AND paired_relationship.pred_type = 'PR_FF'
+                               AND paired_relationship.delete_session_id IS NULL
+                         )
                         THEN 1 ELSE 0
                     END
                 )
@@ -890,11 +906,27 @@ RETURN
                 (
                     bigint,
                     CASE
-                        WHEN r.pred_type IN ('PR_FS', 'PR_FF')
+                        WHEN r.pred_type = 'PR_FS'
                          AND succ.task_id IS NOT NULL
                          AND succ_source.task_id IS NOT NULL
                          AND succ.is_loe = 0
                          AND succ.is_wbs_summary = 0
+                        THEN 1
+                        WHEN r.pred_type = 'PR_FF'
+                         AND succ.task_id IS NOT NULL
+                         AND succ_source.task_id IS NOT NULL
+                         AND succ.is_loe = 0
+                         AND succ.is_wbs_summary = 0
+                         AND EXISTS
+                         (
+                             SELECT 1
+                             FROM dbo.TASKPRED AS paired_relationship
+                             WHERE paired_relationship.proj_id = r.proj_id
+                               AND paired_relationship.pred_task_id = r.pred_task_id
+                               AND paired_relationship.task_id = r.task_id
+                               AND paired_relationship.pred_type = 'PR_SS'
+                               AND paired_relationship.delete_session_id IS NULL
+                         )
                         THEN 1 ELSE 0
                     END
                 )

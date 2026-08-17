@@ -167,6 +167,8 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertNotIn("LOWER(a.task_name)", open_ends)
         self.assertIn("pred_source.delete_session_id IS NULL", open_ends)
         self.assertIn("succ_source.delete_session_id IS NULL", open_ends)
+        self.assertIn("paired_relationship.pred_type = 'PR_FF'", open_ends)
+        self.assertIn("paired_relationship.pred_type = 'PR_SS'", open_ends)
         self.assertIn(
             "source_activity.delete_session_id IS NULL",
             open_ends,
@@ -301,7 +303,7 @@ class ScheduleQualitySqlAssetTests(TestCase):
             SCHEDULE_QUALITY_SQL / "027_configured_evidence_all_tables.sql"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("Configured evidence pass v5", sql)
+        self.assertIn("Configured evidence pass v6", sql)
         self.assertIn("configured_field_cursor", sql)
         self.assertIn("QUOTENAME(@source_table)", sql)
         self.assertIn("QUOTENAME(@source_identifier)", sql)
@@ -319,6 +321,12 @@ class ScheduleQualitySqlAssetTests(TestCase):
         )
         self.assertIn("qualifying_relationship.is_lag = 1", sql)
         self.assertIn("qualifying_relationship.is_lead = 1", sql)
+        self.assertIn("FROM dbo.TASKPRED AS relationship", sql)
+        self.assertIn("INNER JOIN dbo.TASK AS counterpart", sql)
+        self.assertIn("N''Predecessor Activity ID''", sql)
+        self.assertIn("N''Successor Activity ID''", sql)
+        self.assertIn("N''Required Paired Relationship''", sql)
+        self.assertNotIn("SCHEDULE_QUALITY_OPEN_END_CONTEXT", sql)
         self.assertIn("N''N/A''", sql)
 
     def test_refresh_cycle_pruning_has_both_edge_indexes(self):

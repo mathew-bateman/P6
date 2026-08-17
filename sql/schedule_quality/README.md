@@ -53,6 +53,16 @@ active activities. Activity-name text is not inspected. Open Start and Open
 Finish ignore P6 soft-deleted rows. Rerun `005_performance_hotfix.sql` and
 refresh the materialised results to apply this rule to an existing deployment.
 
+Open Start treats an SS predecessor as valid only when the same predecessor and
+successor pair also has an FF relationship. Open Finish applies the mirror
+rule to an FF successor: it also needs SS for the same pair. Rerun
+`005_performance_hotfix.sql`, then `027_configured_evidence_all_tables.sql`,
+and refresh the materialised results. The refresh reads `TASKPRED.pred_type`
+and the related `TASK.task_code` and `TASK.task_name` directly from P6, adding
+them as fixed evidence for these checks. Open Start resolves the predecessor;
+Open Finish resolves the successor. No pseudo P6 table or configured evidence
+field is created.
+
 The High Float validation is inclusive: a configured threshold of 84 days
 includes activities with total float of 84 days or more. Rerun
 `005_performance_hotfix.sql`, refresh the materialised results, and rerun
