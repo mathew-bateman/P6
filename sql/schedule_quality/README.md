@@ -16,9 +16,11 @@ Run against `P62212_1` in this order:
 10. `013_complete_task_evidence_view.sql`
 11. `015_critical_float_rounding_boundary.sql`
 12. `016_split_stage_metrics_performance.sql`
-13. `002_postdeploy_verify.sql`
-14. Run a single-project refresh for the canary project, then a full refresh.
-15. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+13. `029_exclude_deleted_activities.sql`
+14. `030_out_of_sequence_deleted_filter_performance.sql`
+15. `002_postdeploy_verify.sql`
+16. Run a single-project refresh for the canary project, then a full refresh.
+17. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -96,6 +98,17 @@ evidence-formatting procedure changes, updates configuration hashes, and
 applies the setting to activity, relationship, open-end, out-of-sequence, and
 logical-loop results. Publish the desired setting to rebuild the materialised
 Power BI rows.
+
+Run `030_out_of_sequence_deleted_filter_performance.sql` after `029` on an
+existing deployment. It preserves the same direct P6 `TASK`, `TASKPRED`, and
+structured `TASKACTV -> ACTVTYPE -> ACTVCODE` evidence and exclusion rules, but
+removes the two expanded Activities-view joins from the out-of-sequence trigger
+path. The function reads the predecessor and successor `TASK` rows directly and
+evaluates the `Activity Status = DEL` set once, avoiding the CPU-bound refresh
+regression introduced by the original `029` function shape. Run a canary and a
+full refresh after deployment. Use
+`930_out_of_sequence_deleted_filter_performance_rollback.sql` only to restore
+the prior function shape in an emergency.
 
 For a performance-only rollback, run `906_refresh_performance_hotfix_rollback.sql` and then `905_performance_hotfix_rollback.sql`. They restore the exact procedure and function definitions that were live before these hotfixes. Do not rerun the full pre-versioning rollback.
 

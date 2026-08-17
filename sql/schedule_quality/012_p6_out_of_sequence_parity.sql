@@ -19,7 +19,25 @@ RETURNS TABLE
 AS
 RETURN
 (
-    WITH relationships AS
+    /* OOS_DELETED_FILTER_SEMIJOIN_V1 */
+    WITH deleted_activities AS
+    (
+        SELECT DISTINCT assignment.proj_id, assignment.task_id
+        FROM dbo.TASKACTV AS assignment
+        JOIN dbo.ACTVTYPE AS code_type
+          ON code_type.actv_code_type_id = assignment.actv_code_type_id
+         AND code_type.delete_session_id IS NULL
+         AND code_type.delete_date IS NULL
+        JOIN dbo.ACTVCODE AS code
+          ON code.actv_code_id = assignment.actv_code_id
+         AND code.delete_session_id IS NULL
+         AND code.delete_date IS NULL
+        WHERE assignment.delete_session_id IS NULL
+          AND assignment.delete_date IS NULL
+          AND code_type.actv_code_type = 'Activity Status'
+          AND code.short_name = 'DEL'
+    ),
+    relationships AS
     (
         SELECT
             tp.proj_id,
@@ -74,10 +92,10 @@ RETURN
       ON scope.config_version_id = @config_version_id
      AND scope.check_code = 'out_of_sequence'
      AND scope.is_enabled = 1
-    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS pred
+    JOIN dbo.TASK AS pred
       ON pred.proj_id = r.proj_id
      AND pred.task_id = r.predecessor_task_id
-    JOIN [powerbitables].[xertoolkit_vw_PBI_Activities] AS succ
+    JOIN dbo.TASK AS succ
       ON succ.proj_id = r.proj_id
      AND succ.task_id = r.successor_task_id
     LEFT JOIN [powerbitables].[xertoolkit_schedule_quality_option] AS deleted_option
@@ -87,7 +105,14 @@ RETURN
       AND
       (
           ISNULL(deleted_option.bit_value, 1) = 0
-          OR (pred.is_deleted = 0 AND succ.is_deleted = 0)
+          OR NOT EXISTS
+          (
+              SELECT 1
+              FROM deleted_activities AS deleted
+              WHERE deleted.proj_id = r.proj_id
+                AND deleted.task_id IN
+                    (r.predecessor_task_id, r.successor_task_id)
+          )
       )
 );
 GO

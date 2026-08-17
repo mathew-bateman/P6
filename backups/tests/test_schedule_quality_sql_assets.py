@@ -383,6 +383,39 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn(") <> 13", forward_sql)
         self.assertIn("settings_hash", migration_sql)
 
+    def test_out_of_sequence_deleted_filter_avoids_expanding_activity_view_twice(self):
+        sql_assets = (
+            "001_versioned_settings_forward.sql",
+            "012_p6_out_of_sequence_parity.sql",
+            "029_exclude_deleted_activities.sql",
+            "030_out_of_sequence_deleted_filter_performance.sql",
+        )
+
+        for asset_name in sql_assets:
+            sql = (SCHEDULE_QUALITY_SQL / asset_name).read_text(encoding="utf-8")
+            function_sql = self._module_batch(
+                sql, "FUNCTION", "xertoolkit_fn_out_of_sequence"
+            )
+            self.assertIn("OOS_DELETED_FILTER_SEMIJOIN_V1", function_sql)
+            self.assertIn("JOIN dbo.TASK AS pred", function_sql)
+            self.assertIn("JOIN dbo.TASK AS succ", function_sql)
+            self.assertIn("FROM deleted_activities AS deleted", function_sql)
+            self.assertIn("code_type.actv_code_type = 'Activity Status'", function_sql)
+            self.assertIn("code.short_name = 'DEL'", function_sql)
+            self.assertNotIn(
+                "xertoolkit_vw_PBI_Activities] AS pred", function_sql
+            )
+            self.assertNotIn(
+                "xertoolkit_vw_PBI_Activities] AS succ", function_sql
+            )
+
+        rollback_sql = (
+            SCHEDULE_QUALITY_SQL
+            / "930_out_of_sequence_deleted_filter_performance_rollback.sql"
+        ).read_text(encoding="utf-8")
+        self.assertIn("xertoolkit_vw_PBI_Activities] AS pred", rollback_sql)
+        self.assertIn("xertoolkit_vw_PBI_Activities] AS succ", rollback_sql)
+
     def test_refresh_cycle_pruning_has_both_edge_indexes(self):
         forward_sql = (
             SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"
