@@ -88,7 +88,10 @@ WITH project_dimensions AS
         project.[Updated Date] AS updated_date,
         project.[Lead Planner] AS lead_planner,
         MAX(CASE
-            WHEN category_type.proj_catg_type = N'Portfolio'
+            -- In this P6 instance, the linked parent programme is held in the
+            -- project-category type named "Project ID".  Each category value
+            -- is the portfolio; PROJPCAT links it to its child projects.
+            WHEN category_type.proj_catg_type = N'Project ID'
             THEN category_value.proj_catg_name
         END) AS portfolio
     FROM [powerbitables].[xertoolkit_vw_PBI_Projects] AS project

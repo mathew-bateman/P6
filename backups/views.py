@@ -402,9 +402,6 @@ class ScheduleQualityReportFiltersMixin:
     ) -> tuple[ScheduleQualityValidationFilters, dict[str, object]]:
         options = fetch_validation_filter_options()
         projects = options["projects"]
-        if not options["portfolios"]:
-            return filters, {**options, "portfolio_hierarchy_available": False}
-
         selected_project = next(
             (
                 project
@@ -432,7 +429,6 @@ class ScheduleQualityReportFiltersMixin:
         return filters, {
             **options,
             "projects": scoped_projects,
-            "portfolio_hierarchy_available": True,
         }
 
 

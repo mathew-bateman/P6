@@ -525,7 +525,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
             "portfolios": [], "lead_planners": [], "updated_dates": [], "checks": [],
         },
     )
-    def test_missing_portfolio_data_keeps_all_projects_available(
+    def test_project_selection_requires_a_linked_portfolio(
         self,
         _filter_options,
         _overview,
@@ -536,5 +536,5 @@ class ScheduleQualityOverviewViewTests(TestCase):
         response = self.client.get(reverse("schedule_quality_overview"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "All projects")
-        self.assertNotContains(response, 'id="overview-project" name="project" disabled')
+        self.assertContains(response, "Select a portfolio first")
+        self.assertContains(response, 'id="overview-project" name="project" disabled')
