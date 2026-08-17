@@ -264,6 +264,41 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertContains(response, "13.18%")
         self.assertContains(response, "Build platform")
         self.assertContains(response, "Total Float: 90.00 days")
+        self.assertContains(response, 'hx-trigger="change from:select"')
+        self.assertNotContains(response, ">Apply<")
+
+    @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
+    @patch("backups.views.fetch_validation_evidence", return_value=([], 0))
+    @patch("backups.views.fetch_validation_summary", return_value=[])
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [],
+            "portfolios": [],
+            "lead_planners": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    def test_htmx_filter_request_returns_results_fragment(
+        self,
+        _filter_options,
+        _summary,
+        _evidence,
+        _refresh_history,
+    ):
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(
+            reverse("schedule_quality_validation"),
+            {"project": "7"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="validation-results"')
+        self.assertNotContains(response, "Schedule Quality Validation")
+        self.assertNotContains(response, "<html")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
     @patch("backups.views.fetch_validation_evidence", return_value=([], 0))

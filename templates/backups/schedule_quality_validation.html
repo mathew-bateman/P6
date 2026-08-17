@@ -12,7 +12,7 @@
     .validation-filter-panel h2 { margin-bottom: 4px; }
     .validation-filter-panel .field { margin-bottom: 12px; }
     .validation-filter-panel label { color: #344054; font-size: 13px; }
-    .validation-filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .validation-filter-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .validation-filter-actions .button, .validation-filter-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
     .validation-main { min-width: 0; }
     .validation-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
@@ -86,7 +86,11 @@
     <aside class="panel validation-filter-panel">
         <h2>Filters</h2>
         <p class="subtle" style="margin:0 0 16px;">Narrow the checks and evidence together.</p>
-        <form method="get">
+        <form method="get"
+              hx-get="{% url 'schedule_quality_validation' %}"
+              hx-trigger="change from:select"
+              hx-target="#validation-results"
+              hx-push-url="true">
             <div class="field">
                 <label for="validation-project">Project</label>
                 <select id="validation-project" name="project">
@@ -133,129 +137,18 @@
                 </select>
             </div>
             <div class="validation-filter-actions">
-                <button type="submit">Apply</button>
-                <a class="button ghost" href="{% url 'schedule_quality_validation' %}">Clear</a>
+                <a class="button ghost"
+                   href="{% url 'schedule_quality_validation' %}"
+                   hx-get="{% url 'schedule_quality_validation' %}"
+                   hx-target="#validation-results"
+                   hx-push-url="true"
+                   hx-on::after-request="this.closest('form').querySelectorAll('select').forEach((select) => select.selectedIndex = 0)">Clear filters</a>
             </div>
         </form>
     </aside>
 
-    <div class="validation-main">
-        <section class="validation-kpis" aria-label="Validation summary">
-            <article class="panel validation-kpi">
-                <span>Checks shown</span>
-                <strong>{{ validation_totals.checks }}</strong>
-                <small>Enabled quality checks</small>
-            </article>
-            <article class="panel validation-kpi">
-                <span>Records checked</span>
-                <strong>{{ validation_totals.records_checked }}</strong>
-                <small>Largest active check scope</small>
-            </article>
-            <article class="panel validation-kpi">
-                <span>Results to review</span>
-                <strong>{{ validation_totals.qualifying_results }}</strong>
-                <small>Across the checks shown</small>
-            </article>
-            <article class="panel validation-kpi">
-                <span>Last refresh</span>
-                <strong style="font-size:18px;">{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
-                <small>{% if latest_refresh %}Run {{ latest_refresh.check_run_id }} · {{ latest_refresh.duration_display }}{% else %}No successful run found{% endif %}</small>
-            </article>
-        </section>
-
-        <section class="panel validation-report-panel">
-            <div class="validation-panel-header">
-                <div>
-                    <h2>Check results</h2>
-                    <p class="subtle">The same checks and qualifying percentages used by the reporting dataset.</p>
-                </div>
-                {% if validation_filters.check_code %}<span class="badge success">Filtered check</span>{% endif %}
-            </div>
-            <div class="validation-table-wrap validation-summary">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Check name</th>
-                            <th>Records checked</th>
-                            <th>Qualifying results</th>
-                            <th>Qualifying %</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in summary_rows %}
-                            <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}">
-                                <td>{{ row.number }}</td>
-                                <td><strong>{{ row.check_name }}</strong></td>
-                                <td><span class="numeric-value count">{{ row.records_checked }}</span></td>
-                                <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
-                                <td><span class="numeric-value">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="5" class="validation-empty">No check results match these filters.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
+    <div aria-live="polite">
+        {% include "backups/partials/schedule_quality_validation_results.html" %}
     </div>
 </div>
-
-<section class="panel validation-report-panel validation-evidence">
-    <div class="validation-panel-header">
-        <div>
-            <h2>Activity evidence</h2>
-            <p class="subtle">The exact tasks and evidence behind the selected validation results.</p>
-        </div>
-        <span class="badge">{{ validation_totals.evidence_rows }} row{{ validation_totals.evidence_rows|pluralize }}</span>
-    </div>
-    <div class="validation-table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Lead planner</th>
-                    <th>Project</th>
-                    <th>Check</th>
-                    <th>Activity code</th>
-                    <th>Activity name</th>
-                    <th>Evidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in evidence_rows %}
-                    <tr>
-                        <td>{{ row.lead_planner|default:"N/A" }}</td>
-                        <td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td>
-                        <td>{{ row.check_name }}</td>
-                        <td><code>{{ row.task_code }}</code></td>
-                        <td>{{ row.task_name }}</td>
-                        <td class="evidence-copy">{{ row.evidence_display|default:"No additional evidence recorded." }}</td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="6" class="validation-empty">No activity evidence matches these filters.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% if evidence_page.total_pages > 1 %}
-        <div class="pagination-container">
-            <span class="pagination-info">Showing {{ evidence_page.start_index }}-{{ evidence_page.end_index }} of {{ evidence_page.total_rows }} evidence rows</span>
-            <ul class="pagination">
-                <li class="page-item {% if not evidence_page.has_previous %}disabled{% endif %}">
-                    {% if evidence_page.has_previous %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.previous_page_number }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
-                </li>
-                {% for page in evidence_page.page_range %}
-                    {% if page == evidence_page.number %}
-                        <li class="page-item active"><span class="page-link">{{ page }}</span></li>
-                    {% elif page <= 3 or page == evidence_page.total_pages or page >= evidence_page.number|add:"-1" and page <= evidence_page.number|add:"1" %}
-                        <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page }}">{{ page }}</a></li>
-                    {% endif %}
-                {% endfor %}
-                <li class="page-item {% if not evidence_page.has_next %}disabled{% endif %}">
-                    {% if evidence_page.has_next %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.next_page_number }}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
-                </li>
-            </ul>
-        </div>
-    {% endif %}
-</section>
 {% endblock %}
