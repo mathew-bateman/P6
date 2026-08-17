@@ -324,15 +324,34 @@ class ScheduleQualitySqlAssetTests(TestCase):
         )
         self.assertIn("qualifying_relationship.is_lag = 1", sql)
         self.assertIn("qualifying_relationship.is_lead = 1", sql)
-        self.assertIn("FROM dbo.TASKPRED AS relationship", sql)
-        self.assertIn("INNER JOIN dbo.TASK AS counterpart", sql)
-        self.assertIn("LEFT JOIN dbo.TASKPRED AS paired_relationship", sql)
-        self.assertIn("paired_relationship.task_pred_id IS NULL", sql)
-        self.assertIn("N''Predecessor Activity ID''", sql)
-        self.assertIn("N''Successor Activity ID''", sql)
-        self.assertIn("N''Required Paired Relationship''", sql)
+        self.assertIn("CONFIGURABLE_OPEN_END_EVIDENCE_V1", sql)
+        self.assertIn("@field_check_code = N''open_start''", sql)
+        self.assertIn("@field_check_code = N''open_finish''", sql)
+        self.assertIn("open_relationship.pred_task_id = source_row.[task_id]", sql)
+        self.assertIn("open_relationship.task_id = source_row.[task_id]", sql)
+        self.assertIn("REPLACE(source_row.[pred_type]", sql)
+        self.assertNotIn("fixed_field.detail_field_id", sql)
+        self.assertNotIn("N''Required Paired Relationship''", sql)
         self.assertNotIn("SCHEDULE_QUALITY_OPEN_END_CONTEXT", sql)
         self.assertIn("N''N/A''", sql)
+
+    def test_configurable_open_end_evidence_migration_removes_fixed_rows(self):
+        sql = (
+            SCHEDULE_QUALITY_SQL / "031_configurable_open_end_evidence.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("CONFIGURABLE_OPEN_END_EVIDENCE_V1", sql)
+        self.assertIn("Open-end evidence comes directly from P6 TASKPRED and TASK", sql)
+        self.assertIn("@field_check_code = N''open_start''", sql)
+        self.assertIn("@field_check_code = N''open_finish''", sql)
+        self.assertIn("open_relationship.pred_task_id = source_row.[task_id]", sql)
+        self.assertIn("open_relationship.task_id = source_row.[task_id]", sql)
+        self.assertIn("REPLACE(source_row.[pred_type]", sql)
+        self.assertIn(
+            "CHARINDEX(N'Open-end evidence comes directly from P6 TASKPRED and TASK', "
+            "@deployed_definition) <> 0",
+            sql,
+        )
 
     def test_configured_evidence_display_format_keeps_p6_hours_and_adds_days(self):
         sql = (

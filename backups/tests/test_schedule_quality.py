@@ -12,6 +12,7 @@ from backups.forms import ScheduleQualitySettingsForm
 from backups.services.schedule_quality import (
     ScheduleQualityCheckScope,
     ScheduleQualityConstraintType,
+    ScheduleQualityDetailField,
     ScheduleQualityOption,
     ScheduleQualitySettingsConflict,
     ScheduleQualitySettingsSnapshot,
@@ -314,6 +315,105 @@ class ScheduleQualitySqlTests(SimpleTestCase):
 
 
 class ScheduleQualitySettingsFormTests(SimpleTestCase):
+    def test_legacy_open_end_summary_is_replaced_by_configurable_p6_fields(self):
+        open_end_checks = (
+            ScheduleQualityCheckScope(
+                check_code="open_start",
+                display_name="Open-Start Tasks",
+                sort_order=10,
+                is_enabled=True,
+                include_loe=False,
+                include_wbs_summary=False,
+                include_milestones=True,
+                exclude_complete=True,
+            ),
+            ScheduleQualityCheckScope(
+                check_code="open_finish",
+                display_name="Open-Finish Tasks",
+                sort_order=20,
+                is_enabled=True,
+                include_loe=False,
+                include_wbs_summary=False,
+                include_milestones=True,
+                exclude_complete=True,
+            ),
+        )
+        legacy_fields = tuple(
+            ScheduleQualityDetailField(
+                detail_field_id=index,
+                check_code=check_code,
+                source_category="relationship_column",
+                source_identifier="relationship_summary",
+                display_label="Relationships",
+                display_format="native",
+                sort_order=1,
+            )
+            for index, check_code in enumerate(
+                ("open_start", "open_finish"), start=1
+            )
+        )
+        snapshot = replace(
+            build_settings_snapshot(),
+            checks=open_end_checks,
+            detail_fields=legacy_fields,
+        )
+
+        form = ScheduleQualitySettingsForm(settings_snapshot=snapshot)
+        fields = json.loads(form["detail_fields_json"].value())
+
+        self.assertEqual(
+            [
+                (
+                    field["check_code"],
+                    field["source_category"],
+                    field["source_identifier"],
+                    field["display_label"],
+                    field["sort_order"],
+                )
+                for field in fields
+            ],
+            [
+                ("open_start", "TASKPRED", "pred_type", "Relationship Type", 1),
+                ("open_start", "TASK", "task_code", "Predecessor Activity ID", 2),
+                ("open_start", "TASK", "task_name", "Predecessor Activity Name", 3),
+                ("open_finish", "TASKPRED", "pred_type", "Relationship Type", 1),
+                ("open_finish", "TASK", "task_code", "Successor Activity ID", 2),
+                ("open_finish", "TASK", "task_name", "Successor Activity Name", 3),
+            ],
+        )
+
+    def test_removed_configurable_open_end_fields_are_not_reintroduced(self):
+        snapshot = replace(
+            build_settings_snapshot(),
+            detail_fields=(
+                ScheduleQualityDetailField(
+                    detail_field_id=1,
+                    check_code="open_start",
+                    source_category="TASKPRED",
+                    source_identifier="pred_type",
+                    display_label="Relationship Type",
+                    display_format="native",
+                    sort_order=1,
+                ),
+            ),
+        )
+
+        form = ScheduleQualitySettingsForm(settings_snapshot=snapshot)
+
+        self.assertEqual(
+            json.loads(form["detail_fields_json"].value()),
+            [
+                {
+                    "check_code": "open_start",
+                    "source_category": "TASKPRED",
+                    "source_identifier": "pred_type",
+                    "display_label": "Relationship Type",
+                    "display_format": "native",
+                    "sort_order": 1,
+                }
+            ],
+        )
+
     def test_numeric_option_values_display_to_two_decimal_places(self):
         form = ScheduleQualitySettingsForm(
             settings_snapshot=build_settings_snapshot(),

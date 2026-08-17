@@ -29,6 +29,19 @@ NUMERIC_OPTION_BOUNDS = {
     "excessive_ff_percent": (Decimal("0"), Decimal("100")),
 }
 SCOPE_OPTION_CODES = {"exclude_deleted_activities"}
+LEGACY_OPEN_END_EVIDENCE_FIELD = ("relationship_column", "relationship_summary")
+OPEN_END_EVIDENCE_DEFAULTS = {
+    "open_start": (
+        ("TASKPRED", "pred_type", "Relationship Type"),
+        ("TASK", "task_code", "Predecessor Activity ID"),
+        ("TASK", "task_name", "Predecessor Activity Name"),
+    ),
+    "open_finish": (
+        ("TASKPRED", "pred_type", "Relationship Type"),
+        ("TASK", "task_code", "Successor Activity ID"),
+        ("TASK", "task_name", "Successor Activity Name"),
+    ),
+}
 
 
 def _field_name(*parts: str) -> str:
@@ -36,6 +49,68 @@ def _field_name(*parts: str) -> str:
         if not SETTING_CODE_PATTERN.fullmatch(part):
             raise RuntimeError(f"Unsafe schedule quality setting code: {part!r}")
     return "__".join(parts)
+
+
+def _initial_detail_fields(
+    settings_snapshot: ScheduleQualitySettingsSnapshot,
+) -> list[dict[str, object]]:
+    fields = [
+        {
+            "check_code": field.check_code,
+            "source_category": field.source_category,
+            "source_identifier": field.source_identifier,
+            "display_label": field.display_label,
+            "display_format": field.display_format,
+            "sort_order": field.sort_order,
+        }
+        for field in settings_snapshot.detail_fields
+    ]
+
+    for check_code, defaults in OPEN_END_EVIDENCE_DEFAULTS.items():
+        check_fields = [field for field in fields if field["check_code"] == check_code]
+        if not any(
+            (field["source_category"], field["source_identifier"])
+            == LEGACY_OPEN_END_EVIDENCE_FIELD
+            for field in check_fields
+        ):
+            continue
+
+        existing = {
+            (str(field["source_category"]), str(field["source_identifier"])): field
+            for field in check_fields
+        }
+        default_keys = {(category, identifier) for category, identifier, _ in defaults}
+        replacement = []
+        for category, identifier, label in defaults:
+            replacement.append(
+                existing.get(
+                    (category, identifier),
+                    {
+                        "check_code": check_code,
+                        "source_category": category,
+                        "source_identifier": identifier,
+                        "display_label": label,
+                        "display_format": "native",
+                        "sort_order": 0,
+                    },
+                )
+            )
+        replacement.extend(
+            field
+            for field in sorted(check_fields, key=lambda item: int(item["sort_order"]))
+            if (
+                field["source_category"],
+                field["source_identifier"],
+            )
+            not in default_keys | {LEGACY_OPEN_END_EVIDENCE_FIELD}
+        )
+        for sort_order, field in enumerate(replacement, start=1):
+            field["sort_order"] = sort_order
+
+        fields = [field for field in fields if field["check_code"] != check_code]
+        fields.extend(replacement)
+
+    return fields
 
 
 class ScheduleQualitySettingsForm(forms.Form):
@@ -75,19 +150,7 @@ class ScheduleQualitySettingsForm(forms.Form):
         initial.setdefault("change_note", "")
         initial.setdefault(
             "detail_fields_json",
-            json.dumps(
-                [
-                    {
-                        "check_code": field.check_code,
-                        "source_category": field.source_category,
-                        "source_identifier": field.source_identifier,
-                    "display_label": field.display_label,
-                    "display_format": field.display_format,
-                        "sort_order": field.sort_order,
-                    }
-                    for field in settings_snapshot.detail_fields
-                ]
-            ),
+            json.dumps(_initial_detail_fields(settings_snapshot)),
         )
         kwargs["initial"] = initial
         super().__init__(*args, **kwargs)

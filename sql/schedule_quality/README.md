@@ -18,9 +18,10 @@ Run against `P62212_1` in this order:
 12. `016_split_stage_metrics_performance.sql`
 13. `029_exclude_deleted_activities.sql`
 14. `030_out_of_sequence_deleted_filter_performance.sql`
-15. `002_postdeploy_verify.sql`
-16. Run a single-project refresh for the canary project, then a full refresh.
-17. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+15. `031_configurable_open_end_evidence.sql`
+16. `002_postdeploy_verify.sql`
+17. Run a single-project refresh for the canary project, then a full refresh.
+18. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -109,6 +110,16 @@ regression introduced by the original `029` function shape. Run a canary and a
 full refresh after deployment. Use
 `930_out_of_sequence_deleted_filter_performance_rollback.sql` only to restore
 the prior function shape in an emergency.
+
+Run `031_configurable_open_end_evidence.sql` after the configured-evidence
+scripts on an existing deployment. It removes the permanently injected Open
+Start/Open Finish context rows and makes the settings table authoritative.
+The legacy `relationship_summary` placeholder is presented in the editor as
+the real P6 selections `TASKPRED.pred_type`, `TASK.task_code`, and
+`TASK.task_name`; saving or publishing persists those rows. Open Start resolves
+the configured `TASK` fields through the predecessor endpoint and Open Finish
+through the successor endpoint. Users can then add, remove, relabel, or reorder
+these fields without another SQL change.
 
 For a performance-only rollback, run `906_refresh_performance_hotfix_rollback.sql` and then `905_performance_hotfix_rollback.sql`. They restore the exact procedure and function definitions that were live before these hotfixes. Do not rerun the full pre-versioning rollback.
 

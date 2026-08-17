@@ -39,6 +39,7 @@ BEGIN TRY
 
     DECLARE @replacement nvarchar(max) = N'
         -- Configured evidence pass v6: generic P6 table resolver plus open-end relationship context.
+        -- CONFIGURABLE_OPEN_END_EVIDENCE_V1
         IF @check_run_id IS NOT NULL AND @config_version_id IS NOT NULL
         BEGIN
             CREATE TABLE #ConfiguredEvidenceValue
@@ -51,112 +52,6 @@ BEGIN TRY
                 sort_order int NOT NULL,
                 detail_value nvarchar(max) NOT NULL
             );
-
-            /*
-                Open-end evidence comes directly from P6 TASKPRED and TASK.
-                Open Start follows predecessor rows; Open Finish follows
-                successor rows. These are fixed integrity facts rather than
-                user-configured pseudo fields.
-            */
-            INSERT #ConfiguredEvidenceValue
-            (
-                proj_id, check_code, task_id, detail_field_id,
-                display_label, sort_order, detail_value
-            )
-            SELECT
-                evidence.proj_id,
-                evidence.check_code,
-                evidence.task_id,
-                fixed_field.detail_field_id,
-                fixed_field.display_label,
-                fixed_field.sort_order,
-                COALESCE(fixed_field.detail_value, N''N/A'')
-            FROM [powerbitables].[xertoolkit_result_schedule_quality_task_evidence] AS evidence
-            OUTER APPLY
-            (
-                SELECT
-                    STRING_AGG(CONVERT(nvarchar(max), relationship_value.relationship_type), N'', '')
-                        WITHIN GROUP (ORDER BY relationship_value.relationship_id) AS relationship_types,
-                    STRING_AGG(CONVERT(nvarchar(max), relationship_value.activity_id), N'', '')
-                        WITHIN GROUP (ORDER BY relationship_value.relationship_id) AS activity_ids,
-                    STRING_AGG(CONVERT(nvarchar(max), relationship_value.activity_name), N'', '')
-                        WITHIN GROUP (ORDER BY relationship_value.relationship_id) AS activity_names,
-                    MAX(relationship_value.required_pair) AS required_pairs
-                FROM
-                (
-                    SELECT DISTINCT
-                        relationship.task_pred_id AS relationship_id,
-                        CONVERT(nvarchar(40), REPLACE(relationship.pred_type, N''PR_'', N'''')) AS relationship_type,
-                        CONVERT(nvarchar(120), counterpart.task_code) AS activity_id,
-                        CONVERT(nvarchar(240), counterpart.task_name) AS activity_name,
-                        CONVERT
-                        (
-                            nvarchar(40),
-                            CASE
-                                WHEN evidence.check_code = N''open_start''
-                                 AND relationship.pred_type = N''PR_SS''
-                                 AND paired_relationship.task_pred_id IS NULL THEN N''FF''
-                                WHEN evidence.check_code = N''open_finish''
-                                 AND relationship.pred_type = N''PR_FF''
-                                 AND paired_relationship.task_pred_id IS NULL THEN N''SS''
-                            END
-                        ) AS required_pair
-                    FROM dbo.TASKPRED AS relationship
-                    INNER JOIN dbo.TASK AS counterpart
-                      ON counterpart.proj_id = relationship.proj_id
-                     AND counterpart.task_id = CASE
-                            WHEN evidence.check_code = N''open_start'' THEN relationship.pred_task_id
-                            ELSE relationship.task_id
-                         END
-                     AND counterpart.delete_session_id IS NULL
-                    LEFT JOIN dbo.TASKPRED AS paired_relationship
-                      ON paired_relationship.proj_id = relationship.proj_id
-                     AND paired_relationship.pred_task_id = relationship.pred_task_id
-                     AND paired_relationship.task_id = relationship.task_id
-                     AND paired_relationship.pred_type = CASE
-                            WHEN evidence.check_code = N''open_start''
-                             AND relationship.pred_type = N''PR_SS'' THEN N''PR_FF''
-                            WHEN evidence.check_code = N''open_finish''
-                             AND relationship.pred_type = N''PR_FF'' THEN N''PR_SS''
-                            ELSE N''__NO_PAIR__''
-                         END
-                     AND paired_relationship.delete_session_id IS NULL
-                    WHERE relationship.proj_id = evidence.proj_id
-                      AND relationship.delete_session_id IS NULL
-                      AND
-                      (
-                          (evidence.check_code = N''open_start'' AND relationship.task_id = evidence.task_id)
-                          OR
-                          (evidence.check_code = N''open_finish'' AND relationship.pred_task_id = evidence.task_id)
-                      )
-                ) AS relationship_value
-            ) AS related
-            CROSS APPLY
-            (
-                VALUES
-                (
-                    CONVERT(bigint, -4), N''Relationship Type'', 1,
-                    related.relationship_types
-                ),
-                (
-                    CONVERT(bigint, -3),
-                    CASE WHEN evidence.check_code = N''open_start''
-                        THEN N''Predecessor Activity ID'' ELSE N''Successor Activity ID'' END,
-                    2, related.activity_ids
-                ),
-                (
-                    CONVERT(bigint, -2),
-                    CASE WHEN evidence.check_code = N''open_start''
-                        THEN N''Predecessor Activity Name'' ELSE N''Successor Activity Name'' END,
-                    3, related.activity_names
-                ),
-                (
-                    CONVERT(bigint, -1), N''Required Paired Relationship'', 4,
-                    related.required_pairs
-                )
-            ) AS fixed_field (detail_field_id, display_label, sort_order, detail_value)
-            WHERE evidence.check_run_id = @check_run_id
-              AND evidence.check_code IN (N''open_start'', N''open_finish'');
 
             DECLARE
                 @detail_field_id bigint,
@@ -295,6 +190,16 @@ BEGIN TRY
                         END;
 
                         IF @join_column = N''relationship_endpoint''
+                         AND @field_check_code = N''open_start''
+                            SET @join_predicate = N''source_row.[task_id] = evidence.task_id
+                                AND source_row.[proj_id] = evidence.proj_id
+                                AND source_row.[delete_session_id] IS NULL'';
+                        ELSE IF @join_column = N''relationship_endpoint''
+                         AND @field_check_code = N''open_finish''
+                            SET @join_predicate = N''source_row.[pred_task_id] = evidence.task_id
+                                AND source_row.[proj_id] = evidence.proj_id
+                                AND source_row.[delete_session_id] IS NULL'';
+                        ELSE IF @join_column = N''relationship_endpoint''
                          AND @field_check_code IN
                          (
                              N''relationship_leads'',
@@ -324,6 +229,32 @@ BEGIN TRY
                             )'';
                         ELSE IF @join_column = N''relationship_endpoint''
                             SET @join_predicate = N''(source_row.[task_id] = evidence.task_id OR source_row.[pred_task_id] = evidence.task_id)'';
+                        ELSE IF @source_table = N''TASK''
+                         AND @field_check_code = N''open_start''
+                            SET @join_predicate = N''EXISTS
+                            (
+                                SELECT 1
+                                FROM dbo.TASKPRED AS open_relationship
+                                WHERE open_relationship.proj_id = evidence.proj_id
+                                  AND open_relationship.task_id = evidence.task_id
+                                  AND open_relationship.pred_task_id = source_row.[task_id]
+                                  AND open_relationship.delete_session_id IS NULL
+                            )
+                            AND source_row.[proj_id] = evidence.proj_id
+                            AND source_row.[delete_session_id] IS NULL'';
+                        ELSE IF @source_table = N''TASK''
+                         AND @field_check_code = N''open_finish''
+                            SET @join_predicate = N''EXISTS
+                            (
+                                SELECT 1
+                                FROM dbo.TASKPRED AS open_relationship
+                                WHERE open_relationship.proj_id = evidence.proj_id
+                                  AND open_relationship.pred_task_id = evidence.task_id
+                                  AND open_relationship.task_id = source_row.[task_id]
+                                  AND open_relationship.delete_session_id IS NULL
+                            )
+                            AND source_row.[proj_id] = evidence.proj_id
+                            AND source_row.[delete_session_id] IS NULL'';
                         ELSE IF @join_column = N''task_id''
                             SET @join_predicate = N''source_row.[task_id] = evidence.task_id'';
                         ELSE IF @join_column = N''wbs_id''
@@ -355,6 +286,9 @@ BEGIN TRY
                                 SET @join_predicate += N'' AND source_row.[proj_id] = evidence.proj_id'';
 
                             SET @source_expression = CASE
+                                WHEN @source_table = N''TASKPRED''
+                                 AND @source_identifier = N''pred_type''
+                                    THEN N''REPLACE(source_row.[pred_type], N''''PR_'''', N'''''''')''
                                 WHEN @source_table = N''TASK''
                                  AND @source_identifier IN (N''cstr_type'', N''cstr_type2'')
                                     THEN N''COALESCE
