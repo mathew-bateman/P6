@@ -203,7 +203,6 @@
     <section class="panel settings-scope-panel">
             <div class="settings-advanced-section">
                 <h2>Check scope</h2>
-                <p class="subtle">A selected checkbox is included; a clear checkbox is excluded. N/A settings cannot be changed for that check.</p>
                 <table class="settings-table">
                     <thead>
                     <tr{% if row.enabled.errors %} class="settings-invalid-row"{% endif %}>
@@ -255,11 +254,10 @@
     <section class="panel settings-exclusions-panel">
         <div class="settings-advanced-section">
             <h2>Exclusions</h2>
-            <p class="subtle">Choose which P6 records should be excluded from schedule-quality calculations. More exclusion controls can be added here.</p>
             {% for row in settings_form.scope_option_rows %}
                 <label class="schedule-toggle settings-exclusion-toggle">
                     {{ row.field }}
-                    <span><strong>{{ row.option.display_name }}</strong><br><span class="subtle">Uses the P6 Activity Status code DEL.</span></span>
+                    <span><strong>{{ row.option.display_name }}</strong></span>
                 </label>
             {% empty %}
                 <p class="subtle">No exclusions are available.</p>
