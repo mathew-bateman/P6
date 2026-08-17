@@ -69,7 +69,9 @@ BEGIN
     (
         @activities_definition,
         N'AND deleted.task_id = t.task_id;',
-        N'AND deleted.task_id = t.task_id\nWHERE t.delete_session_id IS NULL\n  AND t.delete_date IS NULL;'
+        N'AND deleted.task_id = t.task_id;' + NCHAR(10)
+        + N'WHERE t.delete_session_id IS NULL' + NCHAR(10)
+        + N'  AND t.delete_date IS NULL;'
     );
     EXEC sys.sp_executesql @activities_definition;
 END;
@@ -91,13 +93,17 @@ BEGIN
     (
         @out_of_sequence_definition,
         N'AND pred.task_id = r.predecessor_task_id',
-        N'AND pred.task_id = r.predecessor_task_id\n     AND pred.delete_session_id IS NULL\n     AND pred.delete_date IS NULL'
+        N'AND pred.task_id = r.predecessor_task_id' + NCHAR(10)
+        + N'     AND pred.delete_session_id IS NULL' + NCHAR(10)
+        + N'     AND pred.delete_date IS NULL'
     );
     SET @out_of_sequence_definition = REPLACE
     (
         @out_of_sequence_definition,
         N'AND succ.task_id = r.successor_task_id',
-        N'AND succ.task_id = r.successor_task_id\n     AND succ.delete_session_id IS NULL\n     AND succ.delete_date IS NULL'
+        N'AND succ.task_id = r.successor_task_id' + NCHAR(10)
+        + N'     AND succ.delete_session_id IS NULL' + NCHAR(10)
+        + N'     AND succ.delete_date IS NULL'
     );
     EXEC sys.sp_executesql @out_of_sequence_definition;
 END;
