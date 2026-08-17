@@ -77,7 +77,7 @@
     @media (max-width: 1040px) {
         .validation-layout { grid-template-columns: 1fr; }
         .validation-filter-panel { position: static; }
-        .validation-filter-panel form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+        .validation-filter-panel form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
         .validation-filter-panel .field { margin: 0; }
         .validation-filter-actions { grid-column: 1 / -1; justify-self: end; width: min(100%, 300px); }
     }
@@ -94,10 +94,9 @@
 <section class="toolbar page-hero maintenance-page-heading">
     <div>
         <h1>Schedule Quality Validation</h1>
-        <p class="subtle">Review check results and the activities behind them.</p>
     </div>
     <nav class="validation-tabs" aria-label="Schedule quality reports">
-        <a class="button ghost" href="{% url 'schedule_quality_overview' %}">Programme Overview</a>
+        <a class="button ghost" href="{% url 'schedule_quality_overview' %}">Overview</a>
         <a class="button current" href="{% url 'schedule_quality_validation' %}" aria-current="page">Validation &amp; Evidence</a>
     </nav>
 </section>
@@ -112,7 +111,6 @@
 <div class="validation-layout">
     <aside class="panel validation-filter-panel">
         <h2>Filters</h2>
-        <p class="subtle" style="margin:0 0 16px;">Narrow the checks and evidence together.</p>
         <form method="get"
               hx-get="{% url 'schedule_quality_validation' %}"
               hx-trigger="change from:select, change from:input"
@@ -176,7 +174,7 @@
         </form>
     </aside>
 
-    <div aria-live="polite">
+    <div class="validation-main" aria-live="polite">
         {% include "backups/partials/schedule_quality_validation_results.html" %}
     </div>
 </div>
