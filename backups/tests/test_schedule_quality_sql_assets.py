@@ -446,6 +446,23 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("xertoolkit_vw_PBI_Activities] AS pred", rollback_sql)
         self.assertIn("xertoolkit_vw_PBI_Activities] AS succ", rollback_sql)
 
+    def test_soft_deleted_task_patch_excludes_physical_p6_deletions(self):
+        sql = (
+            SCHEDULE_QUALITY_SQL / "033_exclude_soft_deleted_tasks.sql"
+        ).read_text(encoding="utf-8")
+        rollback_sql = (
+            SCHEDULE_QUALITY_SQL / "933_exclude_soft_deleted_tasks_rollback.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("t.delete_session_id IS NULL", sql)
+        self.assertIn("t.delete_date IS NULL", sql)
+        self.assertIn("pred.delete_session_id IS NULL", sql)
+        self.assertIn("succ.delete_session_id IS NULL", sql)
+        self.assertIn("schedule_quality_20260817_soft_deleted_task_modules", sql)
+        self.assertIn("rollback snapshot is incomplete", sql)
+        self.assertIn("schedule_quality_20260817_soft_deleted_task_modules", rollback_sql)
+        self.assertIn("EXEC sys.sp_executesql @definition", rollback_sql)
+
     def test_refresh_cycle_pruning_has_both_edge_indexes(self):
         forward_sql = (
             SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"

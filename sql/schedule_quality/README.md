@@ -20,9 +20,10 @@ Run against `P62212_1` in this order:
 14. `030_out_of_sequence_deleted_filter_performance.sql`
 15. `031_configurable_open_end_evidence.sql`
 16. `032_configured_evidence_days_only.sql`
-17. `002_postdeploy_verify.sql`
-18. Run a single-project refresh for the canary project, then a full refresh.
-19. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+17. `033_exclude_soft_deleted_tasks.sql`
+18. `002_postdeploy_verify.sql`
+19. Run a single-project refresh for the canary project, then a full refresh.
+20. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -113,6 +114,14 @@ regression introduced by the original `029` function shape. Run a canary and a
 full refresh after deployment. Use
 `930_out_of_sequence_deleted_filter_performance_rollback.sql` only to restore
 the prior function shape in an emergency.
+
+Run `033_exclude_soft_deleted_tasks.sql` after `032` to exclude P6 TASK rows
+whose `delete_session_id` or `delete_date` is populated. This complements the
+business `Activity Status = DEL` exception: physically soft-deleted tasks are
+removed from the shared Activities/Relationships views and direct
+out-of-sequence calculation. It snapshots the two changed modules before
+altering them; use `933_exclude_soft_deleted_tasks_rollback.sql` only to
+restore that exact pre-033 state. Run a canary and a full refresh afterwards.
 
 Run `031_configurable_open_end_evidence.sql` after the configured-evidence
 scripts on an existing deployment. It removes the permanently injected Open
