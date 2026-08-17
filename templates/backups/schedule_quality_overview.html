@@ -138,6 +138,13 @@
         });
         form.querySelectorAll('.schedule-quality-date-picker').forEach((input) => input._flatpickr?.clear(false));
     };
+    const syncScheduleQualityReportTabs = (form) => {
+        const query = new URLSearchParams(new FormData(form)).toString();
+        document.querySelectorAll('.overview-tabs a, .validation-tabs a').forEach((link) => {
+            const path = link.getAttribute('href').split('?')[0];
+            link.setAttribute('href', query ? `${path}?${query}` : path);
+        });
+    };
     const initDatePickers = (root = document) => {
         if (!window.flatpickr) return;
         root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
@@ -168,6 +175,10 @@
         });
     };
     document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
+    document.addEventListener('change', (event) => {
+        const form = event.target.closest('.overview-layout form');
+        if (form) syncScheduleQualityReportTabs(form);
+    });
     document.addEventListener('htmx:load', (event) => { initTomSelects(event.detail.elt); initDatePickers(event.detail.elt); });
 })();
 </script>

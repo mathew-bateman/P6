@@ -277,6 +277,7 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertContains(response, "Build platform")
         self.assertContains(response, "Total Float: 90.00 days")
         self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
+        self.assertContains(response, "syncScheduleQualityReportTabs")
         self.assertNotContains(response, ">Apply<")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
@@ -436,6 +437,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Logical Loops")
         self.assertContains(response, 'hx-swap="outerHTML"')
         self.assertContains(response, "htmx:load")
+        self.assertContains(response, "syncScheduleQualityReportTabs")
         self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")
         self.assertContains(response, "Latest update")
