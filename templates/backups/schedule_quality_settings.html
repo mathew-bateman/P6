@@ -167,7 +167,7 @@
                 <div class="evidence-builder" aria-label="Add evidence field for {{ check.display_name }}">
                     <div class="field"><label>P6 table<select class="evidence-category" disabled><option>Loading P6 tables…</option></select></label></div>
                     <div class="field"><label>P6 field<select class="evidence-field" disabled><option>Choose a source first…</option></select></label></div><div class="field"><label>Evidence label<input class="evidence-label" type="text" maxlength="120" placeholder="Shown in Power BI"></label></div><button class="secondary add-evidence-field" type="button">Add field</button>
-                </div><table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Show days</th><th>Actions</th></tr></thead><tbody></tbody></table>
+                </div><table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Display format</th><th>Actions</th></tr></thead><tbody></tbody></table>
             </details>
         {% endfor %}
     </section>
@@ -373,15 +373,19 @@
                 const displayCell = document.createElement('td');
                 const supportsCalculatedDays = item.source_identifier.toLowerCase().endsWith('_hr_cnt');
                 if (supportsCalculatedDays) {
-                    const showDays = document.createElement('input');
-                    showDays.type = 'checkbox';
-                    showDays.checked = item.display_format === 'p6_hours_and_days';
-                    showDays.setAttribute('aria-label', `Show calculated days for ${item.source_identifier}`);
-                    showDays.onchange = () => {
-                        fields[item.index].display_format = showDays.checked ? 'p6_hours_and_days' : 'native';
+                    const display = document.createElement('select');
+                    display.setAttribute('aria-label', `Display format for ${item.source_identifier}`);
+                    display.append(
+                        new Option('P6 hours only', 'native'),
+                        new Option('Calculated days only', 'p6_days_only'),
+                        new Option('P6 hours + calculated days', 'p6_hours_and_days'),
+                    );
+                    display.value = item.display_format || 'native';
+                    display.onchange = () => {
+                        fields[item.index].display_format = display.value;
                         sync();
                     };
-                    displayCell.append(showDays);
+                    displayCell.append(display);
                 } else {
                     const unavailable = document.createElement('span');
                     unavailable.className = 'subtle';

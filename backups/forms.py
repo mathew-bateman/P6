@@ -319,10 +319,10 @@ class ScheduleQualitySettingsForm(forms.Form):
                 raise forms.ValidationError("Each evidence field needs a check, source, field, and label.")
             if len(identifier) > 120 or len(label) > 120:
                 raise forms.ValidationError("Evidence field identifiers and labels must be 120 characters or fewer.")
-            if display_format not in {"native", "p6_hours_and_days"}:
+            if display_format not in {"native", "p6_days_only", "p6_hours_and_days"}:
                 raise forms.ValidationError("Each evidence field needs a valid display format.")
             if (
-                display_format == "p6_hours_and_days"
+                display_format in {"p6_days_only", "p6_hours_and_days"}
                 and not identifier.lower().endswith("_hr_cnt")
             ):
                 raise forms.ValidationError(

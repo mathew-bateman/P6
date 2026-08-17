@@ -19,9 +19,10 @@ Run against `P62212_1` in this order:
 13. `029_exclude_deleted_activities.sql`
 14. `030_out_of_sequence_deleted_filter_performance.sql`
 15. `031_configurable_open_end_evidence.sql`
-16. `002_postdeploy_verify.sql`
-17. Run a single-project refresh for the canary project, then a full refresh.
-18. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+16. `032_configured_evidence_days_only.sql`
+17. `002_postdeploy_verify.sql`
+18. Run a single-project refresh for the canary project, then a full refresh.
+19. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -87,8 +88,10 @@ to add a **Display** choice to every configured evidence field. `Native P6
 value` is the default. `P6 hours + calculated days` is intended for P6
 hour-count fields (for example, `*_hr_cnt`) and displays both the unchanged
 P6 value and the reporting calculation: `P6: 80.00 hours | Calculated: 10.00
-days (8h/day)`. Publish the settings and run a refresh to rebuild the
-materialised evidence.
+days (8h/day)`. Run `032_configured_evidence_days_only.sql` afterwards to add
+the `Calculated days only` choice, which displays `Calculated days: 10.00
+days (from 80.00 P6 hours; 8h/day)`. Publish the settings and run a refresh to
+rebuild the materialised evidence.
 
 Run `029_exclude_deleted_activities.sql` on an existing deployment to add the
 global **Exclude activities marked as deleted** scope control. It defaults to
