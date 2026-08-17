@@ -323,6 +323,8 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("qualifying_relationship.is_lead = 1", sql)
         self.assertIn("FROM dbo.TASKPRED AS relationship", sql)
         self.assertIn("INNER JOIN dbo.TASK AS counterpart", sql)
+        self.assertIn("LEFT JOIN dbo.TASKPRED AS paired_relationship", sql)
+        self.assertIn("paired_relationship.task_pred_id IS NULL", sql)
         self.assertIn("N''Predecessor Activity ID''", sql)
         self.assertIn("N''Successor Activity ID''", sql)
         self.assertIn("N''Required Paired Relationship''", sql)

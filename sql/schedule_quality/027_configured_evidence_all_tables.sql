@@ -95,28 +95,10 @@ BEGIN TRY
                             CASE
                                 WHEN evidence.check_code = N''open_start''
                                  AND relationship.pred_type = N''PR_SS''
-                                 AND NOT EXISTS
-                                 (
-                                     SELECT 1
-                                     FROM dbo.TASKPRED AS paired_relationship
-                                     WHERE paired_relationship.proj_id = relationship.proj_id
-                                       AND paired_relationship.pred_task_id = relationship.pred_task_id
-                                       AND paired_relationship.task_id = relationship.task_id
-                                       AND paired_relationship.pred_type = N''PR_FF''
-                                       AND paired_relationship.delete_session_id IS NULL
-                                 ) THEN N''FF''
+                                 AND paired_relationship.task_pred_id IS NULL THEN N''FF''
                                 WHEN evidence.check_code = N''open_finish''
                                  AND relationship.pred_type = N''PR_FF''
-                                 AND NOT EXISTS
-                                 (
-                                     SELECT 1
-                                     FROM dbo.TASKPRED AS paired_relationship
-                                     WHERE paired_relationship.proj_id = relationship.proj_id
-                                       AND paired_relationship.pred_task_id = relationship.pred_task_id
-                                       AND paired_relationship.task_id = relationship.task_id
-                                       AND paired_relationship.pred_type = N''PR_SS''
-                                       AND paired_relationship.delete_session_id IS NULL
-                                 ) THEN N''SS''
+                                 AND paired_relationship.task_pred_id IS NULL THEN N''SS''
                             END
                         ) AS required_pair
                     FROM dbo.TASKPRED AS relationship
@@ -127,6 +109,18 @@ BEGIN TRY
                             ELSE relationship.task_id
                          END
                      AND counterpart.delete_session_id IS NULL
+                    LEFT JOIN dbo.TASKPRED AS paired_relationship
+                      ON paired_relationship.proj_id = relationship.proj_id
+                     AND paired_relationship.pred_task_id = relationship.pred_task_id
+                     AND paired_relationship.task_id = relationship.task_id
+                     AND paired_relationship.pred_type = CASE
+                            WHEN evidence.check_code = N''open_start''
+                             AND relationship.pred_type = N''PR_SS'' THEN N''PR_FF''
+                            WHEN evidence.check_code = N''open_finish''
+                             AND relationship.pred_type = N''PR_FF'' THEN N''PR_SS''
+                            ELSE N''__NO_PAIR__''
+                         END
+                     AND paired_relationship.delete_session_id IS NULL
                     WHERE relationship.proj_id = evidence.proj_id
                       AND relationship.delete_session_id IS NULL
                       AND
