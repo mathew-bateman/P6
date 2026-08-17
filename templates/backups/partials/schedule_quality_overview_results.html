@@ -1,9 +1,11 @@
+<div class="overview-layout">
     <aside class="panel overview-filters" aria-live="polite">
         <h2>Filters</h2>
         <form method="get"
               hx-get="{% url 'schedule_quality_overview' %}"
               hx-trigger="change from:select, change from:input"
               hx-target=".overview-layout"
+              hx-swap="outerHTML"
               hx-push-url="true">
             <div class="field">
                 <label for="overview-portfolio">Portfolio</label>
@@ -161,3 +163,4 @@
         </section>
 
     </div>
+</div>

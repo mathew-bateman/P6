@@ -110,9 +110,7 @@
     </section>
 {% endif %}
 
-<div class="overview-layout">
-    {% include "backups/partials/schedule_quality_overview_results.html" %}
-</div>
+{% include "backups/partials/schedule_quality_overview_results.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -170,14 +168,7 @@
         });
     };
     document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
-    document.addEventListener('htmx:beforeSwap', (event) => {
-        const swapTarget = event.detail.target;
-        if (!swapTarget.matches('.overview-layout')) return;
-        swapTarget.querySelectorAll('.schedule-quality-select').forEach((select) => {
-            select.tomselect?.destroy();
-        });
-    });
-    document.addEventListener('htmx:afterSwap', (event) => { initTomSelects(event.target); initDatePickers(event.target); });
+    document.addEventListener('htmx:load', (event) => { initTomSelects(event.detail.elt); initDatePickers(event.detail.elt); });
 })();
 </script>
 {% endblock %}

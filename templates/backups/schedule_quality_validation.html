@@ -262,13 +262,6 @@
         });
     };
     document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
-    document.addEventListener('htmx:beforeSwap', (event) => {
-        const swapTarget = event.detail.target;
-        if (!swapTarget.matches('#validation-results')) return;
-        swapTarget.querySelectorAll('.schedule-quality-select').forEach((select) => {
-            select.tomselect?.destroy();
-        });
-    });
     document.addEventListener('htmx:afterSwap', (event) => { initTomSelects(event.target); initDatePickers(event.target); });
 })();
 </script>
