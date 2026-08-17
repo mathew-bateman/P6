@@ -379,6 +379,19 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("from ", sql)
         self.assertIn("Configured evidence pass v9", sql)
 
+    def test_configured_evidence_hour_formats_are_concise(self):
+        sql = (
+            SCHEDULE_QUALITY_SQL
+            / "034_configured_evidence_combined_format.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("hours | ", sql)
+        self.assertIn("@days_only_new", sql)
+        self.assertIn("days (8h/day)", sql)
+        self.assertIn("Configured evidence pass v10", sql)
+        self.assertIn("P6: ", sql)
+        self.assertIn("Calculated: ", sql)
+
     def test_deleted_activity_scope_uses_structured_p6_status_and_all_check_families(self):
         migration_sql = (
             SCHEDULE_QUALITY_SQL / "029_exclude_deleted_activities.sql"
