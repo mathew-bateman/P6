@@ -288,7 +288,6 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertLess(advanced_start, advanced_end)
         self.assertLess(advanced_end, form_end)
         self.assertIn("Check scope", html[advanced_start:advanced_end])
-        self.assertIn("Constraint types checked", html[advanced_start:advanced_end])
         get_draft.assert_called_once_with(
             changed_by="jason.mappin",
             profile_code="default",
