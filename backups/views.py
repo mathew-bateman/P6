@@ -495,6 +495,11 @@ class ScheduleQualityOverviewView(
                 context["report_scope_label"] = str(
                     selected_project.get("proj_short_name") or filters.project_id
                 )
+            elif len(options["projects"]) == 1:
+                context["report_scope_label"] = str(
+                    options["projects"][0].get("proj_short_name")
+                    or options["projects"][0]["proj_id"]
+                )
             elif filters.portfolio:
                 context["report_scope_label"] = f"{filters.portfolio} portfolio"
             else:
