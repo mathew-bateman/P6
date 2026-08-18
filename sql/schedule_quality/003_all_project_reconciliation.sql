@@ -685,8 +685,8 @@ SELECT
     ISNULL(relationships.relationship_count, 0) AS relationship_count,
     CAST
     (
-        ISNULL(relationships.relationship_count, 0) * 1.0
-        / NULLIF(ISNULL(scoped_activities.dcma_activity_count, 0), 0)
+        ISNULL(relationship_quality.non_fs_count, 0) * 100.0
+        / NULLIF(ISNULL(relationships.relationship_count, 0), 0)
         AS decimal(18,2)
     ) AS relationship_ratio,
     ISNULL(open_ends.missing_predecessor_count, 0) AS missing_predecessor_count,

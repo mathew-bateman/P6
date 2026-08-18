@@ -75,7 +75,7 @@ PROGRAMME_CHECK_RULES = (
     ProgrammeCheckRule("riding_progress_date", "Riding Progress Date", Decimal("3"), Decimal("7"), "Percent", 15, 12),
     ProgrammeCheckRule("excessive_ss_lag", "Excessive SS Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
     ProgrammeCheckRule("excessive_ff_lag", "Excessive FF Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Ratio", 10, 8),
+    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
 )
 
 METRIC_COLUMNS = tuple(
@@ -252,25 +252,7 @@ def fetch_validation_summary(
             if records_checked
             else Decimal("0")
         )
-        if check_code == "relationship_ratio":
-            activity_count = int(values.get("dcma_activity_count") or 0)
-            ratio_value = (
-                Decimal(records_checked) / Decimal(activity_count)
-                if activity_count
-                else Decimal("0")
-            )
-            # The PBIX scorecard exposes the ratio itself (for example 1.40),
-            # while its validation table shows that ratio's rounded result as
-            # a percentage of the activity scope (for example 0.39%).
-            qualifying_results = int(ratio_value.quantize(Decimal("1")))
-            qualifying_percent = (
-                Decimal(qualifying_results) * Decimal("100") / Decimal(activity_count)
-                if activity_count
-                else Decimal("0")
-            )
-            qualifying_display = f"{qualifying_percent:.2f}%"
-        else:
-            qualifying_display = f"{qualifying_percent:.2f}%"
+        qualifying_display = f"{qualifying_percent:.2f}%"
         rows.append(
             {
                 "number": len(rows) + 1,
@@ -335,16 +317,7 @@ def fetch_programme_overview(
         records_column, qualifying_column = CHECK_METRICS[rule.check_code]
         records_checked = int(values.get(records_column) or 0)
         qualifying_count = int(values.get(qualifying_column) or 0)
-        if rule.limit_type == "Ratio":
-            activity_count = int(values.get("dcma_activity_count") or 0)
-            result_value = (
-                Decimal(records_checked) / Decimal(activity_count)
-                if activity_count
-                else Decimal("0")
-            )
-            qualifying_results = int(result_value.quantize(Decimal("1")))
-            qualifying_display = f"{result_value:.2f}"
-        elif rule.limit_type == "Number":
+        if rule.limit_type == "Number":
             result_value = Decimal(qualifying_count)
             qualifying_results = qualifying_count
             qualifying_display = str(qualifying_count)

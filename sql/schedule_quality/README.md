@@ -22,9 +22,10 @@ Run against `P62212_1` in this order:
 16. `032_configured_evidence_days_only.sql`
 17. `033_exclude_soft_deleted_tasks.sql`
 18. `034_configured_evidence_combined_format.sql`
-19. `002_postdeploy_verify.sql`
-20. Run a single-project refresh for the canary project, then a full refresh.
-21. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+19. `035_relationship_ratio_non_fs.sql`
+20. `002_postdeploy_verify.sql`
+21. Run a single-project refresh for the canary project, then a full refresh.
+22. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -95,6 +96,13 @@ the `Calculated days only` choice. Run
 `034_configured_evidence_combined_format.sql` to make its output `10.00 days
 (8h/day)` and simplify the combined wording.
 Publish the settings and run a refresh to rebuild the materialised evidence.
+
+Run `035_relationship_ratio_non_fs.sql` on an existing deployment to align
+Relationship Ratio with XER: non-FS relationships divided by total
+relationships, expressed as a percentage. It immediately corrects existing
+materialised rows and preserves that calculation on later canary and full
+refreshes. Run `935_relationship_ratio_non_fs_rollback.sql` only to restore
+the pre-035 relationship-to-activity calculation.
 
 Run `029_exclude_deleted_activities.sql` on an existing deployment to add the
 global **Exclude activities marked as deleted** scope control. It defaults to

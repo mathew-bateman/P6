@@ -564,8 +564,8 @@ BEGIN
             ISNULL(rc.relationship_count, 0),
             CAST
             (
-                ISNULL(rc.relationship_count, 0) * 1.0
-                / NULLIF(ISNULL(sac.scoped_activity_count, 0), 0)
+                ISNULL(rqc.non_fs_count, 0) * 100.0
+                / NULLIF(ISNULL(rc.relationship_count, 0), 0)
                 AS decimal(18,2)
             ),
             ISNULL(oec.missing_predecessor_count, 0),

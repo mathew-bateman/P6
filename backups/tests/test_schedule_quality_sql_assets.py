@@ -106,6 +106,38 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("N'project_name'", reconciliation_sql)
         self.assertIn("N'updated_date'", reconciliation_sql)
 
+    def test_relationship_ratio_uses_non_fs_relationships_over_total_relationships(self):
+        forward_sql = (
+            SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"
+        ).read_text(encoding="utf-8")
+        refresh_hotfix_sql = (
+            SCHEDULE_QUALITY_SQL / "006_refresh_performance_hotfix.sql"
+        ).read_text(encoding="utf-8")
+        split_stage_sql = (
+            SCHEDULE_QUALITY_SQL / "016_split_stage_metrics_performance.sql"
+        ).read_text(encoding="utf-8")
+        reconciliation_sql = (
+            SCHEDULE_QUALITY_SQL / "003_all_project_reconciliation.sql"
+        ).read_text(encoding="utf-8")
+        migration_sql = (
+            SCHEDULE_QUALITY_SQL / "035_relationship_ratio_non_fs.sql"
+        ).read_text(encoding="utf-8")
+        rollback_sql = (
+            SCHEDULE_QUALITY_SQL / "935_relationship_ratio_non_fs_rollback.sql"
+        ).read_text(encoding="utf-8")
+
+        expected_formula = (
+            "ISNULL(rqc.non_fs_count, 0) * 100.0\n"
+            "                / NULLIF(ISNULL(rc.relationship_count, 0), 0)"
+        )
+        for sql in (forward_sql, refresh_hotfix_sql, split_stage_sql):
+            self.assertIn(expected_formula, sql)
+        self.assertIn("relationship_quality.non_fs_count, 0) * 100.0", reconciliation_sql)
+        self.assertIn("relationships.relationship_count, 0), 0)", reconciliation_sql)
+        self.assertIn("UPDATE [powerbitables].[xertoolkit_result_project_metrics]", migration_sql)
+        self.assertIn("result.non_fs_count, 0) * 100.0", migration_sql)
+        self.assertIn("relationship_count, 0) * 1.0", rollback_sql)
+
     def test_performance_hotfix_uses_single_pass_scope_settings(self):
         forward_sql = (
             SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"
