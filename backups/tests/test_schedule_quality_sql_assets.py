@@ -138,6 +138,26 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn("result.non_fs_count, 0) * 100.0", migration_sql)
         self.assertIn("relationship_count, 0) * 1.0", rollback_sql)
 
+    def test_relationship_ratio_return_is_a_decimal_for_bi_percentage_formatting(self):
+        forward_sql = (
+            SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"
+        ).read_text(encoding="utf-8")
+        migration_sql = (
+            SCHEDULE_QUALITY_SQL / "036_relationship_ratio_percentage_return.sql"
+        ).read_text(encoding="utf-8")
+        rollback_sql = (
+            SCHEDULE_QUALITY_SQL
+            / "936_relationship_ratio_percentage_return_rollback.sql"
+        ).read_text(encoding="utf-8")
+
+        percentage_return = (
+            "CAST(relationship_ratio / 100.0 AS decimal(18,4)) "
+            "AS relationship_ratio"
+        )
+        self.assertIn(percentage_return, forward_sql)
+        self.assertIn(percentage_return, migration_sql)
+        self.assertIn("relationship_ratio,", rollback_sql)
+
     def test_performance_hotfix_uses_single_pass_scope_settings(self):
         forward_sql = (
             SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"

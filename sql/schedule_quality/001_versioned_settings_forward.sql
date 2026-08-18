@@ -1967,7 +1967,8 @@ SELECT
     activity_count,
     dcma_activity_count,
     relationship_count,
-    relationship_ratio,
+    /* Raw decimal for BI Percentage formatting: 0.1284 renders as 12.84%. */
+    CAST(relationship_ratio / 100.0 AS decimal(18,4)) AS relationship_ratio,
     missing_predecessor_count,
     missing_successor_count,
     open_start_count,
