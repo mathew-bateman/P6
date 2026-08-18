@@ -483,6 +483,22 @@ class ScheduleQualityOverviewView(
             context["validation_filters"] = filters
             context.update(options)
             context.update(overview)
+            selected_project = next(
+                (
+                    project
+                    for project in options["projects"]
+                    if project["proj_id"] == filters.project_id
+                ),
+                None,
+            )
+            if selected_project:
+                context["report_scope_label"] = str(
+                    selected_project.get("proj_short_name") or filters.project_id
+                )
+            elif filters.portfolio:
+                context["report_scope_label"] = f"{filters.portfolio} portfolio"
+            else:
+                context["report_scope_label"] = "All matching projects"
             latest_runs = fetch_schedule_quality_refresh_history(
                 limit=1,
                 offset=0,
@@ -508,6 +524,7 @@ class ScheduleQualityOverviewView(
                     "pass_rate": 85,
                     "pass_or_fail": "N/A",
                     "latest_refresh": None,
+                    "report_scope_label": "No matching projects",
                     "overview_report_error": str(error),
                 }
             )

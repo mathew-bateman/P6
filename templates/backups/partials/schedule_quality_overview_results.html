@@ -83,6 +83,12 @@
     </aside>
 
     <div class="overview-main">
+        <section class="overview-integrity-banner {{ pass_or_fail|lower|slugify }}" aria-label="Integrity score outcome">
+            <span>{{ pass_or_fail }}</span>
+            <strong>Score: {{ total_points_achieved }} out of {{ total_points_available }} points scored ({{ pass_percent|floatformat:2 }}%) — Pass rate threshold: {{ pass_rate|floatformat:2 }}%</strong>
+            <p>Projects included: {{ report_scope_label }}</p>
+        </section>
+
         <section class="overview-score-summary" aria-label="Score summary">
             <article class="panel overview-scorecard">
                 <span>Total points available</span>
@@ -106,10 +112,30 @@
             </article>
         </section>
 
+        <section class="overview-dial-grid" aria-label="Integrity check scorecards">
+            {% for row in rows %}
+                <a class="overview-dial {{ row.result|lower }}"
+                   href="{% url 'schedule_quality_validation' %}?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}check={{ row.check_code }}"
+                   aria-label="View {{ row.description }} validation evidence">
+                    <div class="overview-dial-label">
+                        <h3>{{ row.description }}</h3>
+                        {% if row.check_code == "relationship_ratio" %}<span class="relationship-ratio-definition">Non-FS relationships ÷ total relationships</span>{% endif %}
+                    </div>
+                    <div class="overview-dial-ring" aria-label="{{ row.result }} result: {{ row.qualifying_results }} of {{ row.records_checked }}, {{ row.qualifying_display }}">
+                        <strong>{% if row.limit_type == "Number" and row.qualifying_results == 0 %}ZERO{% else %}{{ row.qualifying_results }} of {{ row.records_checked }}{% endif %}</strong>
+                        <span{% if row.check_code == "relationship_ratio" %} class="relationship-ratio-percent"{% endif %}>{{ row.qualifying_display }}</span>
+                    </div>
+                    <div class="overview-dial-points"><b>{{ row.result }}</b> · {{ row.points_scored }} of {{ row.green_points }} pts</div>
+                </a>
+            {% empty %}
+                <div class="panel overview-empty">No programme checks match these filters.</div>
+            {% endfor %}
+        </section>
+
         <section class="panel overview-report">
             <div class="overview-panel-heading">
                 <div class="overview-heading-title">
-                    <h2>Scorecard</h2>
+                    <h2>Scorecard detail</h2>
                 </div>
                 <div class="overview-heading-kpis" aria-label="Update and refresh summary">
                     <div class="overview-heading-kpi">
@@ -130,7 +156,7 @@
                             <th>Result</th>
                             <th>Records<br>checked</th>
                             <th>Qualifying<br>results</th>
-                            <th>Qualifying<br>display</th>
+                            <th>Qualifying<br>result / %</th>
                             <th>Green<br>limit</th>
                             <th>Amber<br>limit</th>
                             <th>Limit type</th>
@@ -142,11 +168,14 @@
                     <tbody>
                         {% for row in rows %}
                             <tr>
-                                <td><strong>{{ row.description }}</strong></td>
+                                <td>
+                                    <strong>{{ row.description }}</strong>
+                                    {% if row.check_code == "relationship_ratio" %}<span class="relationship-ratio-definition">Non-FS relationships ÷ total relationships</span>{% endif %}
+                                </td>
                                 <td class="overview-result {{ row.result|lower }}">{{ row.result }}</td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.records_checked }}</span></td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value">{{ row.qualifying_display }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value{% if row.check_code == "relationship_ratio" %} relationship-ratio-percent{% endif %}">{{ row.qualifying_display }}</span></td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.green_limit|floatformat:"-2" }}</span></td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.amber_limit|floatformat:"-2" }}</span></td>
                                 <td>{{ row.limit_type }}</td>

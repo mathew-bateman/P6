@@ -38,6 +38,7 @@
                         <tr>
                             <th>No.</th>
                             <th>Check name</th>
+                            <th>Score</th>
                             <th>Records checked</th>
                             <th>Qualifying results</th>
                             <th>Qualifying %</th>
@@ -47,13 +48,17 @@
                         {% for row in summary_rows %}
                             <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}">
                                 <td>{{ row.number }}</td>
-                                <td><strong>{{ row.check_name }}</strong></td>
+                                <td>
+                                    <strong>{{ row.check_name }}</strong>
+                                    {% if row.check_code == "relationship_ratio" %}<span class="relationship-ratio-definition">Non-FS relationships ÷ total relationships</span>{% endif %}
+                                </td>
+                                <td>{% if row.score_result %}<span class="validation-score {{ row.score_result|lower }}" title="{{ row.points_scored }} points scored">{{ row.score_result|slice:":1" }}</span>{% else %}<span class="subtle">—</span>{% endif %}</td>
                                 <td><span class="numeric-value count">{{ row.records_checked|intcomma }}</span></td>
                                 <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results|intcomma }}</span></td>
-                                <td><span class="numeric-value">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
+                                <td><span class="numeric-value{% if row.check_code == "relationship_ratio" %} relationship-ratio-percent{% endif %}">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="5" class="validation-empty">No check results match these filters.</td></tr>
+                            <tr><td colspan="6" class="validation-empty">No check results match these filters.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -64,8 +69,8 @@
     <section class="panel validation-report-panel validation-evidence">
         <div class="validation-panel-header">
             <div>
-                <h2>Activity evidence</h2>
-                <p class="subtle">The exact tasks and evidence behind the selected validation results.</p>
+                <h2>Detailed evidence</h2>
+                <p class="subtle">The exact activity and relationship evidence behind the selected validation results.</p>
             </div>
             <span class="badge">{{ validation_totals.evidence_rows|intcomma }} row{{ validation_totals.evidence_rows|pluralize }}</span>
         </div>

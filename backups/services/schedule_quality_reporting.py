@@ -55,32 +55,92 @@ CHECK_METRICS = {
 }
 
 PROGRAMME_PASS_RATE = Decimal("85.00")
+
+# Keep report copy and scorecard order aligned with the Network Rail integrity
+# workbook.  The SQL configuration remains the source of enabled checks and
+# calculation scope; this map only gives the reporting UI one stable,
+# recognisable name for each check.
+REFERENCE_CHECK_NAMES = {
+    "missing_predecessor": "Missing Predecessors",
+    "missing_successor": "Missing Successors",
+    "open_finish": "Open-Finish Tasks",
+    "open_start": "Open-Start Tasks",
+    "relationship_leads": "Relationship -ve Lags (Leads)",
+    "relationship_lags": "Relationship +ve Lags",
+    "relationship_ratio": "Relationship Ratio",
+    "constraints": "Constraints",
+    "high_float": "High Total Float",
+    "negative_float": "Negative Float",
+    "high_duration": "High Duration",
+    "invalid_dates": "Invalid Dates",
+    "in_progress_errors": "In Progress Errors",
+    "logical_loops": "Logical Loops",
+    "out_of_sequence": "Out of Sequence",
+    "critical_tasks": "Critical Tasks",
+    "near_critical_tasks": "Near Critical Tasks",
+    "riding_progress_date": "Riding Progress Date",
+    "excessive_ss_lag": "Excessive SS Lag Duration",
+    "excessive_ff_lag": "Excessive FF Lag Duration",
+}
+
 PROGRAMME_CHECK_RULES = (
-    ProgrammeCheckRule("logical_loops", "Logical Loops", Decimal("0"), Decimal("1"), "Number", 50, 40),
-    ProgrammeCheckRule("out_of_sequence", "Out of Sequence", Decimal("0"), Decimal("0"), "Number", 10, 8),
     ProgrammeCheckRule("missing_predecessor", "Missing Predecessors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
     ProgrammeCheckRule("missing_successor", "Missing Successors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
-    ProgrammeCheckRule("relationship_leads", "Relationship +ve Lags (Leads)", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("relationship_lags", "Relationship +ve Lags", Decimal("0"), Decimal("0"), "Percent", 10, 8),
-    ProgrammeCheckRule("high_duration", "High Duration", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("open_finish", "Open-Finish Tasks", Decimal("3"), Decimal("7"), "Percent", 20, 16),
+    ProgrammeCheckRule("open_start", "Open-Start Tasks", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("relationship_leads", "Relationship -ve Lags (Leads)", Decimal("3"), Decimal("7"), "Percent", 15, 12),
+    ProgrammeCheckRule("relationship_lags", "Relationship +ve Lags", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("constraints", "Constraints", Decimal("3"), Decimal("7"), "Percent", 15, 12),
     ProgrammeCheckRule("high_float", "High Total Float", Decimal("3"), Decimal("7"), "Percent", 10, 8),
     ProgrammeCheckRule("negative_float", "Negative Float", Decimal("0"), Decimal("3"), "Percent", 20, 16),
-    ProgrammeCheckRule("constraints", "Constraints", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("open_start", "Open-Start Tasks", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("open_finish", "Open-Finish Tasks", Decimal("3"), Decimal("7"), "Percent", 20, 16),
-    ProgrammeCheckRule("critical_tasks", "Critical Tasks", Decimal("30"), Decimal("50"), "Percent", 15, 12),
-    ProgrammeCheckRule("near_critical_tasks", "Near Critical Tasks", Decimal("45"), Decimal("66"), "Percent", 15, 12),
+    ProgrammeCheckRule("high_duration", "High Duration", Decimal("3"), Decimal("7"), "Percent", 10, 8),
     ProgrammeCheckRule("invalid_dates", "Invalid Dates", Decimal("0"), Decimal("0"), "Percent", 15, 12),
     ProgrammeCheckRule("in_progress_errors", "In Progress Errors", Decimal("0"), Decimal("0"), "Percent", 15, 12),
+    ProgrammeCheckRule("logical_loops", "Logical Loops", Decimal("0"), Decimal("1"), "Number", 50, 40),
+    ProgrammeCheckRule("out_of_sequence", "Out of Sequence", Decimal("0"), Decimal("0"), "Number", 10, 8),
+    ProgrammeCheckRule("critical_tasks", "Critical Tasks", Decimal("30"), Decimal("50"), "Percent", 15, 12),
+    ProgrammeCheckRule("near_critical_tasks", "Near Critical Tasks", Decimal("45"), Decimal("66"), "Percent", 15, 12),
     ProgrammeCheckRule("riding_progress_date", "Riding Progress Date", Decimal("3"), Decimal("7"), "Percent", 15, 12),
     ProgrammeCheckRule("excessive_ss_lag", "Excessive SS Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
     ProgrammeCheckRule("excessive_ff_lag", "Excessive FF Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
 )
+
+PROGRAMME_RULES_BY_CODE = {
+    rule.check_code: rule for rule in PROGRAMME_CHECK_RULES
+}
 
 METRIC_COLUMNS = tuple(
     dict.fromkeys(column for pair in CHECK_METRICS.values() for column in pair)
 )
+
+
+def _check_display_name(check_code: str, configured_name: object) -> str:
+    return REFERENCE_CHECK_NAMES.get(check_code, str(configured_name))
+
+
+def _score_check(
+    rule: ProgrammeCheckRule,
+    *,
+    records_checked: int,
+    qualifying_results: int,
+) -> tuple[Decimal, str, str, int]:
+    if rule.limit_type == "Number":
+        result_value = Decimal(qualifying_results)
+        qualifying_display = str(qualifying_results)
+    else:
+        result_value = (
+            Decimal(qualifying_results) * Decimal("100") / Decimal(records_checked)
+            if records_checked
+            else Decimal("0")
+        )
+        qualifying_display = f"{result_value:.2f}%"
+
+    if result_value <= rule.green_limit:
+        return result_value, qualifying_display, "Green", rule.green_points
+    if result_value <= rule.amber_limit:
+        return result_value, qualifying_display, "Amber", rule.amber_points
+    return result_value, qualifying_display, "Red", 0
 
 PROJECT_DIMENSIONS_CTE = """
 WITH project_dimensions AS
@@ -176,6 +236,12 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
         parameters=("default",),
         database=target.sql_database,
     )
+    for check in checks:
+        check_code = str(check["check_code"])
+        check["display_name"] = _check_display_name(
+            check_code,
+            check.get("display_name", check_code),
+        )
     return {
         "projects": projects,
         "portfolios": sorted(
@@ -253,16 +319,31 @@ def fetch_validation_summary(
             else Decimal("0")
         )
         qualifying_display = f"{qualifying_percent:.2f}%"
+        rule = PROGRAMME_RULES_BY_CODE.get(check_code)
+        if rule is None:
+            result = ""
+            points_scored = None
+        else:
+            _, _, result, points_scored = _score_check(
+                rule,
+                records_checked=records_checked,
+                qualifying_results=qualifying_results,
+            )
         rows.append(
             {
                 "number": len(rows) + 1,
                 "check_code": check_code,
-                "check_name": str(check["display_name"]),
+                "check_name": _check_display_name(
+                    check_code,
+                    check["display_name"],
+                ),
                 "records_checked": records_checked,
                 "qualifying_results": qualifying_results,
                 "qualifying_percent": qualifying_percent.quantize(Decimal("0.01")),
                 "qualifying_display": qualifying_display,
                 "status": "review" if qualifying_results else "clear",
+                "score_result": result,
+                "points_scored": points_scored,
             }
         )
     return rows
@@ -307,7 +388,10 @@ def fetch_programme_overview(
     )
     values = aggregate[0] if aggregate else {}
     active_names = {
-        str(check["check_code"]): str(check["display_name"])
+        str(check["check_code"]): _check_display_name(
+            str(check["check_code"]),
+            check["display_name"],
+        )
         for check in checks
     }
     rows: list[dict[str, object]] = []
@@ -317,28 +401,12 @@ def fetch_programme_overview(
         records_column, qualifying_column = CHECK_METRICS[rule.check_code]
         records_checked = int(values.get(records_column) or 0)
         qualifying_count = int(values.get(qualifying_column) or 0)
-        if rule.limit_type == "Number":
-            result_value = Decimal(qualifying_count)
-            qualifying_results = qualifying_count
-            qualifying_display = str(qualifying_count)
-        else:
-            result_value = (
-                Decimal(qualifying_count) * Decimal("100") / Decimal(records_checked)
-                if records_checked
-                else Decimal("0")
-            )
-            qualifying_results = qualifying_count
-            qualifying_display = f"{result_value:.2f}%"
-
-        if result_value <= rule.green_limit:
-            result = "Green"
-            points_scored = rule.green_points
-        elif result_value <= rule.amber_limit:
-            result = "Amber"
-            points_scored = rule.amber_points
-        else:
-            result = "Red"
-            points_scored = 0
+        qualifying_results = qualifying_count
+        result_value, qualifying_display, result, points_scored = _score_check(
+            rule,
+            records_checked=records_checked,
+            qualifying_results=qualifying_count,
+        )
         rows.append(
             {
                 "number": len(rows) + 1,
@@ -431,5 +499,11 @@ def fetch_validation_evidence(
         parameters=(*parameters, safe_offset, safe_limit),
         database=target.sql_database,
     )
+    for row in rows:
+        check_code = str(row.get("check_code") or "")
+        row["check_name"] = _check_display_name(
+            check_code,
+            row.get("check_name", check_code),
+        )
     total = int(count_rows[0]["row_count"]) if count_rows else 0
     return rows, total

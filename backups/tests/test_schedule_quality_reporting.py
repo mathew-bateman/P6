@@ -9,6 +9,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from backups.services.schedule_quality_reporting import (
+    PROGRAMME_CHECK_RULES,
     ScheduleQualityValidationFilters,
     fetch_programme_overview,
     fetch_validation_evidence,
@@ -41,7 +42,10 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
                     "updated_date": date(2026, 8, 13),
                 },
             ],
-            [{"check_code": "high_float", "display_name": "High Total Float", "sort_order": 90}],
+            [
+                {"check_code": "high_float", "display_name": "High Total Float", "sort_order": 90},
+                {"check_code": "relationship_leads", "display_name": "Legacy lead label", "sort_order": 50},
+            ],
         ]
 
         result = fetch_validation_filter_options()
@@ -53,6 +57,33 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(
             result["updated_dates"],
             [date(2026, 8, 14), date(2026, 8, 13)],
+        )
+        self.assertEqual(
+            result["checks"][1]["display_name"],
+            "Relationship -ve Lags (Leads)",
+        )
+
+    def test_programme_rules_match_the_reference_integrity_scorecard(self):
+        self.assertEqual(
+            [rule.check_code for rule in PROGRAMME_CHECK_RULES],
+            [
+                "missing_predecessor", "missing_successor", "open_finish",
+                "open_start", "relationship_leads", "relationship_lags",
+                "relationship_ratio", "constraints", "high_float",
+                "negative_float", "high_duration", "invalid_dates",
+                "in_progress_errors", "logical_loops", "out_of_sequence",
+                "critical_tasks", "near_critical_tasks", "riding_progress_date",
+                "excessive_ss_lag", "excessive_ff_lag",
+            ],
+        )
+        rules = {rule.check_code: rule for rule in PROGRAMME_CHECK_RULES}
+        self.assertEqual(
+            (rules["relationship_leads"].green_limit, rules["relationship_leads"].amber_limit),
+            (Decimal("3"), Decimal("7")),
+        )
+        self.assertEqual(
+            (rules["logical_loops"].green_points, rules["logical_loops"].amber_points),
+            (50, 40),
         )
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
@@ -88,6 +119,7 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(rows[1]["qualifying_results"], 4)
         self.assertEqual(rows[1]["qualifying_percent"], Decimal("1.10"))
         self.assertEqual(rows[1]["qualifying_display"], "1.10%")
+        self.assertEqual(rows[1]["check_name"], "Relationship Ratio")
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_evidence_query_applies_filters_and_pagination_as_parameters(self, fetch_rows):
@@ -141,7 +173,7 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
 
-        self.assertEqual([row["result"] for row in overview["rows"]], ["Green", "Red", "Green"])
+        self.assertEqual([row["result"] for row in overview["rows"]], ["Red", "Green", "Green"])
         self.assertEqual(overview["total_points_available"], 80)
         self.assertEqual(overview["total_points_achieved"], 70)
         self.assertEqual(overview["pass_percent"], Decimal("87.50"))
@@ -409,6 +441,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         overview.return_value = {
             "rows": [
                 {
+                    "check_code": "logical_loops",
                     "description": "Logical Loops",
                     "result": "Green",
                     "records_checked": 258,
@@ -434,7 +467,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         response = self.client.get(reverse("schedule_quality_overview"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Programme Check")
+        self.assertContains(response, "Schedule Integrity Checks")
         self.assertContains(response, "Logical Loops")
         self.assertContains(response, 'hx-swap="outerHTML"')
         self.assertContains(response, "htmx:load")
@@ -442,7 +475,9 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")
         self.assertContains(response, "Latest update")
-        self.assertContains(response, "Scorecard")
+        self.assertContains(response, "Scorecard detail")
+        self.assertContains(response, "Score: 285 out of 335 points scored")
+        self.assertContains(response, "Projects included: Project Seven")
         self.assertContains(response, 'class="numeric-cell points-scored-zero"')
         self.assertContains(response, ">Overview<")
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
