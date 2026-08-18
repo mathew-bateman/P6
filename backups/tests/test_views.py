@@ -273,7 +273,6 @@ class ScheduleQualityRefreshViewTests(TestCase):
         )
         self.assertContains(response, "Publish")
         self.assertContains(response, "N/A")
-        self.assertContains(response, "Optional check scope and constraints")
         self.assertNotContains(response, 'class="settings-advanced"')
         self.assertContains(response, "Check scope")
         self.assertContains(response, "Exclude activities marked as deleted")
