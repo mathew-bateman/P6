@@ -166,13 +166,13 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.get(reverse("schedule_quality_dashboard"))
 
-        self.assertContains(response, "Run Refresh Now")
+        self.assertContains(response, "Refresh all data")
         self.assertContains(response, "Manual")
         self.assertContains(response, "32s")
         self.assertContains(response, "554")
         self.assertContains(response, "17")
         self.assertContains(response, "Showing 1-10 of 12 refresh runs")
-        fetch_history.assert_called_once_with(limit=10, offset=0)
+        fetch_history.assert_called_once_with(limit=10, offset=0, status="")
 
     @patch("backups.views.count_schedule_quality_refresh_history")
     @patch("backups.views.fetch_schedule_quality_refresh_history")
@@ -188,7 +188,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
         response = self.client.get(reverse("schedule_quality_dashboard"), {"page": "2"})
 
         self.assertEqual(response.status_code, 200)
-        fetch_history.assert_called_once_with(limit=10, offset=10)
+        fetch_history.assert_called_once_with(limit=10, offset=10, status="")
 
     @patch("backups.views.count_schedule_quality_refresh_history")
     @patch("backups.views.fetch_schedule_quality_refresh_history")
@@ -200,7 +200,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.get(reverse("schedule_quality_dashboard"))
 
-        self.assertContains(response, "Automatic Schedule")
+        self.assertContains(response, "Automatic schedule")
         self.assertContains(response, "Edit Schedule")
         self.assertContains(response, "Save Schedule")
         self.assertNotContains(response, "Cron expression")
@@ -267,13 +267,15 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertNotContains(response, "How changes reach Power BI")
         self.assertNotContains(response, "Stores your changes in SQL Server only")
         self.assertNotContains(response, "Unpublished drafts are ignored")
-        self.assertContains(response, "Saving a draft does not change Power BI")
+        self.assertContains(
+            response,
+            "These published settings supply the scope, thresholds and points",
+        )
         self.assertContains(response, "Save draft only")
         self.assertContains(response, "Publish and rebuild")
         self.assertContains(response, "N/A")
         self.assertContains(response, "Optional check scope and constraints")
-        self.assertContains(response, 'class="settings-advanced"')
-        self.assertNotContains(response, 'class="settings-advanced" open')
+        self.assertNotContains(response, 'class="settings-advanced"')
         self.assertContains(response, "Check scope")
         self.assertContains(response, "Exclude activities marked as deleted")
         self.assertContains(response, "Activity Status code DEL")
@@ -281,8 +283,8 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertNotContains(response, "Allowed constraint types")
         self.assertContains(response, SETTINGS_HASH)
         html = response.content.decode()
-        advanced_start = html.index('<details class="settings-advanced"')
-        advanced_end = html.index("</details>", advanced_start)
+        advanced_start = html.index('<section class="panel settings-scope-panel">')
+        advanced_end = html.index("</section>", advanced_start)
         form_start = html.rfind("<form", 0, advanced_start)
         form_end = html.index("</form>", advanced_end)
         self.assertLess(form_start, advanced_start)
@@ -370,11 +372,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
             "This draft changed after the page was loaded",
             status_code=400,
         )
-        self.assertContains(
-            response,
-            'class="settings-advanced" open',
-            status_code=400,
-        )
+        self.assertContains(response, "Check scope and score policy", status_code=400)
         save_draft.assert_not_called()
         publish_task.delay.assert_not_called()
 
