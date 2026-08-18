@@ -239,6 +239,11 @@ def fetch_validation_summary(
                 "qualifying_display": qualifying_display,
                 "status": "review" if qualifying_results else "clear",
                 "score_result": result,
+                "limit_type": str(check["limit_type"]),
+                "green_limit": Decimal(str(check["green_limit"])),
+                "amber_limit": Decimal(str(check["amber_limit"])),
+                "green_points": int(check["green_points"]),
+                "amber_points": int(check["amber_points"]),
                 "points_scored": points_scored,
             }
         )

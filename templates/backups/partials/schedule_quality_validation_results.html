@@ -42,6 +42,10 @@
                             <th>Records checked</th>
                             <th>Qualifying results</th>
                             <th>Qualifying %</th>
+                            <th>Limit type</th>
+                            <th>Green / amber</th>
+                            <th>Points<br>available</th>
+                            <th>Points<br>scored</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -56,9 +60,13 @@
                                 <td><span class="numeric-value count">{{ row.records_checked|intcomma }}</span></td>
                                 <td class="qualifying-cell"><span class="numeric-value count">{{ row.qualifying_results|intcomma }}</span></td>
                                 <td><span class="numeric-value{% if row.check_code == "relationship_ratio" %} relationship-ratio-percent{% endif %}">{% if row.qualifying_display %}{{ row.qualifying_display }}{% else %}{{ row.qualifying_percent|floatformat:2 }}%{% endif %}</span></td>
+                                <td>{{ row.limit_type }}</td>
+                                <td><span class="numeric-value">{{ row.green_limit|floatformat:"-2" }} / {{ row.amber_limit|floatformat:"-2" }}</span></td>
+                                <td><span class="numeric-value">{{ row.green_points }} / {{ row.amber_points }}</span></td>
+                                <td class="{% if not row.points_scored %}points-scored-zero{% endif %}"><span class="numeric-value score">{{ row.points_scored }}</span></td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="6" class="validation-empty">No check results match these filters.</td></tr>
+                            <tr><td colspan="10" class="validation-empty">No check results match these filters.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

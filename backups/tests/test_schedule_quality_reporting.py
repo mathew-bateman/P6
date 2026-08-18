@@ -86,6 +86,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(rows[1]["qualifying_percent"], Decimal("1.10"))
         self.assertEqual(rows[1]["qualifying_display"], "1.10%")
         self.assertIn("xertoolkit_vw_PBI_ScheduleQualityResults", fetch_rows.call_args.args[1])
+        self.assertEqual(rows[1]["green_limit"], Decimal("3"))
+        self.assertEqual(rows[1]["points_scored"], 10)
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_evidence_query_applies_filters_and_pagination_as_parameters(self, fetch_rows):
