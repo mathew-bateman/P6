@@ -9,7 +9,6 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from backups.services.schedule_quality_reporting import (
-    PROGRAMME_CHECK_RULES,
     ScheduleQualityValidationFilters,
     fetch_programme_overview,
     fetch_validation_evidence,
@@ -60,55 +59,22 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         )
         self.assertEqual(
             result["checks"][1]["display_name"],
-            "Relationship -ve Lags (Leads)",
-        )
-
-    def test_programme_rules_match_the_reference_integrity_scorecard(self):
-        self.assertEqual(
-            [rule.check_code for rule in PROGRAMME_CHECK_RULES],
-            [
-                "missing_predecessor", "missing_successor", "open_finish",
-                "open_start", "relationship_leads", "relationship_lags",
-                "relationship_ratio", "constraints", "high_float",
-                "negative_float", "high_duration", "invalid_dates",
-                "in_progress_errors", "logical_loops", "out_of_sequence",
-                "critical_tasks", "near_critical_tasks", "riding_progress_date",
-                "excessive_ss_lag", "excessive_ff_lag",
-            ],
-        )
-        rules = {rule.check_code: rule for rule in PROGRAMME_CHECK_RULES}
-        self.assertEqual(
-            (rules["relationship_leads"].green_limit, rules["relationship_leads"].amber_limit),
-            (Decimal("3"), Decimal("7")),
-        )
-        self.assertEqual(
-            (rules["logical_loops"].green_points, rules["logical_loops"].amber_points),
-            (50, 40),
+            "Legacy lead label",
         )
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
-    def test_summary_uses_the_correct_activity_and_relationship_denominators(self, fetch_rows):
-        fetch_rows.side_effect = [
-            [
-                {
-                    "dcma_activity_count": 258,
-                    "relationship_count": 362,
-                    "missing_predecessor_count": 1,
-                    "non_fs_count": 4,
-                }
-            ],
-            [
-                {
-                    "check_code": "missing_predecessor",
-                    "display_name": "Missing Predecessors",
-                    "sort_order": 10,
-                },
-                {
-                    "check_code": "relationship_ratio",
-                    "display_name": "Relationship Ratio / Non-FS",
-                    "sort_order": 70,
-                },
-            ],
+    def test_summary_uses_template_owned_denominators_and_score_policy(self, fetch_rows):
+        fetch_rows.return_value = [
+            {
+                "check_code": "missing_predecessor", "display_name": "Missing Predecessors", "sort_order": 10,
+                "limit_type": "Percent", "green_limit": Decimal("3"), "amber_limit": Decimal("7"),
+                "green_points": 40, "amber_points": 32, "records_checked": 258, "qualifying_results": 1,
+            },
+            {
+                "check_code": "relationship_ratio", "display_name": "Relationship Ratio", "sort_order": 70,
+                "limit_type": "Percent", "green_limit": Decimal("3"), "amber_limit": Decimal("7"),
+                "green_points": 10, "amber_points": 8, "records_checked": 362, "qualifying_results": 4,
+            },
         ]
 
         rows = fetch_validation_summary(ScheduleQualityValidationFilters())
@@ -119,7 +85,7 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(rows[1]["qualifying_results"], 4)
         self.assertEqual(rows[1]["qualifying_percent"], Decimal("1.10"))
         self.assertEqual(rows[1]["qualifying_display"], "1.10%")
-        self.assertEqual(rows[1]["check_name"], "Relationship Ratio")
+        self.assertIn("xertoolkit_vw_PBI_ScheduleQualityResults", fetch_rows.call_args.args[1])
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_evidence_query_applies_filters_and_pagination_as_parameters(self, fetch_rows):
@@ -152,23 +118,11 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(page_parameters[-2:], (50, 25))
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
-    def test_programme_overview_applies_pbix_limits_and_points(self, fetch_rows):
-        fetch_rows.side_effect = [
-            [
-                {
-                    "dcma_activity_count": 258,
-                    "relationship_count": 362,
-                    "logical_loop_count": 0,
-                    "high_float_count": 34,
-                    "negative_float_count": 0,
-                    "latest_updated_date": date(2026, 6, 4),
-                }
-            ],
-            [
-                {"check_code": "logical_loops", "display_name": "Logical Loops"},
-                {"check_code": "high_float", "display_name": "High Total Float"},
-                {"check_code": "negative_float", "display_name": "Negative Float"},
-            ],
+    def test_programme_overview_applies_template_limits_and_points(self, fetch_rows):
+        fetch_rows.return_value = [
+            {"check_code": "high_float", "display_name": "High Total Float", "sort_order": 1, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 10, "amber_points": 8, "records_checked": 258, "qualifying_results": 34, "latest_updated_date": date(2026, 6, 4)},
+            {"check_code": "negative_float", "display_name": "Negative Float", "sort_order": 2, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 20, "amber_points": 16, "records_checked": 258, "qualifying_results": 0},
+            {"check_code": "logical_loops", "display_name": "Logical Loops", "sort_order": 3, "limit_type": "Number", "green_limit": 0, "amber_limit": 1, "green_points": 50, "amber_points": 40, "records_checked": 0, "qualifying_results": 0},
         ]
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
@@ -181,16 +135,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_programme_overview_calculates_relationship_ratio_from_non_fs_relationships(self, fetch_rows):
-        fetch_rows.side_effect = [
-            [
-                {
-                    "dcma_activity_count": 258,
-                    "relationship_count": 362,
-                    "non_fs_count": 4,
-                    "latest_updated_date": date(2026, 6, 4),
-                }
-            ],
-            [{"check_code": "relationship_ratio", "display_name": "Relationship Ratio"}],
+        fetch_rows.return_value = [
+            {"check_code": "relationship_ratio", "display_name": "Relationship Ratio", "sort_order": 1, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 10, "amber_points": 8, "records_checked": 362, "qualifying_results": 4, "latest_updated_date": date(2026, 6, 4)},
         ]
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
@@ -203,15 +149,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_validation_summary_uses_non_fs_relationships_over_total_relationships(self, fetch_rows):
-        fetch_rows.side_effect = [
-            [
-                {
-                    "dcma_activity_count": 246,
-                    "relationship_count": 327,
-                    "non_fs_count": 42,
-                }
-            ],
-            [{"check_code": "relationship_ratio", "display_name": "Relationship Ratio", "sort_order": 1}],
+        fetch_rows.return_value = [
+            {"check_code": "relationship_ratio", "display_name": "Relationship Ratio", "sort_order": 1, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 10, "amber_points": 8, "records_checked": 327, "qualifying_results": 42},
         ]
 
         summary = fetch_validation_summary(ScheduleQualityValidationFilters())
@@ -220,6 +159,18 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(summary[0]["qualifying_results"], 42)
         self.assertEqual(summary[0]["qualifying_display"], "12.84%")
         self.assertEqual(summary[0]["qualifying_percent"], Decimal("12.84"))
+
+    @patch("backups.services.schedule_quality_reporting.fetch_rows")
+    def test_programme_overview_requires_more_than_the_pass_rate(self, fetch_rows):
+        fetch_rows.return_value = [
+            {"check_code": "a", "display_name": "A", "sort_order": 1, "limit_type": "Number", "green_limit": 0, "amber_limit": 0, "green_points": 85, "amber_points": 0, "records_checked": 0, "qualifying_results": 0},
+            {"check_code": "b", "display_name": "B", "sort_order": 2, "limit_type": "Number", "green_limit": 0, "amber_limit": 0, "green_points": 15, "amber_points": 0, "records_checked": 0, "qualifying_results": 1},
+        ]
+
+        overview = fetch_programme_overview(ScheduleQualityValidationFilters())
+
+        self.assertEqual(overview["pass_percent"], Decimal("85.00"))
+        self.assertEqual(overview["pass_or_fail"], "FAIL")
 
 
 class ScheduleQualityValidationViewTests(TestCase):

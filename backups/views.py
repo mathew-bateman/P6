@@ -96,6 +96,11 @@ def build_schedule_quality_change_note(snapshot, payload: dict[str, list[dict[st
         ("include_wbs_summary", "Include WBS summary"),
         ("include_milestones", "Include milestones"),
         ("exclude_complete", "Exclude complete"),
+        ("limit_type", "Limit type"),
+        ("green_limit", "Green limit"),
+        ("amber_limit", "Amber limit"),
+        ("green_points", "Green points"),
+        ("amber_points", "Amber points"),
     )
     previous_checks = {check.check_code: check for check in snapshot.checks}
     for proposed in payload["checks"]:

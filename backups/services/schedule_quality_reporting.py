@@ -20,112 +20,20 @@ class ScheduleQualityValidationFilters:
     check_code: str = ""
 
 
-@dataclass(frozen=True)
-class ProgrammeCheckRule:
-    check_code: str
-    display_name: str
-    green_limit: Decimal
-    amber_limit: Decimal
-    limit_type: str
-    green_points: int
-    amber_points: int
-
-
-CHECK_METRICS = {
-    "missing_predecessor": ("dcma_activity_count", "missing_predecessor_count"),
-    "missing_successor": ("dcma_activity_count", "missing_successor_count"),
-    "open_finish": ("dcma_activity_count", "open_finish_count"),
-    "open_start": ("dcma_activity_count", "open_start_count"),
-    "relationship_leads": ("relationship_count", "lead_count"),
-    "relationship_lags": ("relationship_count", "lag_count"),
-    "relationship_ratio": ("relationship_count", "non_fs_count"),
-    "constraints": ("dcma_activity_count", "constraint_count"),
-    "high_float": ("dcma_activity_count", "high_float_count"),
-    "negative_float": ("dcma_activity_count", "negative_float_count"),
-    "high_duration": ("dcma_activity_count", "high_duration_count"),
-    "invalid_dates": ("dcma_activity_count", "invalid_date_count"),
-    "in_progress_errors": ("dcma_activity_count", "in_progress_error_count"),
-    "logical_loops": ("dcma_activity_count", "logical_loop_count"),
-    "out_of_sequence": ("relationship_count", "out_of_sequence_count"),
-    "critical_tasks": ("dcma_activity_count", "critical_task_count"),
-    "near_critical_tasks": ("dcma_activity_count", "near_critical_task_count"),
-    "riding_progress_date": ("dcma_activity_count", "riding_progress_date_count"),
-    "excessive_ss_lag": ("relationship_count", "excessive_ss_lag_count"),
-    "excessive_ff_lag": ("relationship_count", "excessive_ff_lag_count"),
-}
-
 PROGRAMME_PASS_RATE = Decimal("85.00")
-
-# Keep report copy and scorecard order aligned with the Network Rail integrity
-# workbook.  The SQL configuration remains the source of enabled checks and
-# calculation scope; this map only gives the reporting UI one stable,
-# recognisable name for each check.
-REFERENCE_CHECK_NAMES = {
-    "missing_predecessor": "Missing Predecessors",
-    "missing_successor": "Missing Successors",
-    "open_finish": "Open-Finish Tasks",
-    "open_start": "Open-Start Tasks",
-    "relationship_leads": "Relationship -ve Lags (Leads)",
-    "relationship_lags": "Relationship +ve Lags",
-    "relationship_ratio": "Relationship Ratio",
-    "constraints": "Constraints",
-    "high_float": "High Total Float",
-    "negative_float": "Negative Float",
-    "high_duration": "High Duration",
-    "invalid_dates": "Invalid Dates",
-    "in_progress_errors": "In Progress Errors",
-    "logical_loops": "Logical Loops",
-    "out_of_sequence": "Out of Sequence",
-    "critical_tasks": "Critical Tasks",
-    "near_critical_tasks": "Near Critical Tasks",
-    "riding_progress_date": "Riding Progress Date",
-    "excessive_ss_lag": "Excessive SS Lag Duration",
-    "excessive_ff_lag": "Excessive FF Lag Duration",
-}
-
-PROGRAMME_CHECK_RULES = (
-    ProgrammeCheckRule("missing_predecessor", "Missing Predecessors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
-    ProgrammeCheckRule("missing_successor", "Missing Successors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
-    ProgrammeCheckRule("open_finish", "Open-Finish Tasks", Decimal("3"), Decimal("7"), "Percent", 20, 16),
-    ProgrammeCheckRule("open_start", "Open-Start Tasks", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("relationship_leads", "Relationship -ve Lags (Leads)", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("relationship_lags", "Relationship +ve Lags", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("constraints", "Constraints", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("high_float", "High Total Float", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("negative_float", "Negative Float", Decimal("0"), Decimal("3"), "Percent", 20, 16),
-    ProgrammeCheckRule("high_duration", "High Duration", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("invalid_dates", "Invalid Dates", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("in_progress_errors", "In Progress Errors", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("logical_loops", "Logical Loops", Decimal("0"), Decimal("1"), "Number", 50, 40),
-    ProgrammeCheckRule("out_of_sequence", "Out of Sequence", Decimal("0"), Decimal("0"), "Number", 10, 8),
-    ProgrammeCheckRule("critical_tasks", "Critical Tasks", Decimal("30"), Decimal("50"), "Percent", 15, 12),
-    ProgrammeCheckRule("near_critical_tasks", "Near Critical Tasks", Decimal("45"), Decimal("66"), "Percent", 15, 12),
-    ProgrammeCheckRule("riding_progress_date", "Riding Progress Date", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("excessive_ss_lag", "Excessive SS Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-    ProgrammeCheckRule("excessive_ff_lag", "Excessive FF Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-)
-
-PROGRAMME_RULES_BY_CODE = {
-    rule.check_code: rule for rule in PROGRAMME_CHECK_RULES
-}
-
-METRIC_COLUMNS = tuple(
-    dict.fromkeys(column for pair in CHECK_METRICS.values() for column in pair)
-)
-
-
-def _check_display_name(check_code: str, configured_name: object) -> str:
-    return REFERENCE_CHECK_NAMES.get(check_code, str(configured_name))
 
 
 def _score_check(
-    rule: ProgrammeCheckRule,
     *,
+    limit_type: str,
+    green_limit: Decimal,
+    amber_limit: Decimal,
+    green_points: int,
+    amber_points: int,
     records_checked: int,
     qualifying_results: int,
 ) -> tuple[Decimal, str, str, int]:
-    if rule.limit_type == "Number":
+    if limit_type == "Number":
         result_value = Decimal(qualifying_results)
         qualifying_display = str(qualifying_results)
     else:
@@ -136,10 +44,10 @@ def _score_check(
         )
         qualifying_display = f"{result_value:.2f}%"
 
-    if result_value <= rule.green_limit:
-        return result_value, qualifying_display, "Green", rule.green_points
-    if result_value <= rule.amber_limit:
-        return result_value, qualifying_display, "Amber", rule.amber_points
+    if result_value <= green_limit:
+        return result_value, qualifying_display, "Green", green_points
+    if result_value <= amber_limit:
+        return result_value, qualifying_display, "Amber", amber_points
     return result_value, qualifying_display, "Red", 0
 
 PROJECT_DIMENSIONS_CTE = """
@@ -236,12 +144,6 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
         parameters=("default",),
         database=target.sql_database,
     )
-    for check in checks:
-        check_code = str(check["check_code"])
-        check["display_name"] = _check_display_name(
-            check_code,
-            check.get("display_name", check_code),
-        )
     return {
         "projects": projects,
         "portfolios": sorted(
@@ -264,79 +166,73 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
     }
 
 
-def fetch_validation_summary(
+def _fetch_scorecard_rows(
     filters: ScheduleQualityValidationFilters,
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], object]:
     target = build_schedule_quality_target()
     where_sql, parameters = _validation_where(filters)
-    aggregate_select = ",\n".join(
-        f"            COALESCE(SUM(CONVERT(bigint, metrics.{column})), 0) AS {column}"
-        for column in METRIC_COLUMNS
-    )
-    aggregate = fetch_rows(
+    rows = fetch_rows(
         target,
         PROJECT_DIMENSIONS_CTE
         + f"""
         SELECT
-{aggregate_select}
-        FROM [powerbitables].[xertoolkit_vw_PBI_ProjectMetrics] AS metrics
+            result.check_code,
+            MAX(result.display_name) AS display_name,
+            MAX(result.sort_order) AS sort_order,
+            MAX(result.limit_type) AS limit_type,
+            MAX(result.green_limit) AS green_limit,
+            MAX(result.amber_limit) AS amber_limit,
+            MAX(result.green_points) AS green_points,
+            MAX(result.amber_points) AS amber_points,
+            COALESCE(SUM(result.records_checked), 0) AS records_checked,
+            COALESCE(SUM(result.qualifying_results), 0) AS qualifying_results,
+            MAX(CONVERT(date, project.updated_date)) AS latest_updated_date
+        FROM [powerbitables].[xertoolkit_vw_PBI_ScheduleQualityResults] AS result
         JOIN project_dimensions AS project
-          ON project.proj_id = metrics.proj_id
-        {where_sql};
+          ON project.proj_id = result.proj_id
+        {where_sql}{" AND" if where_sql else " WHERE"} (? = '' OR result.check_code = ?)
+        GROUP BY result.check_code
+        ORDER BY MAX(result.sort_order), result.check_code;
         """,
-        parameters=parameters,
+        parameters=parameters + (filters.check_code, filters.check_code),
         database=target.sql_database,
     )
-    checks = fetch_rows(
-        target,
-        """
-        SELECT scope.check_code, scope.display_name, scope.sort_order
-        FROM [powerbitables].[xertoolkit_schedule_quality_profile] AS profile
-        JOIN [powerbitables].[xertoolkit_schedule_quality_check_scope] AS scope
-          ON scope.config_version_id = profile.active_config_version_id
-        WHERE profile.profile_code = ?
-          AND scope.is_enabled = 1
-        ORDER BY scope.sort_order, scope.check_code;
-        """,
-        parameters=("default",),
-        database=target.sql_database,
+    latest_updated_date = next(
+        (row.get("latest_updated_date") for row in rows if row.get("latest_updated_date")),
+        None,
     )
-    values = aggregate[0] if aggregate else {}
+    return rows, latest_updated_date
+
+
+def fetch_validation_summary(
+    filters: ScheduleQualityValidationFilters,
+) -> list[dict[str, object]]:
+    checks, _ = _fetch_scorecard_rows(filters)
     rows: list[dict[str, object]] = []
     for check in checks:
         check_code = str(check["check_code"])
-        if filters.check_code and check_code != filters.check_code:
-            continue
-        metric_pair = CHECK_METRICS.get(check_code)
-        if not metric_pair:
-            continue
-        records_column, qualifying_column = metric_pair
-        records_checked = int(values.get(records_column) or 0)
-        qualifying_results = int(values.get(qualifying_column) or 0)
+        records_checked = int(check.get("records_checked") or 0)
+        qualifying_results = int(check.get("qualifying_results") or 0)
         qualifying_percent = (
             (Decimal(qualifying_results) * Decimal("100") / Decimal(records_checked))
             if records_checked
             else Decimal("0")
         )
         qualifying_display = f"{qualifying_percent:.2f}%"
-        rule = PROGRAMME_RULES_BY_CODE.get(check_code)
-        if rule is None:
-            result = ""
-            points_scored = None
-        else:
-            _, _, result, points_scored = _score_check(
-                rule,
-                records_checked=records_checked,
-                qualifying_results=qualifying_results,
-            )
+        _, _, result, points_scored = _score_check(
+            limit_type=str(check["limit_type"]),
+            green_limit=Decimal(str(check["green_limit"])),
+            amber_limit=Decimal(str(check["amber_limit"])),
+            green_points=int(check["green_points"]),
+            amber_points=int(check["amber_points"]),
+            records_checked=records_checked,
+            qualifying_results=qualifying_results,
+        )
         rows.append(
             {
                 "number": len(rows) + 1,
                 "check_code": check_code,
-                "check_name": _check_display_name(
-                    check_code,
-                    check["display_name"],
-                ),
+                "check_name": str(check["display_name"]),
                 "records_checked": records_checked,
                 "qualifying_results": qualifying_results,
                 "qualifying_percent": qualifying_percent.quantize(Decimal("0.01")),
@@ -352,75 +248,34 @@ def fetch_validation_summary(
 def fetch_programme_overview(
     filters: ScheduleQualityValidationFilters,
 ) -> dict[str, object]:
-    target = build_schedule_quality_target()
-    where_sql, parameters = _validation_where(filters)
-    aggregate_select = ",\n".join(
-        f"            COALESCE(SUM(CONVERT(bigint, metrics.{column})), 0) AS {column}"
-        for column in METRIC_COLUMNS
-    )
-    aggregate = fetch_rows(
-        target,
-        PROJECT_DIMENSIONS_CTE
-        + f"""
-        SELECT
-{aggregate_select},
-            MAX(CONVERT(date, project.updated_date)) AS latest_updated_date
-        FROM [powerbitables].[xertoolkit_vw_PBI_ProjectMetrics] AS metrics
-        JOIN project_dimensions AS project
-          ON project.proj_id = metrics.proj_id
-        {where_sql};
-        """,
-        parameters=parameters,
-        database=target.sql_database,
-    )
-    checks = fetch_rows(
-        target,
-        """
-        SELECT scope.check_code, scope.display_name
-        FROM [powerbitables].[xertoolkit_schedule_quality_profile] AS profile
-        JOIN [powerbitables].[xertoolkit_schedule_quality_check_scope] AS scope
-          ON scope.config_version_id = profile.active_config_version_id
-        WHERE profile.profile_code = ?
-          AND scope.is_enabled = 1;
-        """,
-        parameters=("default",),
-        database=target.sql_database,
-    )
-    values = aggregate[0] if aggregate else {}
-    active_names = {
-        str(check["check_code"]): _check_display_name(
-            str(check["check_code"]),
-            check["display_name"],
-        )
-        for check in checks
-    }
+    checks, latest_updated_date = _fetch_scorecard_rows(filters)
     rows: list[dict[str, object]] = []
-    for rule in PROGRAMME_CHECK_RULES:
-        if rule.check_code not in active_names:
-            continue
-        records_column, qualifying_column = CHECK_METRICS[rule.check_code]
-        records_checked = int(values.get(records_column) or 0)
-        qualifying_count = int(values.get(qualifying_column) or 0)
-        qualifying_results = qualifying_count
+    for check in checks:
+        records_checked = int(check.get("records_checked") or 0)
+        qualifying_results = int(check.get("qualifying_results") or 0)
         result_value, qualifying_display, result, points_scored = _score_check(
-            rule,
+            limit_type=str(check["limit_type"]),
+            green_limit=Decimal(str(check["green_limit"])),
+            amber_limit=Decimal(str(check["amber_limit"])),
+            green_points=int(check["green_points"]),
+            amber_points=int(check["amber_points"]),
             records_checked=records_checked,
-            qualifying_results=qualifying_count,
+            qualifying_results=qualifying_results,
         )
         rows.append(
             {
                 "number": len(rows) + 1,
-                "check_code": rule.check_code,
-                "description": active_names.get(rule.check_code, rule.display_name),
+                "check_code": str(check["check_code"]),
+                "description": str(check["display_name"]),
                 "result": result,
                 "records_checked": records_checked,
                 "qualifying_results": qualifying_results,
                 "qualifying_display": qualifying_display,
-                "green_limit": rule.green_limit,
-                "amber_limit": rule.amber_limit,
-                "limit_type": rule.limit_type,
-                "green_points": rule.green_points,
-                "amber_points": rule.amber_points,
+                "green_limit": Decimal(str(check["green_limit"])),
+                "amber_limit": Decimal(str(check["amber_limit"])),
+                "limit_type": str(check["limit_type"]),
+                "green_points": int(check["green_points"]),
+                "amber_points": int(check["amber_points"]),
                 "points_scored": points_scored,
             }
         )
@@ -434,12 +289,12 @@ def fetch_programme_overview(
     ).quantize(Decimal("0.01"))
     return {
         "rows": rows,
-        "latest_updated_date": values.get("latest_updated_date"),
+        "latest_updated_date": latest_updated_date,
         "total_points_available": total_points_available,
         "total_points_achieved": total_points_achieved,
         "pass_percent": pass_percent,
         "pass_rate": PROGRAMME_PASS_RATE,
-        "pass_or_fail": "PASS" if pass_percent >= PROGRAMME_PASS_RATE else "FAIL",
+        "pass_or_fail": "PASS" if pass_percent > PROGRAMME_PASS_RATE else "FAIL",
     }
 
 
@@ -499,11 +354,5 @@ def fetch_validation_evidence(
         parameters=(*parameters, safe_offset, safe_limit),
         database=target.sql_database,
     )
-    for row in rows:
-        check_code = str(row.get("check_code") or "")
-        row["check_name"] = _check_display_name(
-            check_code,
-            row.get("check_name", check_code),
-        )
     total = int(count_rows[0]["row_count"]) if count_rows else 0
     return rows, total

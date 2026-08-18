@@ -57,6 +57,13 @@ def build_settings_snapshot() -> ScheduleQualitySettingsSnapshot:
                 include_wbs_summary=False,
                 include_milestones=True,
                 exclude_complete=True,
+                limit_type="Percent",
+                green_limit=Decimal("3"),
+                amber_limit=Decimal("7"),
+                green_points=40,
+                amber_points=32,
+                records_metric="dcma_activity",
+                qualifying_metric="missing_predecessor",
             ),
             ScheduleQualityCheckScope(
                 check_code="invalid_dates",
@@ -67,6 +74,13 @@ def build_settings_snapshot() -> ScheduleQualitySettingsSnapshot:
                 include_wbs_summary=None,
                 include_milestones=None,
                 exclude_complete=None,
+                limit_type="Percent",
+                green_limit=Decimal("3"),
+                amber_limit=Decimal("7"),
+                green_points=15,
+                amber_points=12,
+                records_metric="dcma_activity",
+                qualifying_metric="invalid_dates",
             ),
         ),
         options=(
@@ -458,6 +472,9 @@ class ScheduleQualitySettingsFormTests(SimpleTestCase):
         self.assertTrue(payload["options"][0]["bit_value"])
         self.assertEqual(payload["options"][1]["numeric_value"], 84)
         self.assertEqual(payload["options"][2]["numeric_value"], Decimal("50"))
+        self.assertEqual(missing_predecessor["green_limit"], Decimal("3"))
+        self.assertEqual(missing_predecessor["amber_points"], 32)
+        self.assertEqual(missing_predecessor["records_metric"], "dcma_activity")
         self.assertTrue(payload["constraint_types"][0]["is_checked"])
 
     def test_deleted_activity_option_is_rendered_as_global_scope_control(self):

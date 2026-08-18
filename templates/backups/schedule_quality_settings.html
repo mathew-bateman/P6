@@ -213,6 +213,11 @@
                         <th>Include WBS summary</th>
                         <th>Include milestones</th>
                         <th>Exclude complete</th>
+                        <th>Limit type</th>
+                        <th>Green</th>
+                        <th>Amber</th>
+                        <th>Green points</th>
+                        <th>Amber points</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -227,9 +232,14 @@
                             <td>{% if row.include_wbs_summary %}{{ row.include_wbs_summary }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
                             <td>{% if row.include_milestones %}{{ row.include_milestones }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
                             <td>{% if row.exclude_complete %}{{ row.exclude_complete }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                            <td>{{ row.limit_type }}</td>
+                            <td>{{ row.green_limit }}</td>
+                            <td>{{ row.amber_limit }}</td>
+                            <td>{{ row.green_points }}</td>
+                            <td>{{ row.amber_points }}</td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="6" class="subtle">No check settings are available.</td></tr>
+                        <tr><td colspan="11" class="subtle">No check settings are available.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

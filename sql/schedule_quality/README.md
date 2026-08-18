@@ -24,7 +24,8 @@ Run against `P62212_1` in this order:
 18. `034_configured_evidence_combined_format.sql`
 19. `035_relationship_ratio_non_fs.sql`
 20. `036_relationship_ratio_percentage_return.sql`
-21. `002_postdeploy_verify.sql`
+21. `037_workbook_parity_score_rules.sql`
+22. `002_postdeploy_verify.sql`
 22. Run a single-project refresh for the canary project, then a full refresh.
 23. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
@@ -111,6 +112,23 @@ for BI Percentage formatting: `0.1284` renders as `12.84%`. The materialised
 metric stays as `12.84` for SQL reconciliation. Use
 `936_relationship_ratio_percentage_return_rollback.sql` to restore the prior
 view return.
+
+Run `037_workbook_parity_score_rules.sql` after `036` to make the scorecard
+policy versioned template data rather than a Django or Power BI constant.  It
+seeds every existing configuration version with the integrity-workbook score
+policy, preserves those values when a draft is created, and adds the editable
+limit type, Green/Amber limits, and point values to the Settings form.
+
+The same migration fixes workbook parity for open ends and Relationship Ratio:
+an SS predecessor is valid start logic, an FF successor is valid finish logic,
+and non-FS ratio qualifying relationships exclude SS links from a Start
+Milestone and FF links into a Finish Milestone.  It also creates
+`xertoolkit_vw_PBI_ScheduleQualityResults`, the normalised per-project/per-check
+contract containing Records Checked, Qualifying Results, and the versioned
+score policy.  Run a canary refresh, then a full refresh, before connecting
+Power BI or any downstream report to that view.  The expected Hertford canary
+figures are Relationship Ratio **42 / 327 (12.84%)**, Open Starts **17 / 139**,
+and Open Finishes **9 / 139**.
 
 Run `029_exclude_deleted_activities.sql` on an existing deployment to add the
 global **Exclude activities marked as deleted** scope control. It defaults to

@@ -158,6 +158,22 @@ class ScheduleQualitySqlAssetTests(TestCase):
         self.assertIn(percentage_return, migration_sql)
         self.assertIn("relationship_ratio,", rollback_sql)
 
+    def test_workbook_parity_migration_makes_rules_template_owned_and_exposes_results(self):
+        migration_sql = (
+            SCHEDULE_QUALITY_SQL / "037_workbook_parity_score_rules.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("limit_type varchar(10)", migration_sql)
+        self.assertIn("records_metric varchar(50)", migration_sql)
+        self.assertIn("qualifying_metric varchar(50)", migration_sql)
+        self.assertIn("WORKBOOK_OPEN_END_PARITY_V1", migration_sql)
+        self.assertIn("WORKBOOK_RELATIONSHIP_RATIO_PARITY_V1", migration_sql)
+        self.assertIn("predecessor_is_start_milestone", migration_sql)
+        self.assertIn("successor_is_finish_milestone", migration_sql)
+        self.assertIn("xertoolkit_vw_PBI_ScheduleQualityResults", migration_sql)
+        self.assertIn("open_start_eligible", migration_sql)
+        self.assertIn("excessive_ss_eligible", migration_sql)
+
     def test_performance_hotfix_uses_single_pass_scope_settings(self):
         forward_sql = (
             SCHEDULE_QUALITY_SQL / "001_versioned_settings_forward.sql"

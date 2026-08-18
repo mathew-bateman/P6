@@ -186,10 +186,44 @@ class ScheduleQualitySettingsForm(forms.Form):
                     ),
                 )
                 scope_names[scope_name] = name
+            limit_type_name = _field_name("check", check.check_code, "limit_type")
+            green_limit_name = _field_name("check", check.check_code, "green_limit")
+            amber_limit_name = _field_name("check", check.check_code, "amber_limit")
+            green_points_name = _field_name("check", check.check_code, "green_points")
+            amber_points_name = _field_name("check", check.check_code, "amber_points")
+            self.fields[limit_type_name] = forms.ChoiceField(
+                choices=(("Percent", "Percent"), ("Number", "Number")),
+                initial=check.limit_type,
+                required=False,
+                label=f"{check.display_name} limit type",
+            )
+            self.fields[green_limit_name] = forms.DecimalField(
+                min_value=Decimal("0"), decimal_places=2, max_digits=7,
+                initial=check.green_limit, required=False,
+                label=f"{check.display_name} green limit",
+            )
+            self.fields[amber_limit_name] = forms.DecimalField(
+                min_value=Decimal("0"), decimal_places=2, max_digits=7,
+                initial=check.amber_limit, required=False,
+                label=f"{check.display_name} amber limit",
+            )
+            self.fields[green_points_name] = forms.IntegerField(
+                min_value=0, max_value=1000, initial=check.green_points, required=False,
+                label=f"{check.display_name} green points",
+            )
+            self.fields[amber_points_name] = forms.IntegerField(
+                min_value=0, max_value=1000, initial=check.amber_points, required=False,
+                label=f"{check.display_name} amber points",
+            )
             self.check_rows.append(
                 {
                     "check": check,
                     "enabled": self[enabled_name],
+                    "limit_type": self[limit_type_name],
+                    "green_limit": self[green_limit_name],
+                    "amber_limit": self[amber_limit_name],
+                    "green_points": self[green_points_name],
+                    "amber_points": self[amber_points_name],
                     **{
                         scope_name: self[field_name] if field_name else None
                         for scope_name, field_name in scope_names.items()
@@ -360,6 +394,17 @@ class ScheduleQualitySettingsForm(forms.Form):
                             _field_name("check", check.check_code, scope_name)
                         ]
                     )
+            row.update(
+                {
+                    "limit_type": self.cleaned_data[_field_name("check", check.check_code, "limit_type")] or check.limit_type,
+                    "green_limit": self.cleaned_data[_field_name("check", check.check_code, "green_limit")] if self.cleaned_data[_field_name("check", check.check_code, "green_limit")] is not None else check.green_limit,
+                    "amber_limit": self.cleaned_data[_field_name("check", check.check_code, "amber_limit")] if self.cleaned_data[_field_name("check", check.check_code, "amber_limit")] is not None else check.amber_limit,
+                    "green_points": self.cleaned_data[_field_name("check", check.check_code, "green_points")] if self.cleaned_data[_field_name("check", check.check_code, "green_points")] is not None else check.green_points,
+                    "amber_points": self.cleaned_data[_field_name("check", check.check_code, "amber_points")] if self.cleaned_data[_field_name("check", check.check_code, "amber_points")] is not None else check.amber_points,
+                    "records_metric": check.records_metric,
+                    "qualifying_metric": check.qualifying_metric,
+                }
+            )
             checks.append(row)
 
         options: list[dict[str, object]] = []

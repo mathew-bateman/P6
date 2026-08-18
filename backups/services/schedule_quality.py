@@ -38,6 +38,13 @@ class ScheduleQualityCheckScope:
     include_wbs_summary: bool | None
     include_milestones: bool | None
     exclude_complete: bool | None
+    limit_type: str = "Percent"
+    green_limit: Decimal = Decimal("0")
+    amber_limit: Decimal = Decimal("0")
+    green_points: int = 0
+    amber_points: int = 0
+    records_metric: str = ""
+    qualifying_metric: str = ""
 
 
 @dataclass(frozen=True)
@@ -212,7 +219,14 @@ def fetch_schedule_quality_settings(
             include_loe,
             include_wbs_summary,
             include_milestones,
-            exclude_complete
+            exclude_complete,
+            limit_type,
+            green_limit,
+            amber_limit,
+            green_points,
+            amber_points,
+            records_metric,
+            qualifying_metric
         FROM [{SCHEDULE_QUALITY_SCHEMA}].[xertoolkit_schedule_quality_check_scope]
         WHERE config_version_id = ?
         ORDER BY sort_order, check_code;
@@ -268,6 +282,13 @@ def fetch_schedule_quality_settings(
             include_wbs_summary=_nullable_bool(row.get("include_wbs_summary")),
             include_milestones=_nullable_bool(row.get("include_milestones")),
             exclude_complete=_nullable_bool(row.get("exclude_complete")),
+            limit_type=str(row.get("limit_type") or "Percent"),
+            green_limit=Decimal(str(row.get("green_limit") or "0")),
+            amber_limit=Decimal(str(row.get("amber_limit") or "0")),
+            green_points=int(row.get("green_points") or 0),
+            amber_points=int(row.get("amber_points") or 0),
+            records_metric=str(row.get("records_metric") or ""),
+            qualifying_metric=str(row.get("qualifying_metric") or ""),
         )
         for row in result_sets[1]
     )
