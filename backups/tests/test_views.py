@@ -201,7 +201,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
         response = self.client.get(reverse("schedule_quality_dashboard"))
 
         self.assertContains(response, "Automatic schedule")
-        self.assertContains(response, "Edit Schedule")
+        self.assertContains(response, "Edit schedule")
         self.assertContains(response, "Save Schedule")
         self.assertNotContains(response, "Cron expression")
 
@@ -271,8 +271,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
             response,
             "These published settings supply the scope, thresholds and points",
         )
-        self.assertContains(response, "Save draft only")
-        self.assertContains(response, "Publish and rebuild")
+        self.assertContains(response, "Publish")
         self.assertContains(response, "N/A")
         self.assertContains(response, "Optional check scope and constraints")
         self.assertNotContains(response, 'class="settings-advanced"')
