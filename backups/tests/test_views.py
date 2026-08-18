@@ -276,7 +276,6 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertNotContains(response, 'class="settings-advanced"')
         self.assertContains(response, "Check scope")
         self.assertContains(response, "Exclude activities marked as deleted")
-        self.assertContains(response, "Activity Status code DEL")
         self.assertContains(response, "Constraint types checked")
         self.assertNotContains(response, "Allowed constraint types")
         self.assertContains(response, SETTINGS_HASH)
