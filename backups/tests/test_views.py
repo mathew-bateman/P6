@@ -140,6 +140,19 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertContains(response, "Open Backup Targets")
         self.assertContains(response, "Open Schedule Quality")
         self.assertContains(response, "Open Maintenance")
+        self.assertContains(response, "Open Quality Reports")
+
+        content = response.content.decode()
+        card_positions = [
+            content.index(label)
+            for label in (
+                "Open Backup Targets",
+                "Open Maintenance",
+                "Open Schedule Quality",
+                "Open Quality Reports",
+            )
+        ]
+        self.assertEqual(card_positions, sorted(card_positions))
 
     @patch("backups.views.count_schedule_quality_refresh_history")
     @patch("backups.views.fetch_schedule_quality_refresh_history")

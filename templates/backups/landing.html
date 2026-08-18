@@ -16,6 +16,11 @@
                 <p class="subtle">Manage database backup schedules, run backups, and restore retained copies.</p>
                 <a class="button" href="{% url 'backup_dashboard' %}">Open Backup Targets</a>
             </article>
+            <article class="panel suite-card">
+                <h2>Database Maintenance</h2>
+                <p class="subtle">Review maintenance activity and manage database housekeeping operations.</p>
+                <a class="button" href="{% url 'maintenance_dashboard' %}">Open Maintenance</a>
+            </article>
         {% endif %}
         <article class="panel suite-card">
             <h2>Schedule Quality</h2>
@@ -27,13 +32,6 @@
                 <h2>Quality Reports</h2>
                 <p class="subtle">Score the programme, review every check, and drill into activity evidence.</p>
                 <a class="button" href="{% url 'schedule_quality_overview' %}">Open Quality Reports</a>
-            </article>
-        {% endif %}
-        {% if request.user.is_staff %}
-            <article class="panel suite-card">
-                <h2>Database Maintenance</h2>
-                <p class="subtle">Review maintenance activity and manage database housekeeping operations.</p>
-                <a class="button" href="{% url 'maintenance_dashboard' %}">Open Maintenance</a>
             </article>
         {% endif %}
     </div>
