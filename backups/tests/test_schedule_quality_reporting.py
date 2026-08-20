@@ -443,6 +443,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Validation &amp; Evidence")
         self.assertContains(response, "Latest update")
         self.assertContains(response, "Scorecard")
+        self.assertNotContains(response, ">Pass rate<")
         self.assertContains(response, 'class="numeric-cell points-scored-zero"')
         self.assertContains(response, ">Overview<")
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
