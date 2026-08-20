@@ -59,9 +59,11 @@
     .validation-summary .numeric-value { display: inline-block; min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
     .validation-summary .numeric-value.count { min-width: 4ch; }
     .validation-summary tbody tr:hover td { background: #f8fafc; }
+    .validation-summary tbody tr[data-check-code] { cursor: pointer; }
     .validation-summary .qualifying-cell { font-weight: 700; }
     .validation-summary tr.has-findings .qualifying-cell { background: #fff1f0; color: var(--danger); }
     .validation-summary tr.is-clear .qualifying-cell { background: #ecfdf3; color: var(--success); }
+    .validation-summary tr.is-selected td, .validation-summary tr.is-selected .qualifying-cell { background: #e8f5f2; color: #087f70; }
     .validation-evidence { margin-top: 18px; }
     .validation-evidence table { min-width: 1080px; }
     .validation-evidence th:nth-child(1) { width: 13%; }
@@ -79,7 +81,7 @@
         .validation-filter-panel { position: static; }
         .validation-filter-panel form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
         .validation-filter-panel .field { margin: 0; }
-        .validation-filter-actions { grid-column: 1 / -1; justify-self: end; width: min(100%, 300px); }
+        .validation-filter-actions { grid-column: 1 / -1; width: 100%; }
     }
     @media (max-width: 760px) {
         .validation-tabs { width: 100%; justify-content: flex-start; }
@@ -272,6 +274,26 @@
     document.addEventListener('change', (event) => {
         const form = event.target.closest('.validation-layout form');
         if (form) syncScheduleQualityReportTabs(form);
+    });
+    const applyValidationCheck = (checkCode) => {
+        const select = document.querySelector('#validation-check');
+        if (!select || !checkCode) return;
+        if (select.tomselect) select.tomselect.setValue(checkCode);
+        else {
+            select.value = checkCode;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    };
+    document.addEventListener('click', (event) => {
+        const row = event.target.closest('.validation-summary tbody tr[data-check-code]');
+        if (row) applyValidationCheck(row.dataset.checkCode);
+    });
+    document.addEventListener('keydown', (event) => {
+        const row = event.target.closest('.validation-summary tbody tr[data-check-code]');
+        if (row && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            applyValidationCheck(row.dataset.checkCode);
+        }
     });
     document.addEventListener('htmx:afterSwap', (event) => { initTomSelects(event.target); initDatePickers(event.target); });
 })();
