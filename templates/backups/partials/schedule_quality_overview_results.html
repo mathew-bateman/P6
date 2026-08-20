@@ -83,25 +83,6 @@
     </aside>
 
     <div class="overview-main">
-        <section class="overview-score-summary" aria-label="Score summary">
-            <article class="panel overview-scorecard">
-                <span>Total points available</span>
-                <strong>{{ total_points_available }}</strong>
-            </article>
-            <article class="panel overview-scorecard">
-                <span>Points achieved</span>
-                <strong>{{ total_points_achieved }}</strong>
-            </article>
-            <article class="panel overview-scorecard">
-                <span>Pass %</span>
-                <strong>{{ pass_percent|floatformat:2 }}%</strong>
-            </article>
-            <article class="panel overview-scorecard outcome {{ pass_or_fail|lower }}">
-                <span>Pass or fail</span>
-                <strong>{{ pass_or_fail }}</strong>
-            </article>
-        </section>
-
         <section class="panel overview-report">
             <div class="overview-panel-heading">
                 <div class="overview-heading-title">
