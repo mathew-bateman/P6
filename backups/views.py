@@ -562,7 +562,10 @@ class ScheduleQualityValidationView(
         try:
             filters, options = self._filter_options_for_filters(filters)
             context["validation_filters"] = filters
-            summary_rows = fetch_validation_summary(filters)
+            # The selected check scopes evidence only. Keep every check in the
+            # summary so users can compare the programme and see the selected
+            # row in context.
+            summary_rows = fetch_validation_summary(replace(filters, check_code=""))
             evidence_rows, evidence_count = fetch_validation_evidence(
                 filters,
                 limit=page_size,

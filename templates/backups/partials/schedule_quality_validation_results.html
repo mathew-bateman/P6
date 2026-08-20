@@ -50,7 +50,12 @@
                     </thead>
                     <tbody>
                         {% for row in summary_rows %}
-                            <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}">
+                            <tr class="{% if row.status == 'review' %}has-findings{% else %}is-clear{% endif %}{% if validation_filters.check_code == row.check_code %} is-selected{% endif %}"
+                                data-check-code="{{ row.check_code }}"
+                                tabindex="0"
+                                role="button"
+                                aria-pressed="{% if validation_filters.check_code == row.check_code %}true{% else %}false{% endif %}"
+                                aria-label="Filter activity evidence to {{ row.check_name }}">
                                 <td>{{ row.number }}</td>
                                 <td>
                                     <strong>{{ row.check_name }}</strong>

@@ -264,6 +264,9 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertContains(response, "Total Float: 90.00 days")
         self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
         self.assertContains(response, "syncScheduleQualityReportTabs")
+        self.assertContains(response, 'data-check-code="high_float"')
+        self.assertContains(response, "applyValidationCheck")
+        self.assertContains(response, 'aria-label="Validation summary"')
         self.assertNotContains(response, ">Apply<")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
@@ -336,14 +339,15 @@ class ScheduleQualityValidationViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        filters = summary.call_args.args[0]
-        self.assertEqual(filters.project_id, 7)
-        self.assertEqual(filters.updated_date, date(2026, 8, 14))
-        self.assertEqual(filters.check_code, "high_float")
-        self.assertEqual(filters.project_status, "Client Submitted")
-        self.assertEqual(filters.project_state, "Live")
-        self.assertTrue(filters.exclude_blanks)
-        self.assertEqual(evidence.call_args.args[0], filters)
+        summary_filters = summary.call_args.args[0]
+        evidence_filters = evidence.call_args.args[0]
+        self.assertEqual(summary_filters.project_id, 7)
+        self.assertEqual(summary_filters.updated_date, date(2026, 8, 14))
+        self.assertEqual(summary_filters.check_code, "")
+        self.assertEqual(summary_filters.project_status, "Client Submitted")
+        self.assertEqual(summary_filters.project_state, "Live")
+        self.assertTrue(summary_filters.exclude_blanks)
+        self.assertEqual(evidence_filters.check_code, "high_float")
         self.assertContains(
             response,
             'href="/schedule-quality/overview/?project=7&amp;portfolio=Rail&amp;lead_planner=Alex&amp;project_status=Client+Submitted&amp;project_state=Live&amp;exclude_blanks=1&amp;updated_date=2026-08-14&amp;check=high_float"',
@@ -431,6 +435,9 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "Scorecard detail")
         self.assertContains(response, "Score: 285 out of 335 points scored")
         self.assertContains(response, "Projects included: Project Seven")
+        self.assertContains(response, "Scorecard")
+        self.assertContains(response, 'aria-label="Score summary"')
+        self.assertNotContains(response, ">Pass rate<")
         self.assertContains(response, 'class="numeric-cell points-scored-zero"')
         self.assertContains(response, ">Overview<")
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
