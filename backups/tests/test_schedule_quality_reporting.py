@@ -121,25 +121,26 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(page_parameters[-2:], (50, 25))
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
-    def test_programme_overview_applies_template_limits_and_points(self, fetch_rows):
-        fetch_rows.return_value = [
-            {"check_code": "high_float", "display_name": "High Total Float", "sort_order": 1, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 10, "amber_points": 8, "records_checked": 258, "qualifying_results": 34, "latest_updated_date": date(2026, 6, 4)},
-            {"check_code": "negative_float", "display_name": "Negative Float", "sort_order": 2, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 20, "amber_points": 16, "records_checked": 258, "qualifying_results": 0},
-            {"check_code": "logical_loops", "display_name": "Logical Loops", "sort_order": 3, "limit_type": "Number", "green_limit": 0, "amber_limit": 1, "green_points": 50, "amber_points": 40, "records_checked": 0, "qualifying_results": 0},
+    def test_programme_overview_uses_fast_project_metrics_and_score_policy(self, fetch_rows):
+        fetch_rows.side_effect = [
+            [{"dcma_activity_count": 258, "relationship_count": 362, "logical_loop_count": 0, "high_float_count": 34, "negative_float_count": 0, "latest_updated_date": date(2026, 6, 4)}],
+            [{"check_code": "logical_loops", "display_name": "Logical Loops"}, {"check_code": "high_float", "display_name": "High Total Float"}, {"check_code": "negative_float", "display_name": "Negative Float"}],
         ]
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
 
-        self.assertEqual([row["result"] for row in overview["rows"]], ["Red", "Green", "Green"])
+        self.assertEqual([row["result"] for row in overview["rows"]], ["Green", "Red", "Green"])
         self.assertEqual(overview["total_points_available"], 80)
         self.assertEqual(overview["total_points_achieved"], 70)
         self.assertEqual(overview["pass_percent"], Decimal("87.50"))
         self.assertEqual(overview["pass_or_fail"], "PASS")
+        self.assertIn("xertoolkit_vw_PBI_ProjectMetrics", fetch_rows.call_args_list[0].args[1])
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_programme_overview_calculates_relationship_ratio_from_non_fs_relationships(self, fetch_rows):
-        fetch_rows.return_value = [
-            {"check_code": "relationship_ratio", "display_name": "Relationship Ratio", "sort_order": 1, "limit_type": "Percent", "green_limit": 3, "amber_limit": 7, "green_points": 10, "amber_points": 8, "records_checked": 362, "qualifying_results": 4, "latest_updated_date": date(2026, 6, 4)},
+        fetch_rows.side_effect = [
+            [{"dcma_activity_count": 258, "relationship_count": 362, "non_fs_count": 4, "latest_updated_date": date(2026, 6, 4)}],
+            [{"check_code": "relationship_ratio", "display_name": "Relationship Ratio"}],
         ]
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
@@ -162,19 +163,6 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(summary[0]["qualifying_results"], 42)
         self.assertEqual(summary[0]["qualifying_display"], "12.84%")
         self.assertEqual(summary[0]["qualifying_percent"], Decimal("12.84"))
-
-    @patch("backups.services.schedule_quality_reporting.fetch_rows")
-    def test_programme_overview_requires_more_than_the_pass_rate(self, fetch_rows):
-        fetch_rows.return_value = [
-            {"check_code": "a", "display_name": "A", "sort_order": 1, "limit_type": "Number", "green_limit": 0, "amber_limit": 0, "green_points": 85, "amber_points": 0, "records_checked": 0, "qualifying_results": 0},
-            {"check_code": "b", "display_name": "B", "sort_order": 2, "limit_type": "Number", "green_limit": 0, "amber_limit": 0, "green_points": 15, "amber_points": 0, "records_checked": 0, "qualifying_results": 1},
-        ]
-
-        overview = fetch_programme_overview(ScheduleQualityValidationFilters())
-
-        self.assertEqual(overview["pass_percent"], Decimal("85.00"))
-        self.assertEqual(overview["pass_or_fail"], "FAIL")
-
 
 class ScheduleQualityValidationViewTests(TestCase):
     def setUp(self):

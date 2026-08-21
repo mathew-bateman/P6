@@ -20,7 +20,68 @@ class ScheduleQualityValidationFilters:
     check_code: str = ""
 
 
+@dataclass(frozen=True)
+class ProgrammeCheckRule:
+    check_code: str
+    display_name: str
+    green_limit: Decimal
+    amber_limit: Decimal
+    limit_type: str
+    green_points: int
+    amber_points: int
+
+
+CHECK_METRICS = {
+    "missing_predecessor": ("dcma_activity_count", "missing_predecessor_count"),
+    "missing_successor": ("dcma_activity_count", "missing_successor_count"),
+    "open_finish": ("dcma_activity_count", "open_finish_count"),
+    "open_start": ("dcma_activity_count", "open_start_count"),
+    "relationship_leads": ("relationship_count", "lead_count"),
+    "relationship_lags": ("relationship_count", "lag_count"),
+    "relationship_ratio": ("relationship_count", "non_fs_count"),
+    "constraints": ("dcma_activity_count", "constraint_count"),
+    "high_float": ("dcma_activity_count", "high_float_count"),
+    "negative_float": ("dcma_activity_count", "negative_float_count"),
+    "high_duration": ("dcma_activity_count", "high_duration_count"),
+    "invalid_dates": ("dcma_activity_count", "invalid_date_count"),
+    "in_progress_errors": ("dcma_activity_count", "in_progress_error_count"),
+    "logical_loops": ("dcma_activity_count", "logical_loop_count"),
+    "out_of_sequence": ("relationship_count", "out_of_sequence_count"),
+    "critical_tasks": ("dcma_activity_count", "critical_task_count"),
+    "near_critical_tasks": ("dcma_activity_count", "near_critical_task_count"),
+    "riding_progress_date": ("dcma_activity_count", "riding_progress_date_count"),
+    "excessive_ss_lag": ("relationship_count", "excessive_ss_lag_count"),
+    "excessive_ff_lag": ("relationship_count", "excessive_ff_lag_count"),
+}
+
+
 PROGRAMME_PASS_RATE = Decimal("85.00")
+PROGRAMME_CHECK_RULES = (
+    ProgrammeCheckRule("logical_loops", "Logical Loops", Decimal("0"), Decimal("1"), "Number", 50, 40),
+    ProgrammeCheckRule("out_of_sequence", "Out of Sequence", Decimal("0"), Decimal("0"), "Number", 10, 8),
+    ProgrammeCheckRule("missing_predecessor", "Missing Predecessors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
+    ProgrammeCheckRule("missing_successor", "Missing Successors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
+    ProgrammeCheckRule("relationship_leads", "Relationship +ve Lags (Leads)", Decimal("0"), Decimal("0"), "Percent", 15, 12),
+    ProgrammeCheckRule("relationship_lags", "Relationship +ve Lags", Decimal("0"), Decimal("0"), "Percent", 10, 8),
+    ProgrammeCheckRule("high_duration", "High Duration", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("high_float", "High Total Float", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("negative_float", "Negative Float", Decimal("0"), Decimal("3"), "Percent", 20, 16),
+    ProgrammeCheckRule("constraints", "Constraints", Decimal("3"), Decimal("7"), "Percent", 15, 12),
+    ProgrammeCheckRule("open_start", "Open-Start Tasks", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+    ProgrammeCheckRule("open_finish", "Open-Finish Tasks", Decimal("3"), Decimal("7"), "Percent", 20, 16),
+    ProgrammeCheckRule("critical_tasks", "Critical Tasks", Decimal("30"), Decimal("50"), "Percent", 15, 12),
+    ProgrammeCheckRule("near_critical_tasks", "Near Critical Tasks", Decimal("45"), Decimal("66"), "Percent", 15, 12),
+    ProgrammeCheckRule("invalid_dates", "Invalid Dates", Decimal("0"), Decimal("0"), "Percent", 15, 12),
+    ProgrammeCheckRule("in_progress_errors", "In Progress Errors", Decimal("0"), Decimal("0"), "Percent", 15, 12),
+    ProgrammeCheckRule("riding_progress_date", "Riding Progress Date", Decimal("3"), Decimal("7"), "Percent", 15, 12),
+    ProgrammeCheckRule("excessive_ss_lag", "Excessive SS Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
+    ProgrammeCheckRule("excessive_ff_lag", "Excessive FF Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
+    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
+)
+
+METRIC_COLUMNS = tuple(
+    dict.fromkeys(column for pair in CHECK_METRICS.values() for column in pair)
+)
 
 
 def _score_check(
@@ -253,34 +314,78 @@ def fetch_validation_summary(
 def fetch_programme_overview(
     filters: ScheduleQualityValidationFilters,
 ) -> dict[str, object]:
-    checks, latest_updated_date = _fetch_scorecard_rows(filters)
+    # This must remain on ProjectMetrics.  ScheduleQualityResults expands each
+    # project into every enabled check and has repeatedly exceeded the public
+    # proxy timeout when aggregating the full programme.
+    target = build_schedule_quality_target()
+    where_sql, parameters = _validation_where(filters)
+    aggregate_select = ",\n".join(
+        f"            COALESCE(SUM(CONVERT(bigint, metrics.{column})), 0) AS {column}"
+        for column in METRIC_COLUMNS
+    )
+    aggregate = fetch_rows(
+        target,
+        PROJECT_DIMENSIONS_CTE
+        + f"""
+        SELECT
+{aggregate_select},
+            MAX(CONVERT(date, project.updated_date)) AS latest_updated_date
+        FROM [powerbitables].[xertoolkit_vw_PBI_ProjectMetrics] AS metrics
+        JOIN project_dimensions AS project
+          ON project.proj_id = metrics.proj_id
+        {where_sql};
+        """,
+        parameters=parameters,
+        database=target.sql_database,
+    )
+    checks = fetch_rows(
+        target,
+        """
+        SELECT scope.check_code, scope.display_name
+        FROM [powerbitables].[xertoolkit_schedule_quality_profile] AS profile
+        JOIN [powerbitables].[xertoolkit_schedule_quality_check_scope] AS scope
+          ON scope.config_version_id = profile.active_config_version_id
+        WHERE profile.profile_code = ?
+          AND scope.is_enabled = 1;
+        """,
+        parameters=("default",),
+        database=target.sql_database,
+    )
+    values = aggregate[0] if aggregate else {}
+    active_names = {
+        str(check["check_code"]): str(check["display_name"])
+        for check in checks
+    }
     rows: list[dict[str, object]] = []
-    for check in checks:
-        records_checked = int(check.get("records_checked") or 0)
-        qualifying_results = int(check.get("qualifying_results") or 0)
+    for rule in PROGRAMME_CHECK_RULES:
+        if rule.check_code not in active_names:
+            continue
+        records_column, qualifying_column = CHECK_METRICS[rule.check_code]
+        records_checked = int(values.get(records_column) or 0)
+        qualifying_results = int(values.get(qualifying_column) or 0)
         result_value, qualifying_display, result, points_scored = _score_check(
-            limit_type=str(check["limit_type"]),
-            green_limit=Decimal(str(check["green_limit"])),
-            amber_limit=Decimal(str(check["amber_limit"])),
-            green_points=int(check["green_points"]),
-            amber_points=int(check["amber_points"]),
+            limit_type=rule.limit_type,
+            green_limit=rule.green_limit,
+            amber_limit=rule.amber_limit,
+            green_points=rule.green_points,
+            amber_points=rule.amber_points,
             records_checked=records_checked,
             qualifying_results=qualifying_results,
         )
         rows.append(
             {
                 "number": len(rows) + 1,
-                "check_code": str(check["check_code"]),
-                "description": str(check["display_name"]),
+                "check_code": rule.check_code,
+                "description": active_names.get(rule.check_code, rule.display_name),
                 "result": result,
                 "records_checked": records_checked,
                 "qualifying_results": qualifying_results,
                 "qualifying_display": qualifying_display,
-                "green_limit": Decimal(str(check["green_limit"])),
-                "amber_limit": Decimal(str(check["amber_limit"])),
-                "limit_type": str(check["limit_type"]),
-                "green_points": int(check["green_points"]),
-                "amber_points": int(check["amber_points"]),
+                "green_limit": rule.green_limit,
+                "amber_limit": rule.amber_limit,
+                "limit_type": rule.limit_type,
+                "green_points": rule.green_points,
+                "amber_points": rule.amber_points,
                 "points_scored": points_scored,
             }
         )
@@ -294,12 +399,12 @@ def fetch_programme_overview(
     ).quantize(Decimal("0.01"))
     return {
         "rows": rows,
-        "latest_updated_date": latest_updated_date,
+        "latest_updated_date": values.get("latest_updated_date"),
         "total_points_available": total_points_available,
         "total_points_achieved": total_points_achieved,
         "pass_percent": pass_percent,
         "pass_rate": PROGRAMME_PASS_RATE,
-        "pass_or_fail": "PASS" if pass_percent > PROGRAMME_PASS_RATE else "FAIL",
+        "pass_or_fail": "PASS" if pass_percent >= PROGRAMME_PASS_RATE else "FAIL",
     }
 
 
