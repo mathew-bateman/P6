@@ -261,6 +261,7 @@ class PortfolioReportingViewTests(TestCase):
         self.assertContains(response, "resetPortfolioReportNavigation")
         self.assertContains(response, "grid-template-columns:repeat(6,minmax(0,1fr))")
         self.assertContains(response, "white-space:nowrap")
+        self.assertContains(response, ".portfolio-filters { margin:0; padding:12px; }")
         self.assertEqual(response.content.decode().count('class="portfolio-select"'), 8)
         fetcher.assert_called_once()
 
