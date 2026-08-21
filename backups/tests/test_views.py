@@ -133,6 +133,10 @@ class ScheduleQualityRefreshViewTests(TestCase):
             password="password",
             is_staff=True,
         )
+        report_group, _ = Group.objects.get_or_create(
+            name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP
+        )
+        user.groups.add(report_group)
         self.client.force_login(user)
 
         response = self.client.get(reverse("suite_landing"))
@@ -141,6 +145,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertContains(response, "Open Schedule Quality")
         self.assertContains(response, "Open Maintenance")
         self.assertContains(response, "Open Quality Reports")
+        self.assertContains(response, "Open Portfolio Reporting")
 
         content = response.content.decode()
         card_positions = [
@@ -150,6 +155,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
                 "Open Maintenance",
                 "Open Schedule Quality",
                 "Open Quality Reports",
+                "Open Portfolio Reporting",
             )
         ]
         self.assertEqual(card_positions, sorted(card_positions))

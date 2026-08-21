@@ -20,6 +20,41 @@ urlpatterns = [
         views.ScheduleQualityValidationView.as_view(),
         name="schedule_quality_validation",
     ),
+    path(
+        "portfolio-reporting/",
+        views.PortfolioReportingHubView.as_view(),
+        name="portfolio_reporting_hub",
+    ),
+    path(
+        "portfolio-reporting/overview/",
+        views.PortfolioOverviewView.as_view(),
+        name="portfolio_reporting_overview",
+    ),
+    path(
+        "portfolio-reporting/milestones/",
+        views.MilestoneGovernanceView.as_view(),
+        name="portfolio_reporting_milestones",
+    ),
+    path(
+        "portfolio-reporting/risk-and-float/",
+        views.ScheduleRiskFloatView.as_view(),
+        name="portfolio_reporting_risk_float",
+    ),
+    path(
+        "portfolio-reporting/schedule-health/",
+        views.ScheduleHealthView.as_view(),
+        name="portfolio_reporting_health",
+    ),
+    path(
+        "portfolio-reporting/project-detail/",
+        views.PortfolioProjectDetailView.as_view(),
+        name="portfolio_reporting_project_detail",
+    ),
+    path(
+        "portfolio-reporting/resources/",
+        views.ResourceReportingView.as_view(),
+        name="portfolio_reporting_resources",
+    ),
     path("targets/<slug:slug>/", views.TargetDetailView.as_view(), name="backup_target_detail"),
     path("targets/<slug:slug>/update/", views.TargetUpdateView.as_view(), name="backup_target_update"),
     path("targets/<slug:slug>/backup/", views.TriggerBackupView.as_view(), name="backup_target_run"),

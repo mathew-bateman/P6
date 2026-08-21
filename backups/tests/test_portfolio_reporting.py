@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
+
+from backups.services.portfolio_reporting import fetch_portfolio_overview
+
+
+class PortfolioReportingServiceTests(SimpleTestCase):
+    @patch("backups.services.portfolio_reporting._project_metric_rows")
+    def test_portfolio_overview_builds_health_bands_and_intervention_order(self, metric_rows):
+        metric_rows.return_value = [
+            {
+                "proj_id": 1,
+                "proj_short_name": "Healthy",
+                "project_status": "Client Submitted",
+                "health_score": Decimal("92.00"),
+                "health_band": "Good",
+                "negative_float_count": 1,
+                "critical_task_count": 2,
+                "near_critical_task_count": 3,
+            },
+            {
+                "proj_id": 2,
+                "proj_short_name": "Intervention",
+                "project_status": "Client Submitted",
+                "health_score": Decimal("72.00"),
+                "health_band": "Poor",
+                "negative_float_count": 10,
+                "critical_task_count": 20,
+                "near_critical_task_count": 30,
+            },
+        ]
+
+        result = fetch_portfolio_overview(object())
+
+        self.assertEqual(result["top_projects"][0]["proj_short_name"], "Intervention")
+        self.assertEqual(result["kpis"][0]["value"], 2)
+        self.assertEqual(result["kpis"][1]["value"], 1)
+        self.assertEqual(result["kpis"][3]["value"], 1)
+        self.assertEqual(result["kpis"][4]["value"], "82.00%")
+        self.assertEqual(result["status_rows"][0]["percent"], 100.0)
+
+
+class PortfolioReportingViewTests(TestCase):
+    def setUp(self):
+        self.member = get_user_model().objects.create_user(
+            username="portfolio-member",
+            password="password",
+        )
+        self.non_member = get_user_model().objects.create_user(
+            username="portfolio-non-member",
+            password="password",
+        )
+        group, _ = Group.objects.get_or_create(name="ScheduleQuality")
+        self.member.groups.add(group)
+
+    def test_hub_requires_quality_report_access(self):
+        self.client.force_login(self.non_member)
+
+        response = self.client.get(reverse("portfolio_reporting_hub"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_hub_lists_all_six_report_destinations(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("portfolio_reporting_hub"))
+
+        self.assertEqual(response.status_code, 200)
+        for title in (
+            "Portfolio Overview",
+            "Milestone Governance",
+            "Schedule Risk &amp; Float",
+            "Schedule Health",
+            "Project Detail",
+            "Resources",
+        ):
+            self.assertContains(response, title)
+        self.assertContains(response, 'href="/portfolio-reporting/overview/"')
+        self.assertContains(response, 'href="/portfolio-reporting/resources/"')
+
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [
+                {
+                    "proj_id": 7,
+                    "proj_short_name": "Project Seven",
+                    "portfolio": "Rail",
+                    "updated_date": date(2026, 8, 20),
+                }
+            ],
+            "portfolios": ["Rail"],
+            "lead_planners": ["Alex"],
+            "project_statuses": ["Client Submitted"],
+            "project_states": ["Live"],
+            "updated_dates": [date(2026, 8, 20)],
+            "checks": [],
+        },
+    )
+    @patch("backups.views.PortfolioOverviewView.report_fetcher")
+    def test_overview_renders_live_summary_and_shared_navigation(self, fetcher, _options):
+        fetcher.return_value = {
+            "kpis": [
+                {"label": "Live projects", "value": 12, "detail": "Current scope"},
+                {"label": "Projects poor", "value": 2, "detail": "Below 80%", "tone": "poor"},
+            ],
+            "top_projects": [
+                {
+                    "proj_id": 7,
+                    "proj_short_name": "Project Seven",
+                    "portfolio": "Rail",
+                    "lead_planner": "Alex",
+                    "health_score": Decimal("72.50"),
+                    "health_band": "Poor",
+                    "negative_float_count": 8,
+                    "critical_task_count": 4,
+                    "near_critical_task_count": 6,
+                }
+            ],
+            "status_rows": [{"label": "Client Submitted", "count": 12, "percent": 100}],
+        }
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("portfolio_reporting_overview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Portfolio Overview")
+        self.assertContains(response, "Projects requiring intervention")
+        self.assertContains(response, "Project Seven")
+        self.assertContains(response, "72.50%")
+        self.assertContains(response, "Milestone Governance")
+        fetcher.assert_called_once()
+
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [],
+            "portfolios": [],
+            "lead_planners": [],
+            "project_statuses": [],
+            "project_states": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    def test_each_report_route_renders_its_page(self, _options):
+        routes = (
+            ("portfolio_reporting_milestones", "Milestone Governance"),
+            ("portfolio_reporting_risk_float", "Schedule Risk &amp; Float"),
+            ("portfolio_reporting_health", "Schedule Health"),
+            ("portfolio_reporting_project_detail", "Project Detail"),
+            ("portfolio_reporting_resources", "Resources"),
+        )
+        classes = (
+            "MilestoneGovernanceView",
+            "ScheduleRiskFloatView",
+            "ScheduleHealthView",
+            "PortfolioProjectDetailView",
+            "ResourceReportingView",
+        )
+        self.client.force_login(self.member)
+
+        for (route, title), class_name in zip(routes, classes):
+            with self.subTest(route=route), patch(
+                f"backups.views.{class_name}.report_fetcher",
+                return_value={"kpis": [], "rows": [], "distribution": [], "project": None},
+            ):
+                response = self.client.get(reverse(route))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, title)
+
+    def test_landing_card_and_nav_follow_quality_reports(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("suite_landing"))
+
+        self.assertContains(response, "Open Portfolio Reporting")
+        content = response.content.decode()
+        self.assertLess(content.index("Open Quality Reports"), content.index("Open Portfolio Reporting"))

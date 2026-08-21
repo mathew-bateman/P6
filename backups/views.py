@@ -36,6 +36,14 @@ from backups.services.schedule_quality_reporting import (
     fetch_validation_filter_options,
     fetch_validation_summary,
 )
+from backups.services.portfolio_reporting import (
+    fetch_milestone_governance,
+    fetch_portfolio_overview,
+    fetch_project_detail,
+    fetch_resource_overview,
+    fetch_schedule_health,
+    fetch_schedule_risk_and_float,
+)
 from backups.services.restore import build_sharepoint_backup_rows
 from backups.services.scheduling import (
     get_schedule_quality_refresh_schedule,
@@ -658,6 +666,125 @@ class ScheduleQualityValidationView(
                 }
             )
         return context
+
+
+PORTFOLIO_REPORT_PAGES = (
+    {
+        "key": "overview",
+        "title": "Portfolio Overview",
+        "description": "Portfolio health, project status and the projects requiring intervention.",
+        "url_name": "portfolio_reporting_overview",
+    },
+    {
+        "key": "milestones",
+        "title": "Milestone Governance",
+        "description": "Milestone demand, delivery status and overdue exposure by project.",
+        "url_name": "portfolio_reporting_milestones",
+    },
+    {
+        "key": "risk_float",
+        "title": "Schedule Risk & Float",
+        "description": "Current total-float distribution and schedule-risk exposure.",
+        "url_name": "portfolio_reporting_risk_float",
+    },
+    {
+        "key": "health",
+        "title": "Schedule Health",
+        "description": "Configured schedule-quality scores and project health bands.",
+        "url_name": "portfolio_reporting_health",
+    },
+    {
+        "key": "project_detail",
+        "title": "Project Detail",
+        "description": "Progress, float, milestones and critical exposure for one project.",
+        "url_name": "portfolio_reporting_project_detail",
+    },
+    {
+        "key": "resources",
+        "title": "Resources",
+        "description": "Planned, actual and remaining resource demand from P6 assignments.",
+        "url_name": "portfolio_reporting_resources",
+    },
+)
+
+
+class PortfolioReportingHubView(ScheduleQualityReportRequiredMixin, TemplateView):
+    template_name = "backups/portfolio_reporting_hub.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["portfolio_report_pages"] = PORTFOLIO_REPORT_PAGES
+        return context
+
+
+class PortfolioReportingView(
+    ScheduleQualityReportRequiredMixin,
+    ScheduleQualityReportFiltersMixin,
+    TemplateView,
+):
+    template_name = "backups/portfolio_reporting_report.html"
+    report_key = ""
+    report_fetcher = None
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["portfolio_report_pages"] = PORTFOLIO_REPORT_PAGES
+        context["active_report"] = next(
+            page for page in PORTFOLIO_REPORT_PAGES if page["key"] == self.report_key
+        )
+        filters = self._filters()
+        context["validation_filters"] = filters
+        try:
+            filters, options = self._filter_options_for_filters(filters)
+            context["validation_filters"] = filters
+            context.update(options)
+            context["report_data"] = self.report_fetcher(filters)
+            context["portfolio_report_error"] = ""
+        except Exception as error:
+            logger.exception("Portfolio report %s could not be loaded.", self.report_key)
+            context.update(
+                {
+                    "projects": [],
+                    "portfolios": [],
+                    "lead_planners": [],
+                    "project_statuses": [],
+                    "project_states": [],
+                    "updated_dates": [],
+                    "report_data": {"kpis": [], "rows": []},
+                    "portfolio_report_error": str(error),
+                }
+            )
+        return context
+
+
+class PortfolioOverviewView(PortfolioReportingView):
+    report_key = "overview"
+    report_fetcher = staticmethod(fetch_portfolio_overview)
+
+
+class MilestoneGovernanceView(PortfolioReportingView):
+    report_key = "milestones"
+    report_fetcher = staticmethod(fetch_milestone_governance)
+
+
+class ScheduleRiskFloatView(PortfolioReportingView):
+    report_key = "risk_float"
+    report_fetcher = staticmethod(fetch_schedule_risk_and_float)
+
+
+class ScheduleHealthView(PortfolioReportingView):
+    report_key = "health"
+    report_fetcher = staticmethod(fetch_schedule_health)
+
+
+class PortfolioProjectDetailView(PortfolioReportingView):
+    report_key = "project_detail"
+    report_fetcher = staticmethod(fetch_project_detail)
+
+
+class ResourceReportingView(PortfolioReportingView):
+    report_key = "resources"
+    report_fetcher = staticmethod(fetch_resource_overview)
 
 
 class TargetDetailView(StaffRequiredMixin, TemplateView):

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ active_report.title }} | Portfolio Reporting{% endblock %}
+
+{% block content %}
+<style>
+    .portfolio-hero { align-items: flex-start; }
+    .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
+    .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:12px; }
+    .portfolio-report-nav { display:grid; gap:5px; margin-bottom:16px; }
+    .portfolio-report-nav a { display:block; padding:9px 10px; border-radius:6px; color:#344054; font-size:13px; font-weight:650; text-decoration:none; }
+    .portfolio-report-nav a:hover { background:#eef2f7; }
+    .portfolio-report-nav a.current { background:#e8f5f2; color:#087f70; }
+    .portfolio-filters { padding-top:14px; border-top:1px solid var(--line); }
+    .portfolio-filters h2 { margin-bottom:12px; font-size:15px; }
+    .portfolio-filters .field { margin-bottom:10px; }
+    .portfolio-filters label { font-size:12px; color:#475467; }
+    .portfolio-filters select, .portfolio-filters input { min-height:38px; font-size:13px; }
+    .portfolio-filter-actions { display:grid; gap:7px; }
+    .portfolio-filter-actions .button { width:100%; box-sizing:border-box; }
+    .portfolio-main { min-width:0; }
+    .portfolio-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+    .portfolio-kpi { min-height:106px; box-sizing:border-box; margin:0; padding:14px 15px; border-left:3px solid var(--accent); }
+    .portfolio-kpi.good { border-left-color:#16a34a; background:#f0fdf4; }
+    .portfolio-kpi.fair { border-left-color:#f59e0b; background:#fffbeb; }
+    .portfolio-kpi.poor { border-left-color:#dc2626; background:#fff7f6; }
+    .portfolio-kpi span { display:block; color:#667085; font-size:11px; font-weight:750; letter-spacing:.05em; text-transform:uppercase; }
+    .portfolio-kpi strong { display:block; margin:8px 0 5px; font-size:24px; line-height:1.05; font-variant-numeric:tabular-nums; }
+    .portfolio-kpi small { display:block; color:#667085; font-size:11px; line-height:1.35; }
+    .portfolio-panel { overflow:hidden; margin:0 0 16px; padding:0; }
+    .portfolio-panel-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:15px 18px; border-bottom:1px solid var(--line); background:#f8fafc; }
+    .portfolio-panel-header h2 { margin:0; font-size:18px; }
+    .portfolio-panel-header p { margin:4px 0 0; font-size:12px; }
+    .portfolio-table-wrap { overflow:auto; }
+    .portfolio-table-wrap table { display:table; min-width:760px; border:0; border-radius:0; font-size:12px; }
+    .portfolio-table-wrap th, .portfolio-table-wrap td { padding:8px 10px; vertical-align:middle; }
+    .portfolio-table-wrap .number { text-align:right; font-variant-numeric:tabular-nums; }
+    .health-badge { min-width:46px; text-align:center; font-weight:750; }
+    .health-badge.good { background:#dcfae6; color:#087443; }
+    .health-badge.fair { background:#fef0c7; color:#b54708; }
+    .health-badge.poor { background:#fee4e2; color:#b42318; }
+    .portfolio-bars { display:grid; gap:12px; padding:18px; }
+    .portfolio-bar-row { display:grid; grid-template-columns:minmax(120px,190px) minmax(0,1fr) 75px; gap:12px; align-items:center; }
+    .portfolio-bar-label { color:#344054; font-size:13px; font-weight:650; }
+    .portfolio-bar-track { height:14px; overflow:hidden; border-radius:999px; background:#eef2f7; }
+    .portfolio-bar-fill { min-width:2px; height:100%; border-radius:999px; background:#0f766e; }
+    .portfolio-bar-fill.good { background:#16a34a; }
+    .portfolio-bar-fill.fair { background:#f59e0b; }
+    .portfolio-bar-fill.poor { background:#dc2626; }
+    .portfolio-bar-value { text-align:right; font-weight:750; font-variant-numeric:tabular-nums; }
+    .portfolio-empty, .portfolio-error { padding:28px 20px; text-align:center; color:#667085; }
+    .portfolio-error { margin:0 0 16px; border-color:#fecdca; background:#fff7f6; color:#b42318; text-align:left; }
+    .portfolio-note { margin:0 0 16px; padding:12px 14px; border:1px solid #b2ddff; border-radius:8px; background:#eff8ff; color:#175cd3; font-size:12px; line-height:1.45; }
+    @media (max-width:1120px) {
+        .portfolio-layout { grid-template-columns:1fr; }
+        .portfolio-sidebar { position:static; }
+        .portfolio-report-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .portfolio-filters form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; align-items:end; }
+        .portfolio-filters .field { margin:0; }
+        .portfolio-filter-actions { grid-column:1/-1; grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:760px) {
+        .portfolio-report-nav { grid-template-columns:1fr 1fr; }
+        .portfolio-filters form { grid-template-columns:1fr; }
+        .portfolio-filter-actions { grid-column:auto; }
+        .portfolio-kpis { grid-template-columns:1fr 1fr; }
+        .portfolio-bar-row { grid-template-columns:1fr 60px; }
+        .portfolio-bar-track { grid-column:1/-1; grid-row:2; }
+    }
+</style>
+
+<section class="toolbar page-hero maintenance-page-heading portfolio-hero">
+    <div>
+        <h1>{{ active_report.title }}</h1>
+        <p class="subtle">{{ active_report.description }}</p>
+    </div>
+    <div class="portfolio-hero-actions">
+        <a class="button ghost" href="{% url 'portfolio_reporting_hub' %}">All portfolio reports</a>
+    </div>
+</section>
+
+<div class="portfolio-layout">
+    <aside class="panel portfolio-sidebar">
+        <nav class="portfolio-report-nav" aria-label="Portfolio reports">
+            {% for page in portfolio_report_pages %}
+                <a class="{% if page.key == active_report.key %}current{% endif %}"
+                   href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                   {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
+            {% endfor %}
+        </nav>
+        <div class="portfolio-filters">
+            <h2>Filters</h2>
+            <form method="get">
+                <div class="field">
+                    <label for="portfolio-filter">Portfolio</label>
+                    <select id="portfolio-filter" name="portfolio">
+                        <option value="">All portfolios</option>
+                        {% for portfolio in portfolios %}<option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="project-filter">Project</label>
+                    <select id="project-filter" name="project">
+                        <option value="">All projects</option>
+                        {% for project in projects %}<option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} - {% endif %}{{ project.proj_short_name|default:project.proj_id }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="planner-filter">Lead planner</label>
+                    <select id="planner-filter" name="lead_planner">
+                        <option value="">All lead planners</option>
+                        {% for planner in lead_planners %}<option value="{{ planner }}" {% if validation_filters.lead_planner == planner %}selected{% endif %}>{{ planner }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="status-filter">Project status</label>
+                    <select id="status-filter" name="project_status">
+                        <option value="__all__" {% if not validation_filters.project_status %}selected{% endif %}>All statuses</option>
+                        {% for status in project_statuses %}<option value="{{ status }}" {% if validation_filters.project_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="state-filter">Project state</label>
+                    <select id="state-filter" name="project_state">
+                        <option value="__all__" {% if not validation_filters.project_state %}selected{% endif %}>All states</option>
+                        {% for state in project_states %}<option value="{{ state }}" {% if validation_filters.project_state == state %}selected{% endif %}>{{ state }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="date-filter">Updated date</label>
+                    <input id="date-filter" type="date" name="updated_date" value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}">
+                </div>
+                <input type="hidden" name="exclude_blanks" value="0">
+                <div class="portfolio-filter-actions">
+                    <button type="submit">Apply filters</button>
+                    <a class="button ghost" href="{% url active_report.url_name %}">Clear filters</a>
+                </div>
+            </form>
+        </div>
+    </aside>
+
+    <div class="portfolio-main">
+        {% if portfolio_report_error %}
+            <section class="panel portfolio-error" role="alert">
+                <strong>This report could not be loaded.</strong>
+                <div>{{ portfolio_report_error }}</div>
+            </section>
+        {% endif %}
+
+        {% if active_report.key == 'project_detail' and not report_data.project %}
+            <section class="panel portfolio-empty">
+                <h2>Select a project</h2>
+                <p>Project Detail is intentionally project-specific. Choose a project from the filters to load its current schedule measures.</p>
+            </section>
+        {% else %}
+            <section class="portfolio-kpis" aria-label="{{ active_report.title }} summary">
+                {% for kpi in report_data.kpis %}
+                    <article class="panel portfolio-kpi {{ kpi.tone|default:'' }}">
+                        <span>{{ kpi.label }}</span>
+                        <strong>{{ kpi.value|intcomma }}</strong>
+                        <small>{{ kpi.detail }}</small>
+                    </article>
+                {% empty %}
+                    <article class="panel portfolio-kpi"><span>Report status</span><strong>N/A</strong><small>No current data matched the filters.</small></article>
+                {% endfor %}
+            </section>
+
+            {% if active_report.key == 'overview' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Projects requiring intervention</h2><p class="subtle">Lowest schedule-health scores, with float and critical exposure for context.</p></div><span class="badge">Top {{ report_data.top_projects|length }}</span></div>
+                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Lead planner</th><th>Health</th><th>Negative float</th><th>Critical</th><th>Near critical</th></tr></thead><tbody>
+                        {% for row in report_data.top_projects %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td>{{ row.portfolio|default:"N/A" }}</td><td>{{ row.lead_planner|default:"N/A" }}</td><td><span class="badge health-badge {{ row.health_band|lower }}">{{ row.health_score }}%</span></td><td class="number">{{ row.negative_float_count|intcomma }}</td><td class="number">{{ row.critical_task_count|intcomma }}</td><td class="number">{{ row.near_critical_task_count|intcomma }}</td></tr>{% empty %}<tr><td colspan="7" class="portfolio-empty">No projects matched these filters.</td></tr>{% endfor %}
+                    </tbody></table></div>
+                </section>
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Projects by status</h2><p class="subtle">Current P6 project-status classification.</p></div></div>
+                    <div class="portfolio-bars">{% for row in report_data.status_rows %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill" style="width:{{ row.percent }}%"></div></div><span class="portfolio-bar-value">{{ row.count }} · {{ row.percent }}%</span></div>{% empty %}<div class="portfolio-empty">No status data matched these filters.</div>{% endfor %}</div>
+                </section>
+                <p class="portfolio-note">Trend lines and baseline/last-accepted comparisons will appear only when those submission states are explicitly identified in the reporting source. This page deliberately reports the current submitted data rather than inferring those states.</p>
+            {% elif active_report.key == 'milestones' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Milestone overview</h2><p class="subtle">Current milestone delivery and forward demand.</p></div></div>
+                    <div class="portfolio-bars">{% for row in report_data.distribution %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill {{ row.tone }}" style="width:{% widthratio row.value report_data.kpis.0.value 100 %}%"></div></div><span class="portfolio-bar-value">{{ row.value|intcomma }}</span></div>{% endfor %}</div>
+                </section>
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Milestone status by project</h2><p class="subtle">Use the project filter to drill into one submitted schedule.</p></div></div>
+                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Total</th><th>On time</th><th>On-time %</th><th>Due 30 days</th><th>Due 60 days</th><th>Overdue</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td class="number">{{ row.total_milestones|intcomma }}</td><td class="number">{{ row.on_time|intcomma }}</td><td class="number">{{ row.on_time_percent }}%</td><td class="number">{{ row.due_30|intcomma }}</td><td class="number">{{ row.due_60|intcomma }}</td><td class="number">{{ row.overdue|intcomma }}</td></tr>{% empty %}<tr><td colspan="7" class="portfolio-empty">No milestones matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                </section>
+            {% elif active_report.key == 'risk_float' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Float distribution</h2><p class="subtle">Activities grouped by their current total float.</p></div></div>
+                    <div class="portfolio-bars">{% for row in report_data.distribution %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill {{ row.tone }}" style="width:{{ row.width }}%"></div></div><span class="portfolio-bar-value">{{ row.value|intcomma }}</span></div>{% endfor %}</div>
+                </section>
+                <p class="portfolio-note">Float erosion needs comparable baseline, last-accepted and previous-period snapshots. The current report shows the verified latest float distribution until those states are explicitly available.</p>
+            {% elif active_report.key == 'health' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Schedule health by project</h2><p class="subtle">Good is 90-100%, Fair is 80-89.99%, and Poor is below 80%.</p></div><span class="badge">{{ report_data.rows|length }} projects</span></div>
+                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Planner</th><th>Health band</th><th>Score</th><th>Missing predecessors</th><th>Missing successors</th><th>Constraints</th><th>High float</th><th>Lags</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td>{{ row.portfolio|default:"N/A" }}</td><td>{{ row.lead_planner|default:"N/A" }}</td><td><span class="badge health-badge {{ row.health_band|lower }}">{{ row.health_band }}</span></td><td class="number"><strong>{{ row.health_score }}%</strong></td><td class="number">{{ row.missing_predecessor_count|intcomma }}</td><td class="number">{{ row.missing_successor_count|intcomma }}</td><td class="number">{{ row.constraint_count|intcomma }}</td><td class="number">{{ row.high_float_count|intcomma }}</td><td class="number">{{ row.lag_count|intcomma }}</td></tr>{% empty %}<tr><td colspan="10" class="portfolio-empty">No schedule-health results matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                </section>
+            {% elif active_report.key == 'project_detail' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>{{ report_data.project.proj_short_name|default:report_data.project.proj_id }}</h2><p class="subtle">{{ report_data.project.portfolio|default:"Portfolio not recorded" }} · {{ report_data.project.lead_planner|default:"Planner not recorded" }}</p></div><span class="badge health-badge {{ report_data.project.health_band|lower }}">{{ report_data.project.health_band }}</span></div>
+                    <div class="portfolio-bars">{% for row in report_data.activity_status %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill {{ row.tone }}" style="width:{% widthratio row.value report_data.project.dcma_activity_count 100 %}%"></div></div><span class="portfolio-bar-value">{{ row.value|intcomma }}</span></div>{% endfor %}</div>
+                </section>
+                <p class="portfolio-note">The current project detail uses the selected submitted schedule. Baseline, last accepted and last submitted comparison lines require those submission roles to be explicitly identified in the source.</p>
+            {% elif active_report.key == 'resources' %}
+                <section class="panel portfolio-panel">
+                    <div class="portfolio-panel-header"><div><h2>Resource demand</h2><p class="subtle">Top 100 resources ordered by remaining units.</p></div><span class="badge">{{ report_data.rows|length }} resources</span></div>
+                    <div class="portfolio-table-wrap"><table><thead><tr><th>Resource</th><th>Projects</th><th>Activities</th><th>Planned units</th><th>Actual units</th><th>Remaining units</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.resource_name }}</strong></td><td class="number">{{ row.project_count|intcomma }}</td><td class="number">{{ row.activity_count|intcomma }}</td><td class="number">{{ row.planned_units|floatformat:2|intcomma }}</td><td class="number">{{ row.actual_units|floatformat:2|intcomma }}</td><td class="number">{{ row.remaining_units|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td colspan="6" class="portfolio-empty">No resource assignments matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                </section>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

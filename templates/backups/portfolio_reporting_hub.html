@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio Reporting | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<section class="suite-landing">
+    <section class="page-hero maintenance-page-heading">
+        <h1>Portfolio Reporting</h1>
+        <p class="subtle">Choose a report to review current portfolio and project schedule performance.</p>
+    </section>
+
+    <div class="suite-card-grid">
+        {% for page in portfolio_report_pages %}
+            <article class="panel suite-card">
+                <h2>{{ page.title }}</h2>
+                <p class="subtle">{{ page.description }}</p>
+                <a class="button" href="{% url page.url_name %}">Open {{ page.title }}</a>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
