@@ -152,47 +152,56 @@ def sync_userdata_prune_schedule(
 INDEX_DEFRAG_TASK_NAME = "P6 Index Maintenance & Defrag"
 STALE_SESSION_TASK_NAME = "P6 Stale Session & Lock Purge"
 LOG_PRUNING_TASK_NAME = "P6 Log & Job History Pruning"
+STATISTICS_TASK_NAME = "P6 SQL Statistics Refresh"
+PHYSICAL_INTEGRITY_TASK_NAME = "P6 Database Physical Integrity Check"
+BACKGROUND_HEALTH_TASK_NAME = "P6 Native Background Health Check"
+BACKGROUND_RUNNER_TASK_NAME = "P6 Native Background Runner"
 
 
 def sync_all_maintenance_schedules() -> list[PeriodicTask]:
     tasks = []
 
+    def sync(name: str, task_name: str, schedule: CrontabSchedule, *, kwargs: dict | None = None, description: str) -> PeriodicTask:
+        task, _ = PeriodicTask.objects.get_or_create(
+            name=name,
+            defaults={"task": task_name, "crontab": schedule, "enabled": True, "kwargs": json.dumps(kwargs or {}), "description": description},
+        )
+        task.task = task_name
+        task.crontab = schedule
+        task.enabled = True
+        task.kwargs = json.dumps(kwargs or {})
+        task.description = description
+        task.save(update_fields=["task", "crontab", "enabled", "kwargs", "description"])
+        return task
+
     sch_defrag, _ = CrontabSchedule.objects.get_or_create(minute="0", hour="3", day_of_month="*", month_of_year="*", day_of_week="0")
-    t1, _ = PeriodicTask.objects.get_or_create(
-        name=INDEX_DEFRAG_TASK_NAME,
-        defaults={
-            "task": "backups.tasks.execute_index_defragmentation",
-            "crontab": sch_defrag,
-            "enabled": True,
-            "description": "Defragments table indexes (>15% frag) and updates SQL statistics across all targets.",
-        },
+    t1 = sync(
+        INDEX_DEFRAG_TASK_NAME, "backups.tasks.execute_index_defragmentation", sch_defrag,
+        description="Defragments table indexes (>15% frag) and updates SQL statistics across all targets.",
     )
     tasks.append(t1)
 
     sch_sess, _ = CrontabSchedule.objects.get_or_create(minute="30", hour="1", day_of_month="*", month_of_year="*", day_of_week="*")
-    t2, _ = PeriodicTask.objects.get_or_create(
-        name=STALE_SESSION_TASK_NAME,
-        defaults={
-            "task": "backups.tasks.execute_stale_session_cleanup",
-            "crontab": sch_sess,
-            "enabled": True,
-            "kwargs": json.dumps({"max_age_hours": 24}),
-            "description": "Purges orphaned USESSION sessions (>24h inactive) and clears project locks.",
-        },
+    t2 = sync(
+        STALE_SESSION_TASK_NAME, "backups.tasks.execute_stale_session_cleanup", sch_sess,
+        kwargs={"max_age_hours": 24}, description="Purges orphaned USESSION sessions (>24h inactive) and clears project locks.",
     )
     tasks.append(t2)
 
     sch_log, _ = CrontabSchedule.objects.get_or_create(minute="0", hour="4", day_of_month="1", month_of_year="*", day_of_week="*")
-    t3, _ = PeriodicTask.objects.get_or_create(
-        name=LOG_PRUNING_TASK_NAME,
-        defaults={
-            "task": "backups.tasks.execute_log_retention_pruning",
-            "crontab": sch_log,
-            "enabled": True,
-            "kwargs": json.dumps({"retention_days": 90}),
-            "description": "Prunes historical USESSAUD audit logs and JOBLOG entries older than 90 days.",
-        },
+    t3 = sync(
+        LOG_PRUNING_TASK_NAME, "backups.tasks.execute_log_retention_pruning", sch_log,
+        kwargs={"retention_days": 90}, description="Prunes historical USESSAUD audit logs and JOBLOG entries older than 90 days.",
     )
     tasks.append(t3)
+
+    sch_stats, _ = CrontabSchedule.objects.get_or_create(minute="30", hour="4", day_of_month="*", month_of_year="*", day_of_week="0")
+    tasks.append(sync(STATISTICS_TASK_NAME, "backups.tasks.execute_statistics_refresh", sch_stats, description="Runs SQL Server sp_updatestats across all P6 database targets."))
+    sch_checkdb, _ = CrontabSchedule.objects.get_or_create(minute="0", hour="5", day_of_month="*", month_of_year="*", day_of_week="0")
+    tasks.append(sync(PHYSICAL_INTEGRITY_TASK_NAME, "backups.tasks.execute_physical_integrity_check", sch_checkdb, description="Runs DBCC CHECKDB WITH PHYSICAL_ONLY across all P6 database targets."))
+    sch_background, _ = CrontabSchedule.objects.get_or_create(minute="15", hour="6", day_of_month="*", month_of_year="*", day_of_week="*")
+    tasks.append(sync(BACKGROUND_HEALTH_TASK_NAME, "backups.tasks.execute_p6_background_health_check", sch_background, description="Checks the P6 DAMON heartbeat and records stale native background maintenance."))
+    sch_background_runner, _ = CrontabSchedule.objects.get_or_create(minute="*/5", hour="*", day_of_month="*", month_of_year="*", day_of_week="*")
+    tasks.append(sync(BACKGROUND_RUNNER_TASK_NAME, "backups.tasks.execute_p6_native_background_jobs", sch_background_runner, kwargs={"target_names": ["Axial Training", "AxialP6", "P62212"]}, description="Runs P6 SYMON and DAMON every five minutes for SQL Server Express targets without SQL Agent."))
 
     return tasks

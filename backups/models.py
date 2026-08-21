@@ -234,6 +234,9 @@ class DatabaseMaintenanceRun(models.Model):
     TYPE_STALE_SESSION = "stale_session"
     TYPE_LOG_PRUNING = "log_pruning"
     TYPE_USERDATA_PRUNE = "userdata_prune"
+    TYPE_STATISTICS = "statistics"
+    TYPE_HEALTH_CHECK = "health_check"
+    TYPE_P6_BACKGROUND_HEALTH = "p6_background_health"
 
     STATUS_RUNNING = "running"
     STATUS_SUCCESS = "success"
@@ -247,6 +250,9 @@ class DatabaseMaintenanceRun(models.Model):
         (TYPE_STALE_SESSION, "Stale Session & Lock Purge"),
         (TYPE_LOG_PRUNING, "Audit Log Retention Pruning"),
         (TYPE_USERDATA_PRUNE, "USERDATA Bloat Cleanup"),
+        (TYPE_STATISTICS, "SQL Statistics Refresh"),
+        (TYPE_HEALTH_CHECK, "Database Physical Integrity Check"),
+        (TYPE_P6_BACKGROUND_HEALTH, "P6 Native Background Health"),
     ]
     STATUS_CHOICES = [
         (STATUS_RUNNING, "Running"),
