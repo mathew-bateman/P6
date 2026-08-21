@@ -18,6 +18,8 @@ class ScheduleQualityValidationFilters:
     exclude_blanks: bool = False
     updated_date: date | None = None
     check_code: str = ""
+    discipline: str = ""
+    project_phase: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,7 +94,9 @@ WITH project_dimensions AS
         project.[Lead Planner] AS lead_planner,
         project.[Account] AS portfolio,
         project.[Project Status] AS project_status,
-        project.[Project State] AS project_state
+        project.[Project State] AS project_state,
+        project.[Industry] AS discipline,
+        project.[Project Type] AS project_phase
     FROM [powerbitables].[xertoolkit_vw_PBI_Projects] AS project
     GROUP BY
         project.proj_id,
@@ -101,7 +105,9 @@ WITH project_dimensions AS
         project.[Lead Planner],
         project.[Account],
         project.[Project Status],
-        project.[Project State]
+        project.[Project State],
+        project.[Industry],
+        project.[Project Type]
 )
 """
 
@@ -137,6 +143,12 @@ def _validation_where(
     if filters.updated_date is not None:
         clauses.append(f"CONVERT(date, {project_alias}.updated_date) = ?")
         parameters.append(filters.updated_date)
+    if filters.discipline:
+        clauses.append(f"{project_alias}.discipline = ?")
+        parameters.append(filters.discipline)
+    if filters.project_phase:
+        clauses.append(f"{project_alias}.project_phase = ?")
+        parameters.append(filters.project_phase)
     if evidence_alias and filters.check_code:
         clauses.append(f"{evidence_alias}.check_code = ?")
         parameters.append(filters.check_code)
@@ -156,6 +168,8 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
             lead_planner,
             project_status,
             project_state,
+            discipline,
+            project_phase,
             updated_date
         FROM project_dimensions
         ORDER BY proj_short_name, proj_id;
@@ -189,6 +203,12 @@ def fetch_validation_filter_options() -> dict[str, list[object]]:
         ),
         "project_states": sorted(
             {str(row["project_state"]) for row in projects if row.get("project_state")}
+        ),
+        "disciplines": sorted(
+            {str(row["discipline"]) for row in projects if row.get("discipline")}
+        ),
+        "project_phases": sorted(
+            {str(row["project_phase"]) for row in projects if row.get("project_phase")}
         ),
         "updated_dates": sorted(
             {row["updated_date"] for row in projects if row.get("updated_date")},

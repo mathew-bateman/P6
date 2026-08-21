@@ -6,7 +6,6 @@ from backups.services.mssql import fetch_rows
 from backups.services.schedule_quality import build_schedule_quality_target
 from backups.services.schedule_quality_reporting import (
     CHECK_METRICS,
-    PROGRAMME_CHECK_RULES,
     ScheduleQualityValidationFilters,
 )
 
@@ -55,6 +54,17 @@ def _where(
     if filters.updated_date is not None:
         clauses.append(f"CONVERT(date, {project_alias}.updated_date) = ?")
         parameters.append(filters.updated_date)
+    if filters.discipline:
+        clauses.append(f"{project_alias}.discipline = ?")
+        parameters.append(filters.discipline)
+    if filters.project_phase:
+        clauses.append(f"{project_alias}.project_phase = ?")
+        parameters.append(filters.project_phase)
+    if filters.exclude_blanks:
+        for field in ("portfolio", "lead_planner", "project_status", "project_state"):
+            clauses.append(
+                f"NULLIF(LTRIM(RTRIM({project_alias}.{field})), '') IS NOT NULL"
+            )
     return (" WHERE " + " AND ".join(clauses) if clauses else "", tuple(parameters))
 
 
@@ -66,22 +76,37 @@ def _decimal(value: object) -> Decimal:
     return Decimal(str(value or 0))
 
 
-def _score_project(row: dict[str, object]) -> dict[str, object]:
+def _score_project(
+    row: dict[str, object],
+    rules: list[dict[str, object]],
+) -> dict[str, object]:
     points_available = 0
     points_achieved = 0
-    for rule in PROGRAMME_CHECK_RULES:
-        records_column, qualifying_column = CHECK_METRICS[rule.check_code]
-        records = _number(row.get(records_column))
-        qualifying = _number(row.get(qualifying_column))
-        if rule.limit_type == "Number":
+    active_check_count = 0
+    for rule in rules:
+        check_code = str(rule.get("check_code") or "")
+        if "records_checked" in rule and "qualifying_results" in rule:
+            records = _number(rule.get("records_checked"))
+            qualifying = _number(rule.get("qualifying_results"))
+        else:
+            metric_pair = CHECK_METRICS.get(check_code)
+            if metric_pair is None:
+                continue
+            records_column, qualifying_column = metric_pair
+            records = _number(row.get(records_column))
+            qualifying = _number(row.get(qualifying_column))
+        if str(rule.get("limit_type") or "").lower() == "number":
             result = Decimal(qualifying)
         else:
             result = Decimal(qualifying) * Decimal("100") / Decimal(records) if records else Decimal("0")
-        points_available += rule.green_points
-        if result <= rule.green_limit:
-            points_achieved += rule.green_points
-        elif result <= rule.amber_limit:
-            points_achieved += rule.amber_points
+        green_points = _number(rule.get("green_points"))
+        amber_points = _number(rule.get("amber_points"))
+        points_available += green_points
+        active_check_count += 1
+        if result <= _decimal(rule.get("green_limit")):
+            points_achieved += green_points
+        elif result <= _decimal(rule.get("amber_limit")):
+            points_achieved += amber_points
     score = (
         Decimal(points_achieved) * Decimal("100") / Decimal(points_available)
         if points_available
@@ -94,6 +119,7 @@ def _score_project(row: dict[str, object]) -> dict[str, object]:
         "health_band": band,
         "points_available": points_available,
         "points_achieved": points_achieved,
+        "active_check_count": active_check_count,
     }
 
 
@@ -127,7 +153,39 @@ def _project_metric_rows(filters: ScheduleQualityValidationFilters) -> list[dict
         parameters=parameters,
         database=target.sql_database,
     )
-    return [_score_project(row) for row in rows]
+    if not rows:
+        return []
+    project_ids = [int(row["proj_id"]) for row in rows]
+    placeholders = ", ".join("?" for _ in project_ids)
+    normalised_results = fetch_rows(
+        target,
+        f"""
+        SELECT
+            result.proj_id,
+            result.check_code,
+            result.records_checked,
+            result.qualifying_results,
+            result.limit_type,
+            result.green_limit,
+            result.amber_limit,
+            result.green_points,
+            result.amber_points
+        FROM [powerbitables].[xertoolkit_vw_PBI_ScheduleQualityResults] AS result
+        WHERE result.proj_id IN ({placeholders})
+        ORDER BY result.proj_id, result.sort_order, result.check_code;
+        """,
+        parameters=tuple(project_ids),
+        database=target.sql_database,
+    )
+    rules_by_project: dict[int, list[dict[str, object]]] = {
+        project_id: [] for project_id in project_ids
+    }
+    for result in normalised_results:
+        rules_by_project.setdefault(int(result["proj_id"]), []).append(result)
+    return [
+        _score_project(row, rules_by_project.get(int(row["proj_id"]), []))
+        for row in rows
+    ]
 
 
 def fetch_portfolio_overview(filters: ScheduleQualityValidationFilters) -> dict[str, object]:
@@ -160,7 +218,7 @@ def fetch_portfolio_overview(filters: ScheduleQualityValidationFilters) -> dict[
         "top_projects": top_projects,
         "status_rows": status_rows,
         "kpis": [
-            {"label": "Live projects", "value": total, "detail": "Projects matching the current filters"},
+            {"label": "Projects", "value": total, "detail": "Projects matching the current filters"},
             {"label": "Projects good", "value": bands["Good"], "detail": "Health score of 90% or above", "tone": "good"},
             {"label": "Projects fair", "value": bands["Fair"], "detail": "Health score from 80% to 89.99%", "tone": "fair"},
             {"label": "Projects poor", "value": bands["Poor"], "detail": "Health score below 80%", "tone": "poor"},
@@ -183,10 +241,13 @@ def fetch_milestone_governance(filters: ScheduleQualityValidationFilters) -> dic
     """
     status_sql = """
         COUNT_BIG(*) AS total_milestones,
-        SUM(CASE WHEN activity.is_complete = 1 AND (activity.target_end_date IS NULL OR activity.act_end_date <= activity.target_end_date) THEN 1 ELSE 0 END) AS on_time,
+        SUM(CASE WHEN activity.is_complete = 1 AND activity.target_end_date IS NOT NULL AND activity.act_end_date <= activity.target_end_date THEN 1 ELSE 0 END) AS on_time,
+        SUM(CASE WHEN activity.is_complete = 1 AND activity.target_end_date IS NOT NULL AND activity.act_end_date > activity.target_end_date THEN 1 ELSE 0 END) AS completed_late,
+        SUM(CASE WHEN COALESCE(activity.target_end_date, activity.early_end_date) IS NULL THEN 1 ELSE 0 END) AS undated,
         SUM(CASE WHEN activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) < project.data_date THEN 1 ELSE 0 END) AS overdue,
         SUM(CASE WHEN activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) >= project.data_date AND COALESCE(activity.target_end_date, activity.early_end_date) < DATEADD(day, 30, project.data_date) THEN 1 ELSE 0 END) AS due_30,
         SUM(CASE WHEN activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) >= DATEADD(day, 30, project.data_date) AND COALESCE(activity.target_end_date, activity.early_end_date) < DATEADD(day, 60, project.data_date) THEN 1 ELSE 0 END) AS due_60,
+        SUM(CASE WHEN activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) >= DATEADD(day, 60, project.data_date) THEN 1 ELSE 0 END) AS due_after_60,
         SUM(CASE WHEN activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) >= project.data_date AND COALESCE(activity.target_end_date, activity.early_end_date) < DATEADD(day, 90, project.data_date) THEN 1 ELSE 0 END) AS due_90
     """
     totals = fetch_rows(
@@ -214,16 +275,19 @@ def fetch_milestone_governance(filters: ScheduleQualityValidationFilters) -> dic
         "kpis": [
             {"label": "Total milestones", "value": total, "detail": "Current submitted schedules"},
             {"label": "Milestones on time", "value": _number(values.get("on_time")), "detail": f"{round(_number(values.get('on_time')) * 100 / total, 1) if total else 0}% of milestones", "tone": "good"},
-            {"label": "Due next 30 days", "value": _number(values.get("due_30")), "detail": "Measured from each project's data date", "tone": "fair"},
-            {"label": "Due next 60 days", "value": _number(values.get("due_60")), "detail": "Days 30 to 59 from each data date"},
-            {"label": "Overdue", "value": _number(values.get("overdue")), "detail": "Incomplete and behind target finish", "tone": "poor"},
+            {"label": "Due next 30 days", "value": _number(values.get("due_30")), "detail": f"{round(_number(values.get('due_30')) * 100 / total, 1) if total else 0}% of milestones", "tone": "fair"},
+            {"label": "Due next 60 days", "value": _number(values.get("due_60")), "detail": f"{round(_number(values.get('due_60')) * 100 / total, 1) if total else 0}% of milestones"},
+            {"label": "Overdue", "value": _number(values.get("overdue")), "detail": f"{round(_number(values.get('overdue')) * 100 / total, 1) if total else 0}% of milestones", "tone": "poor"},
             {"label": "Due next 90 days", "value": _number(values.get("due_90")), "detail": "Forward milestone demand"},
         ],
         "distribution": [
             {"label": "On time", "value": _number(values.get("on_time")), "tone": "good"},
+            {"label": "Completed late", "value": _number(values.get("completed_late")), "tone": "poor"},
             {"label": "Due in 30 days", "value": _number(values.get("due_30")), "tone": "fair"},
             {"label": "Due in 60 days", "value": _number(values.get("due_60")), "tone": "neutral"},
+            {"label": "Due after 60 days", "value": _number(values.get("due_after_60")), "tone": "neutral"},
             {"label": "Overdue", "value": _number(values.get("overdue")), "tone": "poor"},
+            {"label": "Undated", "value": _number(values.get("undated")), "tone": "neutral"},
         ],
     }
 
@@ -237,6 +301,7 @@ def fetch_schedule_risk_and_float(filters: ScheduleQualityValidationFilters) -> 
         + f"""
         SELECT
             COUNT_BIG(*) AS activity_count,
+            SUM(CASE WHEN activity.total_float_days IS NULL THEN 1 ELSE 0 END) AS float_unknown,
             SUM(CASE WHEN activity.total_float_days <= 0 THEN 1 ELSE 0 END) AS float_0,
             SUM(CASE WHEN activity.total_float_days > 0 AND activity.total_float_days <= 5 THEN 1 ELSE 0 END) AS float_1_5,
             SUM(CASE WHEN activity.total_float_days > 5 AND activity.total_float_days <= 10 THEN 1 ELSE 0 END) AS float_6_10,
@@ -261,6 +326,10 @@ def fetch_schedule_risk_and_float(filters: ScheduleQualityValidationFilters) -> 
         {"label": "21-30 days", "value": _number(values.get("float_21_30"))},
         {"label": "30+ days", "value": _number(values.get("float_30_plus"))},
     ]
+    if _number(values.get("float_unknown")):
+        distribution.append(
+            {"label": "Not recorded", "value": _number(values.get("float_unknown"))}
+        )
     maximum = max((item["value"] for item in distribution), default=0)
     for item in distribution:
         item["width"] = round(item["value"] * 100 / maximum, 1) if maximum else 0
@@ -307,13 +376,14 @@ def fetch_project_detail(filters: ScheduleQualityValidationFilters) -> dict[str,
         PROJECT_REPORTING_CTE
         + f"""
         SELECT
-            AVG(CONVERT(decimal(18,2), activity.phys_complete_pct)) AS average_complete,
-            AVG(CONVERT(decimal(18,2), activity.total_float_days)) AS average_float,
-            SUM(CASE WHEN activity.status_code = 'TK_Complete' THEN 1 ELSE 0 END) AS complete_count,
-            SUM(CASE WHEN activity.status_code = 'TK_Active' THEN 1 ELSE 0 END) AS in_progress_count,
-            SUM(CASE WHEN activity.status_code = 'TK_NotStart' THEN 1 ELSE 0 END) AS not_started_count,
+            SUM(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') THEN 1 ELSE 0 END) AS activity_status_total,
+            AVG(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') THEN CONVERT(decimal(18,2), activity.phys_complete_pct) END) AS average_complete,
+            AVG(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') THEN CONVERT(decimal(18,2), activity.total_float_days) END) AS average_float,
+            SUM(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') AND activity.status_code = 'TK_Complete' THEN 1 ELSE 0 END) AS complete_count,
+            SUM(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') AND activity.status_code = 'TK_Active' THEN 1 ELSE 0 END) AS in_progress_count,
+            SUM(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') AND activity.status_code = 'TK_NotStart' THEN 1 ELSE 0 END) AS not_started_count,
             SUM(CASE WHEN activity.is_milestone = 1 AND activity.is_complete = 0 AND COALESCE(activity.target_end_date, activity.early_end_date) < project.data_date THEN 1 ELSE 0 END) AS late_milestones,
-            SUM(CASE WHEN activity.total_float_days < 0 THEN 1 ELSE 0 END) AS negative_float_activities
+            SUM(CASE WHEN activity.task_type NOT IN ('TT_LOE', 'TT_WBS') AND activity.is_complete = 0 AND activity.total_float_days < 0 THEN 1 ELSE 0 END) AS negative_float_activities
         FROM [powerbitables].[xertoolkit_vw_PBI_Activities] AS activity
         JOIN project_dimensions AS project ON project.proj_id = activity.proj_id
         {where_sql}{' AND' if where_sql else ' WHERE'} activity.is_deleted = 0;
@@ -324,6 +394,7 @@ def fetch_project_detail(filters: ScheduleQualityValidationFilters) -> dict[str,
     values = rows[0] if rows else {}
     return {
         "project": project,
+        "activity_status_total": _number(values.get("activity_status_total")),
         "activity_status": [
             {"label": "Complete", "value": _number(values.get("complete_count")), "tone": "good"},
             {"label": "In progress", "value": _number(values.get("in_progress_count")), "tone": "fair"},
@@ -349,6 +420,7 @@ def fetch_resource_overview(filters: ScheduleQualityValidationFilters) -> dict[s
         + f"""
         SELECT TOP (100)
             COALESCE(resource.rsrc_name, resource.rsrc_short_name, 'Unspecified resource') AS resource_name,
+            COUNT_BIG(*) AS assignment_count,
             COUNT(DISTINCT assignment.task_id) AS activity_count,
             COUNT(DISTINCT assignment.proj_id) AS project_count,
             SUM(CONVERT(decimal(18,2), ISNULL(assignment.target_qty, 0))) AS planned_units,
@@ -357,7 +429,9 @@ def fetch_resource_overview(filters: ScheduleQualityValidationFilters) -> dict[s
         FROM dbo.TASKRSRC AS assignment
         JOIN project_dimensions AS project ON project.proj_id = assignment.proj_id
         LEFT JOIN dbo.RSRC AS resource ON resource.rsrc_id = assignment.rsrc_id
-        {where_sql}
+        {where_sql}{' AND' if where_sql else ' WHERE'} assignment.delete_session_id IS NULL
+          AND assignment.delete_date IS NULL
+          AND (resource.rsrc_id IS NULL OR (resource.delete_session_id IS NULL AND resource.delete_date IS NULL))
         GROUP BY COALESCE(resource.rsrc_name, resource.rsrc_short_name, 'Unspecified resource')
         ORDER BY remaining_units DESC, resource_name;
         """,
@@ -368,7 +442,7 @@ def fetch_resource_overview(filters: ScheduleQualityValidationFilters) -> dict[s
         "rows": rows,
         "kpis": [
             {"label": "Resources", "value": len(rows), "detail": "Named resources in the selected schedules"},
-            {"label": "Assigned activities", "value": sum(_number(row.get("activity_count")) for row in rows), "detail": "Distinct activity assignments by resource"},
+            {"label": "Resource assignments", "value": sum(_number(row.get("assignment_count")) for row in rows), "detail": "Current P6 task-resource assignment rows"},
             {"label": "Planned units", "value": f"{sum((_decimal(row.get('planned_units')) for row in rows), Decimal('0')):,.2f}", "detail": "P6 target quantity"},
             {"label": "Remaining units", "value": f"{sum((_decimal(row.get('remaining_units')) for row in rows), Decimal('0')):,.2f}", "detail": "P6 remaining quantity"},
         ],

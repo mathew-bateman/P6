@@ -129,6 +129,20 @@
                     </select>
                 </div>
                 <div class="field">
+                    <label for="discipline-filter">Discipline</label>
+                    <select id="discipline-filter" name="discipline">
+                        <option value="">All disciplines</option>
+                        {% for discipline in disciplines %}<option value="{{ discipline }}" {% if validation_filters.discipline == discipline %}selected{% endif %}>{{ discipline }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="phase-filter">Project phase</label>
+                    <select id="phase-filter" name="project_phase">
+                        <option value="">All project phases</option>
+                        {% for phase in project_phases %}<option value="{{ phase }}" {% if validation_filters.project_phase == phase %}selected{% endif %}>{{ phase }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field">
                     <label for="date-filter">Updated date</label>
                     <input id="date-filter" type="date" name="updated_date" value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}">
                 </div>
@@ -186,7 +200,7 @@
                 </section>
                 <section class="panel portfolio-panel">
                     <div class="portfolio-panel-header"><div><h2>Milestone status by project</h2><p class="subtle">Use the project filter to drill into one submitted schedule.</p></div></div>
-                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Total</th><th>On time</th><th>On-time %</th><th>Due 30 days</th><th>Due 60 days</th><th>Overdue</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td class="number">{{ row.total_milestones|intcomma }}</td><td class="number">{{ row.on_time|intcomma }}</td><td class="number">{{ row.on_time_percent }}%</td><td class="number">{{ row.due_30|intcomma }}</td><td class="number">{{ row.due_60|intcomma }}</td><td class="number">{{ row.overdue|intcomma }}</td></tr>{% empty %}<tr><td colspan="7" class="portfolio-empty">No milestones matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Total</th><th>On time</th><th>Completed late</th><th>On-time %</th><th>Due 30 days</th><th>Due 60 days</th><th>Overdue</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td class="number">{{ row.total_milestones|intcomma }}</td><td class="number">{{ row.on_time|intcomma }}</td><td class="number">{{ row.completed_late|intcomma }}</td><td class="number">{{ row.on_time_percent }}%</td><td class="number">{{ row.due_30|intcomma }}</td><td class="number">{{ row.due_60|intcomma }}</td><td class="number">{{ row.overdue|intcomma }}</td></tr>{% empty %}<tr><td colspan="8" class="portfolio-empty">No milestones matched these filters.</td></tr>{% endfor %}</tbody></table></div>
                 </section>
             {% elif active_report.key == 'risk_float' %}
                 <section class="panel portfolio-panel">
@@ -202,7 +216,7 @@
             {% elif active_report.key == 'project_detail' %}
                 <section class="panel portfolio-panel">
                     <div class="portfolio-panel-header"><div><h2>{{ report_data.project.proj_short_name|default:report_data.project.proj_id }}</h2><p class="subtle">{{ report_data.project.portfolio|default:"Portfolio not recorded" }} · {{ report_data.project.lead_planner|default:"Planner not recorded" }}</p></div><span class="badge health-badge {{ report_data.project.health_band|lower }}">{{ report_data.project.health_band }}</span></div>
-                    <div class="portfolio-bars">{% for row in report_data.activity_status %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill {{ row.tone }}" style="width:{% widthratio row.value report_data.project.dcma_activity_count 100 %}%"></div></div><span class="portfolio-bar-value">{{ row.value|intcomma }}</span></div>{% endfor %}</div>
+                    <div class="portfolio-bars">{% for row in report_data.activity_status %}<div class="portfolio-bar-row"><span class="portfolio-bar-label">{{ row.label }}</span><div class="portfolio-bar-track"><div class="portfolio-bar-fill {{ row.tone }}" style="width:{% widthratio row.value report_data.activity_status_total 100 %}%"></div></div><span class="portfolio-bar-value">{{ row.value|intcomma }}</span></div>{% endfor %}</div>
                 </section>
                 <p class="portfolio-note">The current project detail uses the selected submitted schedule. Baseline, last accepted and last submitted comparison lines require those submission roles to be explicitly identified in the source.</p>
             {% elif active_report.key == 'resources' %}

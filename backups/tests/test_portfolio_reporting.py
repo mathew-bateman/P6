@@ -9,10 +9,113 @@ from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from backups.services.portfolio_reporting import fetch_portfolio_overview
+from backups.services.portfolio_reporting import (
+    _project_metric_rows,
+    _score_project,
+    _where,
+    fetch_portfolio_overview,
+    fetch_resource_overview,
+)
+from backups.services.schedule_quality_reporting import ScheduleQualityValidationFilters
 
 
 class PortfolioReportingServiceTests(SimpleTestCase):
+    def test_health_score_uses_supplied_active_database_rules(self):
+        row = {
+            "dcma_activity_count": 100,
+            "high_float_count": 10,
+            "negative_float_count": 50,
+        }
+        rules = [
+            {
+                "check_code": "high_float",
+                "limit_type": "Percent",
+                "green_limit": Decimal("15"),
+                "amber_limit": Decimal("20"),
+                "green_points": 10,
+                "amber_points": 8,
+            }
+        ]
+
+        result = _score_project(row, rules)
+
+        self.assertEqual(result["health_score"], Decimal("100.00"))
+        self.assertEqual(result["points_available"], 10)
+        self.assertEqual(result["active_check_count"], 1)
+
+    @patch("backups.services.portfolio_reporting.build_schedule_quality_target")
+    @patch("backups.services.portfolio_reporting.fetch_rows")
+    def test_project_health_uses_normalised_database_denominator(
+        self,
+        fetch_rows,
+        build_target,
+    ):
+        build_target.return_value.sql_database = "P6"
+        fetch_rows.side_effect = [
+            [
+                {
+                    "proj_id": 7,
+                    "proj_short_name": "Project Seven",
+                    "dcma_activity_count": 100,
+                    "open_start_count": 10,
+                }
+            ],
+            [
+                {
+                    "proj_id": 7,
+                    "check_code": "open_start",
+                    "records_checked": 20,
+                    "qualifying_results": 10,
+                    "limit_type": "Percent",
+                    "green_limit": Decimal("3"),
+                    "amber_limit": Decimal("7"),
+                    "green_points": 10,
+                    "amber_points": 8,
+                }
+            ],
+        ]
+
+        rows = _project_metric_rows(ScheduleQualityValidationFilters(project_id=7))
+
+        self.assertEqual(rows[0]["health_score"], Decimal("0.00"))
+        self.assertIn("xertoolkit_vw_PBI_ScheduleQualityResults", fetch_rows.call_args_list[1].args[1])
+
+    def test_report_where_clause_honours_exclude_blanks(self):
+        where_sql, parameters = _where(
+            ScheduleQualityValidationFilters(exclude_blanks=True)
+        )
+
+        self.assertEqual(parameters, ())
+        for field in ("portfolio", "lead_planner", "project_status", "project_state"):
+            self.assertIn(f"project.{field}", where_sql)
+
+    @patch("backups.services.portfolio_reporting.build_schedule_quality_target")
+    @patch("backups.services.portfolio_reporting.fetch_rows")
+    def test_resource_report_excludes_soft_deleted_assignments(
+        self,
+        fetch_rows,
+        build_target,
+    ):
+        build_target.return_value.sql_database = "P6"
+        fetch_rows.return_value = [
+            {
+                "resource_name": "Planner",
+                "assignment_count": 4,
+                "activity_count": 3,
+                "project_count": 1,
+                "planned_units": Decimal("20"),
+                "actual_units": Decimal("8"),
+                "remaining_units": Decimal("12"),
+            }
+        ]
+
+        result = fetch_resource_overview(ScheduleQualityValidationFilters())
+
+        sql = fetch_rows.call_args.args[1]
+        self.assertIn("assignment.delete_session_id IS NULL", sql)
+        self.assertIn("resource.delete_session_id IS NULL", sql)
+        self.assertEqual(result["kpis"][1]["value"], 4)
+
     @patch("backups.services.portfolio_reporting._project_metric_rows")
     def test_portfolio_overview_builds_health_bands_and_intervention_order(self, metric_rows):
         metric_rows.return_value = [
@@ -109,7 +212,7 @@ class PortfolioReportingViewTests(TestCase):
     def test_overview_renders_live_summary_and_shared_navigation(self, fetcher, _options):
         fetcher.return_value = {
             "kpis": [
-                {"label": "Live projects", "value": 12, "detail": "Current scope"},
+                {"label": "Projects", "value": 12, "detail": "Current scope"},
                 {"label": "Projects poor", "value": 2, "detail": "Below 80%", "tone": "poor"},
             ],
             "top_projects": [

@@ -30,6 +30,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
                     "lead_planner": "Alex",
                     "project_status": "Client Submitted",
                     "project_state": "Live",
+                    "discipline": "Rail",
+                    "project_phase": "Delivery",
                     "updated_date": date(2026, 8, 14),
                 },
                 {
@@ -39,6 +41,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
                     "lead_planner": "Beth",
                     "project_status": "In Progress",
                     "project_state": "Draft",
+                    "discipline": "Highways",
+                    "project_phase": "Design",
                     "updated_date": date(2026, 8, 13),
                 },
             ],
@@ -51,6 +55,8 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(result["lead_planners"], ["Alex", "Beth"])
         self.assertEqual(result["project_statuses"], ["Client Submitted", "In Progress"])
         self.assertEqual(result["project_states"], ["Draft", "Live"])
+        self.assertEqual(result["disciplines"], ["Highways", "Rail"])
+        self.assertEqual(result["project_phases"], ["Delivery", "Design"])
         self.assertEqual(
             result["updated_dates"],
             [date(2026, 8, 14), date(2026, 8, 13)],

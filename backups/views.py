@@ -428,6 +428,8 @@ class ScheduleQualityReportFiltersMixin:
             exclude_blanks=self.request.GET.get("exclude_blanks", "1") != "0",
             updated_date=updated_date,
             check_code=self.request.GET.get("check", "").strip()[:50],
+            discipline=self.request.GET.get("discipline", "").strip()[:200],
+            project_phase=self.request.GET.get("project_phase", "").strip()[:200],
         )
 
     def _filter_options_for_filters(
@@ -460,6 +462,8 @@ class ScheduleQualityReportFiltersMixin:
                 project
                 for project in projects
                 if not filters.portfolio or project.get("portfolio") == filters.portfolio
+                if not filters.discipline or project.get("discipline") == filters.discipline
+                if not filters.project_phase or project.get("project_phase") == filters.project_phase
             ),
             key=lambda project: (
                 project.get("updated_date") is not None,
@@ -546,6 +550,8 @@ class ScheduleQualityOverviewView(
                     "lead_planners": [],
                     "project_statuses": [],
                     "project_states": [],
+                    "disciplines": [],
+                    "project_phases": [],
                     "updated_dates": [],
                     "checks": [],
                     "rows": [],
@@ -645,6 +651,8 @@ class ScheduleQualityValidationView(
                     "lead_planners": [],
                     "project_statuses": [],
                     "project_states": [],
+                    "disciplines": [],
+                    "project_phases": [],
                     "updated_dates": [],
                     "checks": [],
                     "summary_rows": [],
@@ -749,6 +757,8 @@ class PortfolioReportingView(
                     "lead_planners": [],
                     "project_statuses": [],
                     "project_states": [],
+                    "disciplines": [],
+                    "project_phases": [],
                     "updated_dates": [],
                     "report_data": {"kpis": [], "rows": []},
                     "portfolio_report_error": str(error),
