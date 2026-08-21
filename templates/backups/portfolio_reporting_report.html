@@ -11,7 +11,7 @@
     .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
     .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:0; border:0; background:transparent; box-shadow:none; }
-    .portfolio-report-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:0 0 16px; padding:12px; }
+    .portfolio-report-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:0 0 16px; padding:8px 10px; }
     .portfolio-report-nav a { display:block; padding:9px 10px; border-radius:6px; color:#344054; font-size:13px; font-weight:650; text-decoration:none; }
     .portfolio-report-nav a:hover { background:#eef2f7; }
     .portfolio-report-nav a.current { background:#e8f5f2; color:#087f70; }
@@ -84,14 +84,6 @@
         <a class="button ghost" href="{% url 'portfolio_reporting_hub' %}">All portfolio reports</a>
     </div>
 </section>
-
-<nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
-    {% for page in portfolio_report_pages %}
-        <a class="{% if page.key == active_report.key %}current{% endif %}"
-           href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
-           {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
-    {% endfor %}
-</nav>
 
 <div class="portfolio-layout">
     <aside class="portfolio-sidebar">
@@ -180,6 +172,13 @@
     </aside>
 
     <div class="portfolio-main">
+        <nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
+            {% for page in portfolio_report_pages %}
+                <a class="{% if page.key == active_report.key %}current{% endif %}"
+                   href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                   {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
+            {% endfor %}
+        </nav>
         {% if portfolio_report_error %}
             <section class="panel portfolio-error" role="alert">
                 <strong>This report could not be loaded.</strong>
