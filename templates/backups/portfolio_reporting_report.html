@@ -20,6 +20,14 @@
     .portfolio-filters .field { margin-bottom:10px; }
     .portfolio-filters label { font-size:12px; color:#475467; }
     .portfolio-filters select, .portfolio-filters input { min-height:38px; font-size:13px; }
+    .portfolio-filters .ts-wrapper { min-height:38px; }
+    .portfolio-filters .ts-wrapper.single .ts-control, .portfolio-filters .ts-control { min-height:38px; padding:8px 34px 8px 11px; border:1px solid #d0d5dd; border-radius:7px; background:#fff; box-shadow:none; color:#101828; font:inherit; }
+    .portfolio-filters .ts-wrapper.focus .ts-control { border-color:#0d897c; box-shadow:0 0 0 3px rgba(13, 137, 124, .12); }
+    .portfolio-filters .ts-wrapper.single .ts-control::after { right:13px; border-color:#667085 transparent transparent; }
+    .portfolio-filters .ts-wrapper.single.dropdown-active .ts-control::after { border-color:transparent transparent #667085; }
+    .portfolio-filters .ts-dropdown { z-index:1000; margin-top:5px; border:1px solid #d0d5dd; border-radius:8px; box-shadow:0 12px 24px rgba(16, 24, 40, .14); font:inherit; }
+    .portfolio-filters .ts-dropdown .option { padding:9px 11px; color:#344054; }
+    .portfolio-filters .ts-dropdown .active { background:#e8f5f2; color:#087f70; }
     .portfolio-filter-actions { display:grid; gap:7px; }
     .portfolio-filter-actions .button { width:100%; box-sizing:border-box; }
     .portfolio-main { min-width:0; }
@@ -103,28 +111,28 @@
                   hx-push-url="true">
                 <div class="field">
                     <label for="portfolio-filter">Portfolio</label>
-                    <select id="portfolio-filter" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
+                    <select id="portfolio-filter" class="portfolio-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
                         <option value="">All portfolios</option>
                         {% for portfolio in portfolios %}<option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="project-filter">Project</label>
-                    <select id="project-filter" class="schedule-quality-select" name="project">
+                    <select id="project-filter" class="portfolio-select" name="project">
                         <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}All projects{% endif %}</option>
                         {% for project in projects %}<option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if validation_filters.project_id == project.proj_id %}✓ {% endif %}{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} — {% endif %}{{ project.proj_short_name|default:"Unnamed project" }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="planner-filter">Lead planner</label>
-                    <select id="planner-filter" class="schedule-quality-select" name="lead_planner">
+                    <select id="planner-filter" class="portfolio-select" name="lead_planner">
                         <option value="">All lead planners</option>
                         {% for planner in lead_planners %}<option value="{{ planner }}" {% if validation_filters.lead_planner == planner %}selected{% endif %}>{{ planner }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="status-filter">Project status</label>
-                    <select id="status-filter" class="schedule-quality-select" name="project_status">
+                    <select id="status-filter" class="portfolio-select" name="project_status">
                         <option value="__all__" {% if not validation_filters.project_status %}selected{% endif %}>All statuses</option>
                         <option value="Client Submitted" {% if validation_filters.project_status == "Client Submitted" %}selected{% endif %}>Client Submitted</option>
                         {% for status in project_statuses %}{% if status != "Client Submitted" %}<option value="{{ status }}" {% if validation_filters.project_status == status %}selected{% endif %}>{{ status }}</option>{% endif %}{% endfor %}
@@ -132,7 +140,7 @@
                 </div>
                 <div class="field">
                     <label for="state-filter">Project state</label>
-                    <select id="state-filter" class="schedule-quality-select" name="project_state">
+                    <select id="state-filter" class="portfolio-select" name="project_state">
                         <option value="__all__" {% if not validation_filters.project_state %}selected{% endif %}>All states</option>
                         <option value="Live" {% if validation_filters.project_state == "Live" %}selected{% endif %}>Live</option>
                         {% for state in project_states %}{% if state != "Live" %}<option value="{{ state }}" {% if validation_filters.project_state == state %}selected{% endif %}>{{ state }}</option>{% endif %}{% endfor %}
@@ -140,14 +148,14 @@
                 </div>
                 <div class="field">
                     <label for="discipline-filter">Discipline</label>
-                    <select id="discipline-filter" class="schedule-quality-select" name="discipline">
+                    <select id="discipline-filter" class="portfolio-select" name="discipline">
                         <option value="">All disciplines</option>
                         {% for discipline in disciplines %}<option value="{{ discipline }}" {% if validation_filters.discipline == discipline %}selected{% endif %}>{{ discipline }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="phase-filter">Project phase</label>
-                    <select id="phase-filter" class="schedule-quality-select" name="project_phase">
+                    <select id="phase-filter" class="portfolio-select" name="project_phase">
                         <option value="">All project phases</option>
                         {% for phase in project_phases %}<option value="{{ phase }}" {% if validation_filters.project_phase == phase %}selected{% endif %}>{{ phase }}</option>{% endfor %}
                     </select>
@@ -158,7 +166,7 @@
                 </div>
                 <div class="field">
                     <label for="exclude-blanks-filter">Project metadata</label>
-                    <select id="exclude-blanks-filter" class="schedule-quality-select" name="exclude_blanks">
+                    <select id="exclude-blanks-filter" class="portfolio-select" name="exclude_blanks">
                         <option value="1" {% if validation_filters.exclude_blanks %}selected{% endif %}>Exclude blanks</option>
                         <option value="0" {% if not validation_filters.exclude_blanks %}selected{% endif %}>Include blanks</option>
                     </select>
@@ -257,7 +265,7 @@
 (() => {
     const initTomSelects = (root = document) => {
         if (!window.TomSelect) return;
-        root.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        root.querySelectorAll('.portfolio-select').forEach((select) => {
             if (select.tomselect) return;
             new TomSelect(select, { closeAfterSelect: true, create: false, maxItems: 1, maxOptions: null, searchField: ['text'] });
         });

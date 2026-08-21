@@ -253,6 +253,7 @@ class PortfolioReportingViewTests(TestCase):
         self.assertNotContains(response, ">Apply filters<")
         self.assertContains(response, '<nav class="panel portfolio-report-nav"')
         self.assertContains(response, '<section class="panel portfolio-filters">')
+        self.assertEqual(response.content.decode().count('class="portfolio-select"'), 8)
         fetcher.assert_called_once()
 
     @patch(
