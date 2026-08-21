@@ -121,7 +121,7 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(page_parameters[-2:], (50, 25))
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
-    def test_programme_overview_uses_fast_project_metrics_and_score_policy(self, fetch_rows):
+    def test_programme_overview_uses_fast_project_metrics_without_scorecard_values(self, fetch_rows):
         fetch_rows.side_effect = [
             [{"dcma_activity_count": 258, "relationship_count": 362, "logical_loop_count": 0, "high_float_count": 34, "negative_float_count": 0, "latest_updated_date": date(2026, 6, 4)}],
             [{"check_code": "logical_loops", "display_name": "Logical Loops"}, {"check_code": "high_float", "display_name": "High Total Float"}, {"check_code": "negative_float", "display_name": "Negative Float"}],
@@ -129,11 +129,9 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
 
         overview = fetch_programme_overview(ScheduleQualityValidationFilters())
 
-        self.assertEqual([row["result"] for row in overview["rows"]], ["Green", "Red", "Green"])
-        self.assertEqual(overview["total_points_available"], 80)
-        self.assertEqual(overview["total_points_achieved"], 70)
-        self.assertEqual(overview["pass_percent"], Decimal("87.50"))
-        self.assertEqual(overview["pass_or_fail"], "PASS")
+        self.assertEqual([row["description"] for row in overview["rows"]], ["Logical Loops", "High Total Float", "Negative Float"])
+        self.assertEqual(overview["rows"][1]["qualifying_display"], "13.18%")
+        self.assertNotIn("total_points_available", overview)
         self.assertIn("xertoolkit_vw_PBI_ProjectMetrics", fetch_rows.call_args_list[0].args[1])
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
@@ -149,7 +147,7 @@ class ScheduleQualityReportingServiceTests(SimpleTestCase):
         self.assertEqual(row["records_checked"], 362)
         self.assertEqual(row["qualifying_results"], 4)
         self.assertEqual(row["qualifying_display"], "1.10%")
-        self.assertEqual(row["result"], "Green")
+        self.assertNotIn("points_scored", row)
 
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_validation_summary_uses_non_fs_relationships_over_total_relationships(self, fetch_rows):
@@ -393,24 +391,12 @@ class ScheduleQualityOverviewViewTests(TestCase):
                 {
                     "check_code": "logical_loops",
                     "description": "Logical Loops",
-                    "result": "Green",
                     "records_checked": 258,
                     "qualifying_results": 0,
                     "qualifying_display": "0",
-                    "green_limit": Decimal("0"),
-                    "amber_limit": Decimal("1"),
-                    "limit_type": "Number",
-                    "green_points": 50,
-                    "amber_points": 40,
-                    "points_scored": 0,
                 }
             ],
             "latest_updated_date": date(2026, 6, 4),
-            "total_points_available": 335,
-            "total_points_achieved": 285,
-            "pass_percent": Decimal("85.07"),
-            "pass_rate": Decimal("85.00"),
-            "pass_or_fail": "PASS",
         }
         self.client.force_login(self.staff_user)
 
@@ -422,16 +408,12 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, 'hx-swap="outerHTML"')
         self.assertContains(response, "htmx:load")
         self.assertContains(response, "syncScheduleQualityReportTabs")
-        self.assertContains(response, "85.07%")
         self.assertContains(response, "Validation &amp; Evidence")
         self.assertContains(response, "Latest update")
-        self.assertContains(response, "Scorecard detail")
-        self.assertContains(response, "Score: 285 out of 335 points scored")
+        self.assertContains(response, "Quality checks")
         self.assertContains(response, "Projects included: Project Seven")
-        self.assertContains(response, "Scorecard")
-        self.assertContains(response, 'aria-label="Score summary"')
-        self.assertNotContains(response, ">Pass rate<")
-        self.assertContains(response, 'class="numeric-cell points-scored-zero"')
+        self.assertNotContains(response, "Scorecard")
+        self.assertNotContains(response, "points scored")
         self.assertContains(response, ">Overview<")
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
         self.assertNotContains(response, "Score the programme against the active schedule-quality checks.")

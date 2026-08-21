@@ -20,17 +20,6 @@ class ScheduleQualityValidationFilters:
     check_code: str = ""
 
 
-@dataclass(frozen=True)
-class ProgrammeCheckRule:
-    check_code: str
-    display_name: str
-    green_limit: Decimal
-    amber_limit: Decimal
-    limit_type: str
-    green_points: int
-    amber_points: int
-
-
 CHECK_METRICS = {
     "missing_predecessor": ("dcma_activity_count", "missing_predecessor_count"),
     "missing_successor": ("dcma_activity_count", "missing_successor_count"),
@@ -56,28 +45,6 @@ CHECK_METRICS = {
 
 
 PROGRAMME_PASS_RATE = Decimal("85.00")
-PROGRAMME_CHECK_RULES = (
-    ProgrammeCheckRule("logical_loops", "Logical Loops", Decimal("0"), Decimal("1"), "Number", 50, 40),
-    ProgrammeCheckRule("out_of_sequence", "Out of Sequence", Decimal("0"), Decimal("0"), "Number", 10, 8),
-    ProgrammeCheckRule("missing_predecessor", "Missing Predecessors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
-    ProgrammeCheckRule("missing_successor", "Missing Successors", Decimal("3"), Decimal("7"), "Percent", 40, 32),
-    ProgrammeCheckRule("relationship_leads", "Relationship +ve Lags (Leads)", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("relationship_lags", "Relationship +ve Lags", Decimal("0"), Decimal("0"), "Percent", 10, 8),
-    ProgrammeCheckRule("high_duration", "High Duration", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("high_float", "High Total Float", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("negative_float", "Negative Float", Decimal("0"), Decimal("3"), "Percent", 20, 16),
-    ProgrammeCheckRule("constraints", "Constraints", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("open_start", "Open-Start Tasks", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-    ProgrammeCheckRule("open_finish", "Open-Finish Tasks", Decimal("3"), Decimal("7"), "Percent", 20, 16),
-    ProgrammeCheckRule("critical_tasks", "Critical Tasks", Decimal("30"), Decimal("50"), "Percent", 15, 12),
-    ProgrammeCheckRule("near_critical_tasks", "Near Critical Tasks", Decimal("45"), Decimal("66"), "Percent", 15, 12),
-    ProgrammeCheckRule("invalid_dates", "Invalid Dates", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("in_progress_errors", "In Progress Errors", Decimal("0"), Decimal("0"), "Percent", 15, 12),
-    ProgrammeCheckRule("riding_progress_date", "Riding Progress Date", Decimal("3"), Decimal("7"), "Percent", 15, 12),
-    ProgrammeCheckRule("excessive_ss_lag", "Excessive SS Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-    ProgrammeCheckRule("excessive_ff_lag", "Excessive FF Lag Duration", Decimal("3"), Decimal("7"), "Percent", 0, 0),
-    ProgrammeCheckRule("relationship_ratio", "Relationship Ratio", Decimal("3"), Decimal("7"), "Percent", 10, 8),
-)
 
 METRIC_COLUMNS = tuple(
     dict.fromkeys(column for pair in CHECK_METRICS.values() for column in pair)
@@ -341,7 +308,7 @@ def fetch_programme_overview(
     checks = fetch_rows(
         target,
         """
-        SELECT scope.check_code, scope.display_name
+        SELECT scope.check_code, scope.display_name, scope.sort_order
         FROM [powerbitables].[xertoolkit_schedule_quality_profile] AS profile
         JOIN [powerbitables].[xertoolkit_schedule_quality_check_scope] AS scope
           ON scope.config_version_id = profile.active_config_version_id
@@ -352,59 +319,34 @@ def fetch_programme_overview(
         database=target.sql_database,
     )
     values = aggregate[0] if aggregate else {}
-    active_names = {
-        str(check["check_code"]): str(check["display_name"])
-        for check in checks
-    }
     rows: list[dict[str, object]] = []
-    for rule in PROGRAMME_CHECK_RULES:
-        if rule.check_code not in active_names:
+    for check in checks:
+        check_code = str(check["check_code"])
+        metric_pair = CHECK_METRICS.get(check_code)
+        if metric_pair is None:
             continue
-        records_column, qualifying_column = CHECK_METRICS[rule.check_code]
+        records_column, qualifying_column = metric_pair
         records_checked = int(values.get(records_column) or 0)
         qualifying_results = int(values.get(qualifying_column) or 0)
-        result_value, qualifying_display, result, points_scored = _score_check(
-            limit_type=rule.limit_type,
-            green_limit=rule.green_limit,
-            amber_limit=rule.amber_limit,
-            green_points=rule.green_points,
-            amber_points=rule.amber_points,
-            records_checked=records_checked,
-            qualifying_results=qualifying_results,
+        qualifying_percent = (
+            Decimal(qualifying_results) * Decimal("100") / Decimal(records_checked)
+            if records_checked
+            else Decimal("0")
         )
         rows.append(
             {
                 "number": len(rows) + 1,
-                "check_code": rule.check_code,
-                "description": active_names.get(rule.check_code, rule.display_name),
-                "result": result,
+                "check_code": check_code,
+                "description": str(check["display_name"]),
                 "records_checked": records_checked,
                 "qualifying_results": qualifying_results,
-                "qualifying_display": qualifying_display,
-                "green_limit": rule.green_limit,
-                "amber_limit": rule.amber_limit,
-                "limit_type": rule.limit_type,
-                "green_points": rule.green_points,
-                "amber_points": rule.amber_points,
-                "points_scored": points_scored,
+                "qualifying_display": f"{qualifying_percent:.2f}%",
             }
         )
 
-    total_points_available = sum(int(row["green_points"]) for row in rows)
-    total_points_achieved = sum(int(row["points_scored"]) for row in rows)
-    pass_percent = (
-        Decimal(total_points_achieved) * Decimal("100") / Decimal(total_points_available)
-        if total_points_available
-        else Decimal("0")
-    ).quantize(Decimal("0.01"))
     return {
         "rows": rows,
         "latest_updated_date": values.get("latest_updated_date"),
-        "total_points_available": total_points_available,
-        "total_points_achieved": total_points_achieved,
-        "pass_percent": pass_percent,
-        "pass_rate": PROGRAMME_PASS_RATE,
-        "pass_or_fail": "PASS" if pass_percent >= PROGRAMME_PASS_RATE else "FAIL",
     }
 
 
