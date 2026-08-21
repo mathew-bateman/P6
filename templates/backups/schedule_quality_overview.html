@@ -44,13 +44,6 @@
     .overview-main { min-width: 0; }
     .overview-report { overflow: hidden; margin: 0; padding: 0; }
     .overview-score-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; padding: 0; border: 0; background: transparent; }
-    .overview-integrity-banner { margin: 0 0 16px; padding: 18px 22px; border: 0; border-radius: 10px; color: #fff; }
-    .overview-integrity-banner.pass { background: #178c29; }
-    .overview-integrity-banner.fail { background: #c81e1e; }
-    .overview-integrity-banner.na { background: #475467; }
-    .overview-integrity-banner span { display: block; font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-    .overview-integrity-banner strong { display: block; margin-top: 4px; font-size: clamp(22px, 2.2vw, 32px); line-height: 1.2; }
-    .overview-integrity-banner p { margin: 9px 0 0; font-weight: 650; }
     .overview-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fbfefd; }
     .overview-heading-title { display: flex; align-items: center; min-width: 0; min-height: 46px; padding-left: 13px; border-left: 3px solid var(--accent); }
     .overview-panel-heading h2 { margin: 0; font-size: 23px; letter-spacing: -.015em; }
@@ -79,22 +72,6 @@
     .overview-scorecard strong { display: block; margin-top: 8px; font-size: 24px; }
     .overview-scorecard.outcome.pass { background: #c6efce; color: #14532d; }
     .overview-scorecard.outcome.fail { background: #fee4e2; color: #991b1b; }
-    .overview-dial-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
-    .overview-dial { position: relative; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; min-height: 210px; padding: 15px; border: 1px solid var(--line); border-top: 4px solid var(--dial-colour); border-radius: 9px; background: #f7f7ff; color: var(--text); text-align: center; text-decoration: none; }
-    .overview-dial:hover, .overview-dial:focus-visible { outline: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dial-colour) 25%, transparent); transform: translateY(-1px); }
-    .overview-dial.green { --dial-colour: #168b22; }
-    .overview-dial.amber { --dial-colour: #d78000; }
-    .overview-dial.red { --dial-colour: #d12424; }
-    .overview-dial-label { min-height: 2.5em; }
-    .overview-dial h3 { margin: 0; color: #344054; font-size: 15px; line-height: 1.25; }
-    .relationship-ratio-definition { display: block; margin-top: 4px; color: #667085; font-size: 11px; font-weight: 650; line-height: 1.25; }
-    .relationship-ratio-percent { color: #0d897c; font-weight: 800; }
-    .overview-dial-ring { display: grid; width: 118px; height: 118px; margin: 12px auto 10px; border: 7px solid var(--dial-colour); border-radius: 50%; background: #fff; box-shadow: 0 0 0 7px #d9d9d9, 0 0 0 13px #f0f0f0; place-content: center; }
-    .overview-dial-ring strong, .overview-dial-ring span { display: block; font-variant-numeric: tabular-nums; }
-    .overview-dial-ring strong { font-size: 17px; line-height: 1.15; }
-    .overview-dial-ring span { margin-top: 4px; color: #475467; font-size: 13px; font-weight: 700; }
-    .overview-dial-points { color: #344054; font-size: 13px; font-weight: 800; }
-    .overview-dial-points b { color: var(--dial-colour); }
     .overview-error { margin: 0 0 16px; border-color: #fecdca; background: #fff7f6; color: var(--danger); }
     .overview-empty { padding: 34px 20px; text-align: center !important; color: var(--muted); }
     @media (max-width: 1120px) {
@@ -113,16 +90,12 @@
         .overview-heading-kpis { width: 100%; }
         .overview-score-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .overview-scorecard.outcome { grid-column: 1 / -1; }
-        .overview-dial-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 430px) {
-        .overview-dial-grid { grid-template-columns: 1fr; }
     }
 </style>
 
 <section class="toolbar page-hero maintenance-page-heading">
     <div>
-        <h1>Schedule Integrity Checks</h1>
+        <h1>Programme Check</h1>
     </div>
     <nav class="overview-tabs" aria-label="Schedule quality reports">
         <a class="button current" href="{% url 'schedule_quality_overview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" aria-current="page">Overview</a>

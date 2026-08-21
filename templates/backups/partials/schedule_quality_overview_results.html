@@ -83,11 +83,29 @@
     </aside>
 
     <div class="overview-main">
+        <section class="overview-score-summary" aria-label="Score summary">
+            <article class="panel overview-scorecard">
+                <span>Total points available</span>
+                <strong>{{ total_points_available }}</strong>
+            </article>
+            <article class="panel overview-scorecard">
+                <span>Points achieved</span>
+                <strong>{{ total_points_achieved }}</strong>
+            </article>
+            <article class="panel overview-scorecard">
+                <span>Pass %</span>
+                <strong>{{ pass_percent|floatformat:2 }}%</strong>
+            </article>
+            <article class="panel overview-scorecard outcome {{ pass_or_fail|lower }}">
+                <span>Pass or fail</span>
+                <strong>{{ pass_or_fail }}</strong>
+            </article>
+        </section>
+
         <section class="panel overview-report">
             <div class="overview-panel-heading">
                 <div class="overview-heading-title">
-                    <h2>Quality checks</h2>
-                    <p>Projects included: {{ report_scope_label }}</p>
+                    <h2>Scorecard</h2>
                 </div>
                 <div class="overview-heading-kpis" aria-label="Update and refresh summary">
                     <div class="overview-heading-kpi">
@@ -105,24 +123,35 @@
                     <thead>
                         <tr>
                             <th>Description</th>
+                            <th>Result</th>
                             <th>Records<br>checked</th>
                             <th>Qualifying<br>results</th>
-                            <th>Qualifying<br>result / %</th>
+                            <th>Qualifying<br>display</th>
+                            <th>Green<br>limit</th>
+                            <th>Amber<br>limit</th>
+                            <th>Limit type</th>
+                            <th>Points available<br>(green)</th>
+                            <th>Points available<br>(amber)</th>
+                            <th>Points scored</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in rows %}
                             <tr>
-                                <td>
-                                    <a href="{% url 'schedule_quality_validation' %}?{{ request.GET.urlencode }}{% if request.GET %}&amp;{% endif %}check={{ row.check_code }}"><strong>{{ row.description }}</strong></a>
-                                    {% if row.check_code == "relationship_ratio" %}<span class="relationship-ratio-definition">Non-FS relationships ÷ total relationships</span>{% endif %}
-                                </td>
+                                <td><strong>{{ row.description }}</strong></td>
+                                <td class="overview-result {{ row.result|lower }}">{{ row.result }}</td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.records_checked }}</span></td>
                                 <td class="numeric-cell"><span class="numeric-value count">{{ row.qualifying_results }}</span></td>
-                                <td class="numeric-cell"><span class="numeric-value{% if row.check_code == "relationship_ratio" %} relationship-ratio-percent{% endif %}">{{ row.qualifying_display }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value">{{ row.qualifying_display }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.green_limit|floatformat:"-2" }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value count">{{ row.amber_limit|floatformat:"-2" }}</span></td>
+                                <td>{{ row.limit_type }}</td>
+                                <td class="numeric-cell"><span class="numeric-value score">{{ row.green_points }}</span></td>
+                                <td class="numeric-cell"><span class="numeric-value score">{{ row.amber_points }}</span></td>
+                                <td class="numeric-cell{% if row.points_scored == 0 %} points-scored-zero{% endif %}"><strong class="numeric-value score">{{ row.points_scored }}</strong></td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="4" class="overview-empty">No programme checks match these filters.</td></tr>
+                            <tr><td colspan="11" class="overview-empty">No programme checks match these filters.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
