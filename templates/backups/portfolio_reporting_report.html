@@ -9,10 +9,10 @@
 <style>
     .portfolio-hero { align-items: flex-start; }
     .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
-    .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
+    .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; margin:0; }
     .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:0; border:0; background:transparent; box-shadow:none; }
-    .portfolio-report-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:0 0 16px; padding:8px 10px; }
-    .portfolio-report-nav a { display:block; padding:9px 10px; border-radius:6px; color:#344054; font-size:13px; font-weight:650; text-decoration:none; }
+    .portfolio-report-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; margin:0 0 16px; padding:6px; }
+    .portfolio-report-nav a { display:block; overflow:hidden; padding:7px 2px; border-radius:6px; color:#344054; font-size:11px; font-weight:650; letter-spacing:-.01em; line-height:1.2; text-align:center; text-overflow:ellipsis; text-decoration:none; white-space:nowrap; }
     .portfolio-report-nav a:hover { background:#eef2f7; }
     .portfolio-report-nav a.current { background:#e8f5f2; color:#087f70; }
     .portfolio-filters { padding:12px; }
@@ -64,7 +64,8 @@
     .portfolio-error { margin:0 0 16px; border-color:#fecdca; background:#fff7f6; color:#b42318; text-align:left; }
     .portfolio-note { margin:0 0 16px; padding:12px 14px; border:1px solid #b2ddff; border-radius:8px; background:#eff8ff; color:#175cd3; font-size:12px; line-height:1.45; }
     @media (max-width:760px) {
-        .portfolio-report-nav { grid-template-columns:1fr 1fr; }
+        .portfolio-report-nav { grid-template-columns:none; grid-auto-columns:max-content; grid-auto-flow:column; overflow-x:auto; }
+        .portfolio-report-nav a { padding-left:8px; padding-right:8px; font-size:12px; }
         .portfolio-kpis { grid-template-columns:1fr 1fr; }
         .portfolio-bar-row { grid-template-columns:1fr 60px; }
         .portfolio-bar-track { grid-column:1/-1; grid-row:2; }
