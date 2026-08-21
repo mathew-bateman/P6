@@ -461,3 +461,36 @@ class ScheduleQualityEditorCommandTests(TestCase):
             user.groups.filter(name=settings.P6_SCHEDULE_QUALITY_EDITOR_GROUP).exists()
         )
         self.assertIn("Granted schedule-quality editor access", stdout.getvalue())
+
+
+class ScheduleQualityReportAccessCommandTests(TestCase):
+    def test_command_grants_report_group_to_each_named_user(self):
+        users = [
+            get_user_model().objects.create_user(username=username, password="password")
+            for username in ("admin", "callum.wood", "jason.mappin")
+        ]
+
+        call_command(
+            "grant_schedule_quality_report_access",
+            *(user.username for user in users),
+        )
+
+        for user in users:
+            self.assertTrue(user.groups.filter(name="ScheduleQuality").exists())
+
+
+class ScheduleQualityReportVisibilityTests(TestCase):
+    def test_quality_reports_navigation_and_card_require_report_group(self):
+        User = get_user_model()
+        member = User.objects.create_user(username="report-member", password="password")
+        non_member = User.objects.create_user(username="report-non-member", password="password")
+        group, _ = Group.objects.get_or_create(name="ScheduleQuality")
+        member.groups.add(group)
+
+        self.client.force_login(member)
+        member_response = self.client.get(reverse("suite_landing"))
+        self.assertContains(member_response, "Quality Reports")
+
+        self.client.force_login(non_member)
+        non_member_response = self.client.get(reverse("suite_landing"))
+        self.assertNotContains(non_member_response, "Quality Reports")

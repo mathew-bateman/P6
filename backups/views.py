@@ -162,6 +162,20 @@ class StaffRequiredMixin(UserPassesTestMixin):
         return self.request.user.is_authenticated and self.request.user.is_staff
 
 
+def can_view_schedule_quality_reports(user) -> bool:
+    return bool(
+        user.is_authenticated
+        and user.groups.filter(
+            name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP
+        ).exists()
+    )
+
+
+class ScheduleQualityReportRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return can_view_schedule_quality_reports(self.request.user)
+
+
 def can_edit_schedule_quality_schedule(user) -> bool:
     return bool(
         user.is_authenticated
@@ -467,7 +481,7 @@ class ScheduleQualityReportFiltersMixin:
 
 
 class ScheduleQualityOverviewView(
-    StaffRequiredMixin,
+    ScheduleQualityReportRequiredMixin,
     ScheduleQualityReportFiltersMixin,
     TemplateView,
 ):
@@ -542,7 +556,7 @@ class ScheduleQualityOverviewView(
 
 
 class ScheduleQualityValidationView(
-    StaffRequiredMixin,
+    ScheduleQualityReportRequiredMixin,
     ScheduleQualityReportFiltersMixin,
     TemplateView,
 ):

@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
@@ -182,6 +183,8 @@ class ScheduleQualityValidationViewTests(TestCase):
             password="password",
             is_staff=True,
         )
+        self.report_group, _ = Group.objects.get_or_create(name="ScheduleQuality")
+        self.staff_user.groups.add(self.report_group)
         self.viewer = get_user_model().objects.create_user(
             username="viewer",
             password="password",
@@ -193,7 +196,7 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response.url)
 
-    def test_non_staff_user_is_denied(self):
+    def test_user_without_report_group_is_denied(self):
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("schedule_quality_validation"))
@@ -361,6 +364,8 @@ class ScheduleQualityOverviewViewTests(TestCase):
             password="password",
             is_staff=True,
         )
+        self.report_group, _ = Group.objects.get_or_create(name="ScheduleQuality")
+        self.staff_user.groups.add(self.report_group)
         self.viewer = get_user_model().objects.create_user(
             username="overview-viewer",
             password="password",
@@ -372,7 +377,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response.url)
 
-    def test_non_staff_user_is_denied(self):
+    def test_user_without_report_group_is_denied(self):
         self.client.force_login(self.viewer)
 
         response = self.client.get(reverse("schedule_quality_overview"))

@@ -68,6 +68,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "backups.context_processors.schedule_quality_access",
             ],
         },
     }
@@ -145,6 +146,10 @@ P6_SCHEDULE_QUALITY_PROFILE_CODE = os.getenv("P6_SCHEDULE_QUALITY_PROFILE_CODE",
 P6_SCHEDULE_QUALITY_EDITOR_GROUP = os.getenv(
     "P6_SCHEDULE_QUALITY_EDITOR_GROUP",
     "Schedule Quality Editors",
+)
+P6_SCHEDULE_QUALITY_REPORT_GROUP = os.getenv(
+    "P6_SCHEDULE_QUALITY_REPORT_GROUP",
+    "ScheduleQuality",
 )
 P6_SCHEDULE_QUALITY_SQL_HOST = os.getenv("P6_SCHEDULE_QUALITY_SQL_HOST", P6_DEFAULT_SQL_HOST)
 P6_SCHEDULE_QUALITY_SQL_PORT = int(os.getenv("P6_SCHEDULE_QUALITY_SQL_PORT", str(P6_P62212_SQL_PORT)))

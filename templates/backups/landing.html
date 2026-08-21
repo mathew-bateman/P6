@@ -27,7 +27,7 @@
             <p class="subtle">Refresh and review the Power BI schedule-quality reporting data.</p>
             <a class="button" href="{% url 'schedule_quality_dashboard' %}">Open Schedule Quality</a>
         </article>
-        {% if request.user.is_staff %}
+        {% if can_view_schedule_quality_reports %}
             <article class="panel suite-card">
                 <h2>Quality Reports</h2>
                 <p class="subtle">Score the programme, review every check, and drill into activity evidence.</p>

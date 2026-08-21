@@ -253,7 +253,7 @@
                 {% url 'maintenance_dashboard' as maintenance_url %}
                 {% if request.user.is_staff and maintenance_url %}<a href="{{ maintenance_url }}" class="nav-item {% if 'maintenance' in request.resolver_match.url_name or 'userdata' in request.resolver_match.url_name %}active{% endif %}">Database Maintenance</a>{% endif %}
                 <a href="{% url 'schedule_quality_dashboard' %}" class="nav-item {% if 'schedule_quality' in request.resolver_match.url_name and request.resolver_match.url_name != 'schedule_quality_overview' and request.resolver_match.url_name != 'schedule_quality_validation' %}active{% endif %}">Schedule Quality</a>
-                {% if request.user.is_staff %}
+                {% if can_view_schedule_quality_reports %}
                     <a href="{% url 'schedule_quality_overview' %}" class="nav-item {% if request.resolver_match.url_name == 'schedule_quality_overview' or request.resolver_match.url_name == 'schedule_quality_validation' %}active{% endif %}">Quality Reports</a>
                 {% endif %}
             </nav>
