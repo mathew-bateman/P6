@@ -10,12 +10,12 @@
     .portfolio-hero { align-items: flex-start; }
     .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
-    .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:12px; }
-    .portfolio-report-nav { display:grid; gap:5px; margin-bottom:16px; }
+    .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:0; border:0; background:transparent; box-shadow:none; }
+    .portfolio-report-nav { display:grid; gap:5px; margin:0 0 16px; padding:12px; }
     .portfolio-report-nav a { display:block; padding:9px 10px; border-radius:6px; color:#344054; font-size:13px; font-weight:650; text-decoration:none; }
     .portfolio-report-nav a:hover { background:#eef2f7; }
     .portfolio-report-nav a.current { background:#e8f5f2; color:#087f70; }
-    .portfolio-filters { padding-top:14px; border-top:1px solid var(--line); }
+    .portfolio-filters { padding:12px; }
     .portfolio-filters h2 { margin-bottom:12px; font-size:15px; }
     .portfolio-filters .field { margin-bottom:10px; }
     .portfolio-filters label { font-size:12px; color:#475467; }
@@ -61,7 +61,7 @@
         .portfolio-report-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
         .portfolio-filters form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; align-items:end; }
         .portfolio-filters .field { margin:0; }
-        .portfolio-filter-actions { grid-column:1/-1; grid-template-columns:1fr 1fr; }
+        .portfolio-filter-actions { grid-column:1/-1; grid-template-columns:1fr; }
     }
     @media (max-width:760px) {
         .portfolio-report-nav { grid-template-columns:1fr 1fr; }
@@ -84,15 +84,15 @@
 </section>
 
 <div class="portfolio-layout">
-    <aside class="panel portfolio-sidebar">
-        <nav class="portfolio-report-nav" aria-label="Portfolio reports">
+    <aside class="portfolio-sidebar">
+        <nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
             {% for page in portfolio_report_pages %}
                 <a class="{% if page.key == active_report.key %}current{% endif %}"
                    href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
                    {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
             {% endfor %}
         </nav>
-        <div class="portfolio-filters">
+        <section class="panel portfolio-filters">
             <h2>Filters</h2>
             <form method="get"
                   hx-get="{% url active_report.url_name %}"
@@ -172,7 +172,7 @@
                        hx-push-url="true">Clear filters</a>
                 </div>
             </form>
-        </div>
+        </section>
     </aside>
 
     <div class="portfolio-main">

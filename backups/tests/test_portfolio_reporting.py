@@ -248,6 +248,8 @@ class PortfolioReportingViewTests(TestCase):
         self.assertContains(response, "syncPortfolioReportNavigation")
         self.assertContains(response, "Exclude blanks")
         self.assertNotContains(response, ">Apply filters<")
+        self.assertContains(response, '<nav class="panel portfolio-report-nav"')
+        self.assertContains(response, '<section class="panel portfolio-filters">')
         fetcher.assert_called_once()
 
     @patch(
