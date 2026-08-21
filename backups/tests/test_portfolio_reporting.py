@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
@@ -161,10 +162,12 @@ class PortfolioReportingViewTests(TestCase):
             username="portfolio-non-member",
             password="password",
         )
-        group, _ = Group.objects.get_or_create(name="ScheduleQuality")
+        group, _ = Group.objects.get_or_create(
+            name=settings.P6_PORTFOLIO_REPORTING_GROUP
+        )
         self.member.groups.add(group)
 
-    def test_hub_requires_quality_report_access(self):
+    def test_hub_requires_portfolio_reporting_access(self):
         self.client.force_login(self.non_member)
 
         response = self.client.get(reverse("portfolio_reporting_hub"))
@@ -320,6 +323,10 @@ class PortfolioReportingViewTests(TestCase):
                 self.assertContains(response, title)
 
     def test_landing_card_and_nav_follow_quality_reports(self):
+        quality_group, _ = Group.objects.get_or_create(
+            name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP
+        )
+        self.member.groups.add(quality_group)
         self.client.force_login(self.member)
 
         response = self.client.get(reverse("suite_landing"))

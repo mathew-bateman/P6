@@ -179,9 +179,21 @@ def can_view_schedule_quality_reports(user) -> bool:
     )
 
 
+def can_view_portfolio_reporting(user) -> bool:
+    return bool(
+        user.is_authenticated
+        and user.groups.filter(name=settings.P6_PORTFOLIO_REPORTING_GROUP).exists()
+    )
+
+
 class ScheduleQualityReportRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     def test_func(self):
         return can_view_schedule_quality_reports(self.request.user)
+
+
+class PortfolioReportingRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    def test_func(self):
+        return can_view_portfolio_reporting(self.request.user)
 
 
 def can_edit_schedule_quality_schedule(user) -> bool:
@@ -716,7 +728,7 @@ PORTFOLIO_REPORT_PAGES = (
 )
 
 
-class PortfolioReportingHubView(ScheduleQualityReportRequiredMixin, TemplateView):
+class PortfolioReportingHubView(PortfolioReportingRequiredMixin, TemplateView):
     template_name = "backups/portfolio_reporting_hub.html"
 
     def get_context_data(self, **kwargs):
@@ -726,7 +738,7 @@ class PortfolioReportingHubView(ScheduleQualityReportRequiredMixin, TemplateView
 
 
 class PortfolioReportingView(
-    ScheduleQualityReportRequiredMixin,
+    PortfolioReportingRequiredMixin,
     ScheduleQualityReportFiltersMixin,
     TemplateView,
 ):

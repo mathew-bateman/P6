@@ -136,7 +136,11 @@ class ScheduleQualityRefreshViewTests(TestCase):
         report_group, _ = Group.objects.get_or_create(
             name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP
         )
+        portfolio_group, _ = Group.objects.get_or_create(
+            name=settings.P6_PORTFOLIO_REPORTING_GROUP
+        )
         user.groups.add(report_group)
+        user.groups.add(portfolio_group)
         self.client.force_login(user)
 
         response = self.client.get(reverse("suite_landing"))
@@ -485,6 +489,20 @@ class ScheduleQualityReportAccessCommandTests(TestCase):
             self.assertTrue(user.groups.filter(name="ScheduleQuality").exists())
 
 
+class PortfolioReportingAccessCommandTests(TestCase):
+    def test_command_creates_and_grants_the_separate_portfolio_group(self):
+        user = get_user_model().objects.create_user(
+            username="portfolio-user",
+            password="password",
+        )
+
+        call_command("grant_portfolio_reporting_access", user.username)
+
+        self.assertTrue(
+            user.groups.filter(name=settings.P6_PORTFOLIO_REPORTING_GROUP).exists()
+        )
+
+
 class ScheduleQualityReportVisibilityTests(TestCase):
     def test_quality_reports_navigation_and_card_require_report_group(self):
         User = get_user_model()
@@ -496,7 +514,40 @@ class ScheduleQualityReportVisibilityTests(TestCase):
         self.client.force_login(member)
         member_response = self.client.get(reverse("suite_landing"))
         self.assertContains(member_response, "Quality Reports")
+        self.assertNotContains(member_response, "Portfolio Reporting")
+        self.assertEqual(
+            self.client.get(reverse("portfolio_reporting_hub")).status_code,
+            403,
+        )
 
         self.client.force_login(non_member)
         non_member_response = self.client.get(reverse("suite_landing"))
         self.assertNotContains(non_member_response, "Quality Reports")
+
+
+class PortfolioReportingVisibilityTests(TestCase):
+    def test_portfolio_navigation_and_card_require_its_own_group(self):
+        User = get_user_model()
+        member = User.objects.create_user(username="portfolio-member", password="password")
+        non_member = User.objects.create_user(username="portfolio-non-member", password="password")
+        group, _ = Group.objects.get_or_create(
+            name=settings.P6_PORTFOLIO_REPORTING_GROUP
+        )
+        member.groups.add(group)
+
+        self.client.force_login(member)
+        member_response = self.client.get(reverse("suite_landing"))
+        self.assertContains(member_response, "Portfolio Reporting")
+        self.assertNotContains(member_response, "Quality Reports")
+        self.assertEqual(
+            self.client.get(reverse("portfolio_reporting_hub")).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(reverse("schedule_quality_overview")).status_code,
+            403,
+        )
+
+        self.client.force_login(non_member)
+        non_member_response = self.client.get(reverse("suite_landing"))
+        self.assertNotContains(non_member_response, "Portfolio Reporting")

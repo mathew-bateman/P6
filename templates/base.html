@@ -255,6 +255,8 @@
                 <a href="{% url 'schedule_quality_dashboard' %}" class="nav-item {% if 'schedule_quality' in request.resolver_match.url_name and request.resolver_match.url_name != 'schedule_quality_overview' and request.resolver_match.url_name != 'schedule_quality_validation' %}active{% endif %}">Schedule Quality</a>
                 {% if can_view_schedule_quality_reports %}
                     <a href="{% url 'schedule_quality_overview' %}" class="nav-item {% if request.resolver_match.url_name == 'schedule_quality_overview' or request.resolver_match.url_name == 'schedule_quality_validation' %}active{% endif %}">Quality Reports</a>
+                {% endif %}
+                {% if can_view_portfolio_reporting %}
                     <a href="{% url 'portfolio_reporting_hub' %}" class="nav-item {% if 'portfolio_reporting' in request.resolver_match.url_name %}active{% endif %}">Portfolio Reporting</a>
                 {% endif %}
             </nav>

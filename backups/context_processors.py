@@ -1,4 +1,7 @@
-from backups.views import can_view_schedule_quality_reports
+from backups.views import (
+    can_view_portfolio_reporting,
+    can_view_schedule_quality_reports,
+)
 
 
 def schedule_quality_access(request):
@@ -7,5 +10,6 @@ def schedule_quality_access(request):
     return {
         "can_view_schedule_quality_reports": can_view_schedule_quality_reports(
             request.user
-        )
+        ),
+        "can_view_portfolio_reporting": can_view_portfolio_reporting(request.user),
     }
