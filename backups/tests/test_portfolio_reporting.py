@@ -240,7 +240,44 @@ class PortfolioReportingViewTests(TestCase):
         self.assertContains(response, "Project Seven")
         self.assertContains(response, "72.50%")
         self.assertContains(response, "Milestone Governance")
+        self.assertContains(response, 'hx-get="/portfolio-reporting/overview/"')
+        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
+        self.assertContains(response, 'hx-target=".portfolio-layout"')
+        self.assertContains(response, 'hx-select=".portfolio-layout"')
+        self.assertContains(response, 'hx-push-url="true"')
+        self.assertContains(response, "syncPortfolioReportNavigation")
+        self.assertContains(response, "Exclude blanks")
+        self.assertNotContains(response, ">Apply filters<")
         fetcher.assert_called_once()
+
+    @patch(
+        "backups.views.fetch_validation_filter_options",
+        return_value={
+            "projects": [],
+            "portfolios": ["Rail"],
+            "lead_planners": [],
+            "project_statuses": ["Client Submitted"],
+            "project_states": ["Live"],
+            "disciplines": [],
+            "project_phases": [],
+            "updated_dates": [],
+            "checks": [],
+        },
+    )
+    @patch("backups.views.PortfolioOverviewView.report_fetcher")
+    def test_filters_persist_when_moving_between_portfolio_reports(self, _fetcher, _options):
+        self.client.force_login(self.member)
+
+        response = self.client.get(
+            reverse("portfolio_reporting_overview"),
+            {"portfolio": "Rail", "exclude_blanks": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'href="/portfolio-reporting/milestones/?portfolio=Rail&amp;exclude_blanks=1"',
+        )
 
     @patch(
         "backups.views.fetch_validation_filter_options",

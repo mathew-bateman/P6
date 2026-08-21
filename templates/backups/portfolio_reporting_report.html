@@ -4,6 +4,8 @@
 {% block title %}{{ active_report.title }} | Portfolio Reporting{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
     .portfolio-hero { align-items: flex-start; }
     .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
@@ -92,64 +94,82 @@
         </nav>
         <div class="portfolio-filters">
             <h2>Filters</h2>
-            <form method="get">
+            <form method="get"
+                  hx-get="{% url active_report.url_name %}"
+                  hx-trigger="change from:select, change from:input"
+                  hx-target=".portfolio-layout"
+                  hx-select=".portfolio-layout"
+                  hx-swap="outerHTML"
+                  hx-push-url="true">
                 <div class="field">
                     <label for="portfolio-filter">Portfolio</label>
-                    <select id="portfolio-filter" name="portfolio">
+                    <select id="portfolio-filter" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
                         <option value="">All portfolios</option>
                         {% for portfolio in portfolios %}<option value="{{ portfolio }}" {% if validation_filters.portfolio == portfolio %}selected{% endif %}>{{ portfolio }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="project-filter">Project</label>
-                    <select id="project-filter" name="project">
-                        <option value="">All projects</option>
-                        {% for project in projects %}<option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} - {% endif %}{{ project.proj_short_name|default:project.proj_id }}</option>{% endfor %}
+                    <select id="project-filter" class="schedule-quality-select" name="project">
+                        <option value="">{% if validation_filters.portfolio %}All projects in {{ validation_filters.portfolio }}{% else %}All projects{% endif %}</option>
+                        {% for project in projects %}<option value="{{ project.proj_id }}" {% if validation_filters.project_id == project.proj_id %}selected{% endif %}>{% if validation_filters.project_id == project.proj_id %}✓ {% endif %}{% if project.updated_date %}{{ project.updated_date|date:"d/m/Y" }} — {% endif %}{{ project.proj_short_name|default:"Unnamed project" }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="planner-filter">Lead planner</label>
-                    <select id="planner-filter" name="lead_planner">
+                    <select id="planner-filter" class="schedule-quality-select" name="lead_planner">
                         <option value="">All lead planners</option>
                         {% for planner in lead_planners %}<option value="{{ planner }}" {% if validation_filters.lead_planner == planner %}selected{% endif %}>{{ planner }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="status-filter">Project status</label>
-                    <select id="status-filter" name="project_status">
+                    <select id="status-filter" class="schedule-quality-select" name="project_status">
                         <option value="__all__" {% if not validation_filters.project_status %}selected{% endif %}>All statuses</option>
-                        {% for status in project_statuses %}<option value="{{ status }}" {% if validation_filters.project_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+                        <option value="Client Submitted" {% if validation_filters.project_status == "Client Submitted" %}selected{% endif %}>Client Submitted</option>
+                        {% for status in project_statuses %}{% if status != "Client Submitted" %}<option value="{{ status }}" {% if validation_filters.project_status == status %}selected{% endif %}>{{ status }}</option>{% endif %}{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="state-filter">Project state</label>
-                    <select id="state-filter" name="project_state">
+                    <select id="state-filter" class="schedule-quality-select" name="project_state">
                         <option value="__all__" {% if not validation_filters.project_state %}selected{% endif %}>All states</option>
-                        {% for state in project_states %}<option value="{{ state }}" {% if validation_filters.project_state == state %}selected{% endif %}>{{ state }}</option>{% endfor %}
+                        <option value="Live" {% if validation_filters.project_state == "Live" %}selected{% endif %}>Live</option>
+                        {% for state in project_states %}{% if state != "Live" %}<option value="{{ state }}" {% if validation_filters.project_state == state %}selected{% endif %}>{{ state }}</option>{% endif %}{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="discipline-filter">Discipline</label>
-                    <select id="discipline-filter" name="discipline">
+                    <select id="discipline-filter" class="schedule-quality-select" name="discipline">
                         <option value="">All disciplines</option>
                         {% for discipline in disciplines %}<option value="{{ discipline }}" {% if validation_filters.discipline == discipline %}selected{% endif %}>{{ discipline }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="phase-filter">Project phase</label>
-                    <select id="phase-filter" name="project_phase">
+                    <select id="phase-filter" class="schedule-quality-select" name="project_phase">
                         <option value="">All project phases</option>
                         {% for phase in project_phases %}<option value="{{ phase }}" {% if validation_filters.project_phase == phase %}selected{% endif %}>{{ phase }}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="field">
                     <label for="date-filter">Updated date</label>
-                    <input id="date-filter" type="date" name="updated_date" value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}">
+                    <input id="date-filter" class="schedule-quality-date-picker" type="text" name="updated_date" value="{% if validation_filters.updated_date %}{{ validation_filters.updated_date|date:'Y-m-d' }}{% endif %}" data-updated-dates="{% for updated_date in updated_dates %}{{ updated_date|date:'Y-m-d' }}{% if not forloop.last %},{% endif %}{% endfor %}" placeholder="Select update date" aria-label="Filter by updated date">
                 </div>
-                <input type="hidden" name="exclude_blanks" value="0">
+                <div class="field">
+                    <label for="exclude-blanks-filter">Project metadata</label>
+                    <select id="exclude-blanks-filter" class="schedule-quality-select" name="exclude_blanks">
+                        <option value="1" {% if validation_filters.exclude_blanks %}selected{% endif %}>Exclude blanks</option>
+                        <option value="0" {% if not validation_filters.exclude_blanks %}selected{% endif %}>Include blanks</option>
+                    </select>
+                </div>
                 <div class="portfolio-filter-actions">
-                    <button type="submit">Apply filters</button>
-                    <a class="button ghost" href="{% url active_report.url_name %}">Clear filters</a>
+                    <a class="button ghost" href="{% url active_report.url_name %}"
+                       hx-get="{% url active_report.url_name %}"
+                       hx-target=".portfolio-layout"
+                       hx-select=".portfolio-layout"
+                       hx-swap="outerHTML"
+                       hx-push-url="true">Clear filters</a>
                 </div>
             </form>
         </div>
@@ -228,4 +248,45 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+(() => {
+    const initTomSelects = (root = document) => {
+        if (!window.TomSelect) return;
+        root.querySelectorAll('.schedule-quality-select').forEach((select) => {
+            if (select.tomselect) return;
+            new TomSelect(select, { closeAfterSelect: true, create: false, maxItems: 1, maxOptions: null, searchField: ['text'] });
+        });
+    };
+    const syncPortfolioReportNavigation = (form) => {
+        const query = new URLSearchParams(new FormData(form)).toString();
+        document.querySelectorAll('.portfolio-report-nav a').forEach((link) => {
+            const path = link.getAttribute('href').split('?')[0];
+            link.setAttribute('href', query ? `${path}?${query}` : path);
+        });
+    };
+    const initDatePickers = (root = document) => {
+        if (!window.flatpickr) return;
+        root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
+            if (input._flatpickr) return;
+            const availableDates = input.dataset.updatedDates ? input.dataset.updatedDates.split(',') : [];
+            flatpickr(input, {
+                altInput: true, altFormat: 'j M Y', dateFormat: 'Y-m-d', disableMobile: true,
+                enable: availableDates.length ? availableDates : undefined,
+                onChange: () => input.dispatchEvent(new Event('change', { bubbles: true })),
+            });
+        });
+    };
+    document.addEventListener('DOMContentLoaded', () => { initTomSelects(); initDatePickers(); });
+    document.addEventListener('change', (event) => {
+        const form = event.target.closest('.portfolio-layout form');
+        if (form) syncPortfolioReportNavigation(form);
+    });
+    document.addEventListener('htmx:load', (event) => { initTomSelects(event.detail.elt); initDatePickers(event.detail.elt); });
+})();
+</script>
 {% endblock %}
