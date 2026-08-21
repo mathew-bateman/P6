@@ -11,7 +11,7 @@
     .portfolio-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
     .portfolio-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; align-items:start; }
     .portfolio-sidebar { position:sticky; top:calc(var(--app-header-height, 62px) + 18px); margin:0; padding:0; border:0; background:transparent; box-shadow:none; }
-    .portfolio-report-nav { display:grid; gap:5px; margin:0 0 16px; padding:12px; }
+    .portfolio-report-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin:0 0 16px; padding:12px; }
     .portfolio-report-nav a { display:block; padding:9px 10px; border-radius:6px; color:#344054; font-size:13px; font-weight:650; text-decoration:none; }
     .portfolio-report-nav a:hover { background:#eef2f7; }
     .portfolio-report-nav a.current { background:#e8f5f2; color:#087f70; }
@@ -63,21 +63,15 @@
     .portfolio-empty, .portfolio-error { padding:28px 20px; text-align:center; color:#667085; }
     .portfolio-error { margin:0 0 16px; border-color:#fecdca; background:#fff7f6; color:#b42318; text-align:left; }
     .portfolio-note { margin:0 0 16px; padding:12px 14px; border:1px solid #b2ddff; border-radius:8px; background:#eff8ff; color:#175cd3; font-size:12px; line-height:1.45; }
-    @media (max-width:1120px) {
-        .portfolio-layout { grid-template-columns:1fr; }
-        .portfolio-sidebar { position:static; }
-        .portfolio-report-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
-        .portfolio-filters form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; align-items:end; }
-        .portfolio-filters .field { margin:0; }
-        .portfolio-filter-actions { grid-column:1/-1; grid-template-columns:1fr; }
-    }
     @media (max-width:760px) {
         .portfolio-report-nav { grid-template-columns:1fr 1fr; }
-        .portfolio-filters form { grid-template-columns:1fr; }
-        .portfolio-filter-actions { grid-column:auto; }
         .portfolio-kpis { grid-template-columns:1fr 1fr; }
         .portfolio-bar-row { grid-template-columns:1fr 60px; }
         .portfolio-bar-track { grid-column:1/-1; grid-row:2; }
+    }
+    @media (max-width:480px) {
+        .portfolio-layout { grid-template-columns:1fr; }
+        .portfolio-sidebar { position:static; }
     }
 </style>
 
@@ -91,15 +85,16 @@
     </div>
 </section>
 
+<nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
+    {% for page in portfolio_report_pages %}
+        <a class="{% if page.key == active_report.key %}current{% endif %}"
+           href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+           {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
+    {% endfor %}
+</nav>
+
 <div class="portfolio-layout">
     <aside class="portfolio-sidebar">
-        <nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
-            {% for page in portfolio_report_pages %}
-                <a class="{% if page.key == active_report.key %}current{% endif %}"
-                   href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
-                   {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
-            {% endfor %}
-        </nav>
         <section class="panel portfolio-filters">
             <h2>Filters</h2>
             <form method="get"
@@ -177,7 +172,8 @@
                        hx-target=".portfolio-layout"
                        hx-select=".portfolio-layout"
                        hx-swap="outerHTML"
-                       hx-push-url="true">Clear filters</a>
+                       hx-push-url="true"
+                       hx-on::before-request="window.resetPortfolioReportNavigation()">Clear filters</a>
                 </div>
             </form>
         </section>
@@ -275,6 +271,11 @@
         document.querySelectorAll('.portfolio-report-nav a').forEach((link) => {
             const path = link.getAttribute('href').split('?')[0];
             link.setAttribute('href', query ? `${path}?${query}` : path);
+        });
+    };
+    window.resetPortfolioReportNavigation = () => {
+        document.querySelectorAll('.portfolio-report-nav a').forEach((link) => {
+            link.setAttribute('href', link.getAttribute('href').split('?')[0]);
         });
     };
     const initDatePickers = (root = document) => {
