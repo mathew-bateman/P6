@@ -42,6 +42,7 @@ CHECK_METRICS = {
     "relationship_lags": ("relationship_count", "lag_count"),
     "relationship_ratio": ("relationship_count", "non_fs_count"),
     "constraints": ("dcma_activity_count", "constraint_count"),
+    "soft_constraints": ("soft_constraint_activity_count", "soft_constraint_count"),
     "high_float": ("dcma_activity_count", "high_float_count"),
     "negative_float": ("dcma_activity_count", "negative_float_count"),
     "high_duration": ("dcma_activity_count", "high_duration_count"),

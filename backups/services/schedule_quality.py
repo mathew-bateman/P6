@@ -278,7 +278,13 @@ def fetch_schedule_quality_settings(
             display_name=str(row["display_name"]),
             sort_order=int(row["sort_order"]),
             is_enabled=bool(row["is_enabled"]),
-            include_loe=_nullable_bool(row.get("include_loe")),
+            # Older loop configurations used NULL while including every type.
+            # Expose that existing behaviour as a checked, editable LOE toggle.
+            include_loe=(
+                True
+                if row["check_code"] == "logical_loops" and row.get("include_loe") is None
+                else _nullable_bool(row.get("include_loe"))
+            ),
             include_wbs_summary=_nullable_bool(row.get("include_wbs_summary")),
             include_milestones=_nullable_bool(row.get("include_milestones")),
             exclude_complete=_nullable_bool(row.get("exclude_complete")),

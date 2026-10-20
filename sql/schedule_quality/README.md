@@ -25,9 +25,10 @@ Run against `P62212_1` in this order:
 19. `035_relationship_ratio_non_fs.sql`
 20. `036_relationship_ratio_percentage_return.sql`
 21. `037_workbook_parity_score_rules.sql`
-22. `002_postdeploy_verify.sql`
-22. Run a single-project refresh for the canary project, then a full refresh.
-23. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
+22. `038_logical_loop_loe_scope.sql`
+23. `002_postdeploy_verify.sql`
+24. Run a single-project refresh for the canary project, then a full refresh.
+25. Run `003_all_project_reconciliation.sql` immediately after the full refresh.
 
 Use `900_rollback.sql` only if the forward deployment must be reversed. It depends on the immutable snapshot created by step 1.
 
@@ -283,3 +284,54 @@ run and configuration version.
 - Execute the full refresh on the restored copy before scheduling the production window.
 - Immediately run `003_all_project_reconciliation.sql`. It asserts exact project-ID coverage, active version/run stamps, and all 24 numeric metrics plus project name and data date for every project. Run it while P6 imports are paused; source changes after the refresh are correctly reported as freshness failures.
 - On production, take the snapshot, deploy, verify, run the same canary, then run the full refresh. The scripts do not mutate the production database merely by being present in this repository.
+
+## Logical Loops: Include LOE
+
+Run `038_logical_loop_loe_scope.sql` and deploy the accompanying settings
+reader change to expose **Include LOE** for Logical Loops. Older NULL values
+retain the previous include-LOE behaviour and appear checked. Published
+configuration rows and hashes are preserved.
+
+Untick **Include LOE** on the Logical Loops row, then **Publish** to rebuild
+results through the existing versioned publish and audit workflow. The refresh
+excludes relationships with an LOE predecessor or successor before detecting
+cycles; hiding only the LOE evidence would leave ordinary members flagged.
+Save draft alone does not change published results.
+
+The migration is transactional and safe to rerun. For rollback, restore the
+pre-deployment refresh procedure definition and settings reader from the
+deployment snapshot. Keep any published explicit scope values for audit.
+
+## Soft Constraints (FYI only)
+Run `039_soft_constraints.sql` after 038 and deploy the matching application
+files. It introduces Soft Constraints only in editable drafts; published
+configuration history stays intact. Publish and rebuild to activate.
+
+Scope and evidence fields remain editable in Settings. This check has no score
+thresholds or points and does not participate in DCMA scoring or pass/fail.
+The NR soft types are Start On or After, Start On or Before, Finish On or After
+and Finish On or Before, in either primary or secondary slots. Each activity
+counts once. Start On, Finish On, Mandatory Start and Mandatory Finish remain
+in the existing hard check. As Late As Possible and Expected Finish are excluded.
+This NR-specific classification supersedes the initial six-type P6 definition.
+Run 041_nr_soft_constraints.sql on an existing deployment, then publish/rebuild.
+The 039 fresh-deployment function is aligned with the same four NR types.
+Use 941_nr_soft_constraints_rollback.sql to restore the captured pre-041
+function if required, followed by a rebuild.
+
+
+Power BI: TaskEvidence data includes the new check and readable constraint
+types/dates in detail_display. Use
+`xertoolkit_vw_PBI_InformationalResults` for FYI counts; the existing
+`xertoolkit_vw_PBI_ScheduleQualityResults` excludes this check.
+Refresh downstream datasets and add the informational visual/filter as needed.
+
+Rollback: disable Soft Constraints and publish/rebuild, run
+`939_soft_constraints_rollback.sql`, then restore the application files from
+the deployment snapshot. Additive columns and audit history remain.
+A verified copy-only full database backup precedes the deployment.
+The draft clone now preserves evidence display_format and repairs the omitted
+formats in an untouched draft with the copied active hash.
+
+Run 040_soft_constraints_verify.sql after the full FYI rebuild to reconcile
+all informational counts/evidence with P6 and check the DCMA exclusion.

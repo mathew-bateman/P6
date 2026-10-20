@@ -272,6 +272,39 @@ class ScheduleQualitySqlTests(SimpleTestCase):
         self.assertEqual(snapshot.settings_hash, SETTINGS_HASH)
         self.assertEqual(fetch_sets.call_args.kwargs["parameters"], (11, 11, 11, 11, 11))
 
+    @patch("backups.services.schedule_quality.fetch_result_sets")
+    def test_logical_loop_loe_toggle_round_trips_legacy_and_explicit_values(self, fetch_sets):
+        header = {
+            "profile_code": "default", "profile_name": "Default",
+            "active_config_version_id": 10, "config_version_id": 11,
+            "version_number": 2, "state": "draft", "settings_hash": SETTINGS_HASH,
+            "based_on_config_version_id": 10, "change_note": "",
+            "created_at": None, "created_by": "test",
+        }
+        for stored, expected in ((None, True), (True, True), (False, False)):
+            with self.subTest(stored=stored):
+                fetch_sets.return_value = [[header], [{
+                    "check_code": "logical_loops", "display_name": "Logical Loops",
+                    "sort_order": 140, "is_enabled": True, "include_loe": stored,
+                }], [], [], []]
+                snapshot = fetch_schedule_quality_settings(config_version_id=11)
+                self.assertIs(snapshot.checks[0].include_loe, expected)
+                self.assertIsNone(snapshot.checks[0].include_wbs_summary)
+                form = ScheduleQualitySettingsForm(settings_snapshot=snapshot)
+                name = "check__logical_loops__include_loe"
+                self.assertIn(name, form.fields)
+                self.assertIs(form.fields[name].initial, expected)
+                for submitted in (True, False):
+                    data = {
+                        "config_version_id": 11, "expected_settings_hash": SETTINGS_HASH,
+                        "check__logical_loops__is_enabled": "on",
+                    }
+                    if submitted:
+                        data[name] = "on"
+                    bound = ScheduleQualitySettingsForm(data=data, settings_snapshot=snapshot)
+                    self.assertTrue(bound.is_valid(), bound.errors)
+                    self.assertIs(bound.build_payload()["checks"][0]["include_loe"], submitted)
+
     @patch("backups.services.schedule_quality.fetch_rows")
     def test_save_draft_sends_json_and_hash_as_parameters(self, fetch_rows):
         fetch_rows.return_value = [{"settings_hash": SAVED_SETTINGS_HASH}]
@@ -329,6 +362,32 @@ class ScheduleQualitySqlTests(SimpleTestCase):
 
 
 class ScheduleQualitySettingsFormTests(SimpleTestCase):
+    def test_soft_constraints_remain_informational_even_if_points_are_submitted(self):
+        snapshot = build_settings_snapshot()
+        check = replace(snapshot.checks[0], check_code="soft_constraints",
+                        display_name="Soft Constraints (FYI)", green_points=0, amber_points=0)
+        snapshot = replace(snapshot, checks=(check,), options=(), constraint_types=(), detail_fields=())
+        form = ScheduleQualitySettingsForm(data={
+            "config_version_id": snapshot.config_version_id,
+            "expected_settings_hash": snapshot.settings_hash,
+            "check__soft_constraints__is_enabled": "on",
+            "check__soft_constraints__green_points": "100",
+            "check__soft_constraints__amber_points": "80",
+        }, settings_snapshot=snapshot)
+        self.assertTrue(form.is_valid(), form.errors)
+        payload = form.build_payload()["checks"][0]
+        self.assertEqual(payload["green_points"], 0)
+        self.assertEqual(payload["amber_points"], 0)
+        from django.template.loader import render_to_string
+        html = render_to_string("backups/schedule_quality_settings.html", {
+            "settings_snapshot": snapshot,
+            "settings_form": ScheduleQualitySettingsForm(settings_snapshot=snapshot),
+        })
+        self.assertIn("FYI only", html)
+        self.assertIn("excluded from DCMA scoring and pass/fail", html)
+        self.assertNotIn('name="check__soft_constraints__green_points"', html)
+        self.assertIn('name="check__soft_constraints__is_enabled"', html)
+
     def test_legacy_open_end_summary_is_replaced_by_configurable_p6_fields(self):
         open_end_checks = (
             ScheduleQualityCheckScope(

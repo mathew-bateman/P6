@@ -406,6 +406,10 @@ class ScheduleQualitySettingsForm(forms.Form):
                 }
             )
             checks.append(row)
+            if check.check_code == "soft_constraints":
+                # This check is informational, irrespective of submitted fields.
+                row.update(limit_type="Percent", green_limit=0, amber_limit=0,
+                           green_points=0, amber_points=0)
 
         options: list[dict[str, object]] = []
         for option in self.settings_snapshot.options:

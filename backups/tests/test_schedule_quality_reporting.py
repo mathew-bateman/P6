@@ -20,6 +20,38 @@ from backups.services.schedule_quality_reporting import (
 
 class ScheduleQualityReportingServiceTests(SimpleTestCase):
     @patch("backups.services.schedule_quality_reporting.fetch_rows")
+    def test_soft_constraints_do_not_change_dcma_score_or_pass_fail(self, fetch_rows):
+        fetch_rows.side_effect = [
+            [{"dcma_activity_count": 100, "missing_predecessor_count": 0,
+              "soft_constraint_activity_count": 100, "soft_constraint_count": 99}],
+            [{"check_code": "soft_constraints", "display_name": "Soft Constraints",
+              "limit_type": "Percent", "green_limit": Decimal("5"),
+              "amber_limit": Decimal("10"), "green_points": 0, "amber_points": 0},
+             {"check_code": "missing_predecessor", "display_name": "Missing Predecessors"}],
+        ]
+        overview = fetch_programme_overview(ScheduleQualityValidationFilters())
+        row = overview["rows"][0]
+        self.assertEqual(row["records_checked"], 100)
+        self.assertEqual(len(overview["rows"]), 1)
+        self.assertEqual(row["check_code"], "missing_predecessor")
+        self.assertEqual(row["result"], "Green")
+        self.assertEqual(overview["total_points_available"], 40)
+        self.assertEqual(overview["total_points_achieved"], 40)
+        self.assertEqual(overview["pass_or_fail"], "PASS")
+
+    @patch("backups.services.schedule_quality_reporting.fetch_rows")
+    def test_soft_constraints_summary_uses_materialised_scope_count(self, fetch_rows):
+        fetch_rows.side_effect = [
+            [{"dcma_activity_count": 999, "soft_constraint_activity_count": 50,
+              "soft_constraint_count": 4}],
+            [{"check_code": "soft_constraints", "display_name": "Soft Constraints"}],
+        ]
+        rows = fetch_validation_summary(ScheduleQualityValidationFilters(check_code="soft_constraints"))
+        self.assertEqual(rows[0]["records_checked"], 50)
+        self.assertEqual(rows[0]["qualifying_results"], 4)
+        self.assertEqual(rows[0]["qualifying_display"], "8.00%")
+
+    @patch("backups.services.schedule_quality_reporting.fetch_rows")
     def test_filter_options_are_derived_from_project_dimensions(self, fetch_rows):
         fetch_rows.side_effect = [
             [

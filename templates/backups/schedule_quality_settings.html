@@ -226,6 +226,9 @@
                         <tr>
                             <td>
                                 <strong>{{ row.check.display_name }}</strong>
+                                {% if row.check.check_code == 'soft_constraints' %}
+                                    <p class="subtle">For information only; excluded from DCMA scoring and pass/fail. Checks primary and secondary Start On or After, Start On or Before, Finish On or After and Finish On or Before constraints. Start On and Finish On remain in the hard-constraint check. Each activity counts once.</p>
+                                {% endif %}
                                 {% if row.enabled.errors %}<div class="settings-error">{{ row.enabled.errors }}</div>{% endif %}
                             </td>
                             <td>{{ row.enabled }}</td>
@@ -233,11 +236,16 @@
                             <td>{% if row.include_wbs_summary %}{{ row.include_wbs_summary }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
                             <td>{% if row.include_milestones %}{{ row.include_milestones }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
                             <td>{% if row.exclude_complete %}{{ row.exclude_complete }}{% else %}<span class="settings-na">N/A</span>{% endif %}</td>
+                            {% if row.check.check_code == 'soft_constraints' %}
+                            <td>FYI only</td>
+                            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+                            {% else %}
                             <td>{{ row.limit_type }}</td>
                             <td>{{ row.green_limit }}</td>
                             <td>{{ row.amber_limit }}</td>
                             <td>{{ row.green_points }}</td>
                             <td>{{ row.amber_points }}</td>
+                            {% endif %}
                         </tr>
                     {% empty %}
                         <tr><td colspan="11" class="subtle">No check settings are available.</td></tr>
