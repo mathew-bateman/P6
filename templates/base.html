@@ -242,6 +242,7 @@
     </style>
     <link rel="stylesheet" href="{% static 'backups/workspace-shell.css' %}">
     <link rel="stylesheet" href="{% static 'backups/workspace-pages.css' %}">
+    {% block extra_css %}{% endblock %}
 </head>
 <body{% if request.user.is_authenticated %} class="workspace-app{% if workspace_is_home %} workspace-home{% elif workspace_navigation.has_sidebar %} workspace-with-sidebar{% endif %}" data-workspace-active-section="{{ workspace_navigation.active_section.id }}"{% endif %}>
 {% if request.user.is_authenticated %}{% include "includes/workspace_navigation.html" %}{% endif %}

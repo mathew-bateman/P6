@@ -1,19 +1,27 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Sign In | P6 Operations Hub{% endblock %}
+{% block title %}Sign in | P6 Operations{% endblock %}
+
+{% block extra_css %}<link rel="stylesheet" href="{% static 'backups/workspace-login.css' %}">{% endblock %}
 
 {% block content %}
-<section class="panel login-panel">
+<section class="panel login-panel" aria-labelledby="login-title">
+    <div class="login-brand"><span class="login-brand-icon" aria-hidden="true"><img src="{% static 'backups/icons/database.svg' %}" alt=""></span><span>P6 Operations</span></div>
+    <div class="login-heading">
+        <h1 id="login-title">Welcome back</h1>
+        <p>Sign in to your P6 workspace.</p>
+    </div>
     <form method="post">
         {% csrf_token %}
         {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
         <div class="login-field {% if form.username.errors %}has-error{% endif %}">
-            {{ form.username.label_tag }}
+            <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
             {{ form.username }}
             {{ form.username.errors }}
         </div>
         <div class="login-field {% if form.password.errors %}has-error{% endif %}">
-            {{ form.password.label_tag }}
+            <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
             {{ form.password }}
             {{ form.password.errors }}
         </div>
@@ -23,7 +31,7 @@
                 <button type="button" class="login-error-dismiss" data-login-error-dismiss aria-label="Dismiss sign-in error" title="Dismiss sign-in error">&times;</button>
             </div>
         {% endif %}
-        <button type="submit">Sign In</button>
+        <button type="submit" class="login-submit"><span>Sign in</span><img src="{% static 'backups/icons/arrow-right.svg' %}" alt="" aria-hidden="true"></button>
     </form>
 </section>
 {% endblock %}

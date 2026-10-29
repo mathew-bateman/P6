@@ -1,0 +1,34 @@
+body:has(.login-panel) {
+    background: #fff;
+    color: #101828;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+body main:has(.login-panel) { padding: 40px 24px; }
+body .login-panel { width: min(100%, 360px); padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.login-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 36px; color: #344763; font-size: 14px; font-weight: 600; }
+.login-brand-icon { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #dce5ee; border-radius: 9px; background: #f0f5f7; }
+.login-brand-icon img { width: 19px; height: 19px; }
+.login-heading { margin-bottom: 30px; text-align: center; }
+.login-heading h1 { margin: 0 0 10px; font-size: 30px; font-weight: 600; line-height: 1.2; letter-spacing: -.9px; }
+.login-heading p { margin: 0; color: #71829a; font-size: 14px; line-height: 1.5; }
+.login-panel .login-field { margin-bottom: 20px; }
+.login-panel .login-field label { display: block; margin-bottom: 8px; color: #526781; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.login-panel .login-field input { width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid #d3ddeb; border-radius: 6px; background: #fff; color: #101828; font: inherit; font-size: 14px; box-shadow: none; }
+.login-panel .login-field input:focus { border-color: #00917e; outline: 2px solid #00917e; outline-offset: 2px; box-shadow: none; }
+.login-panel .login-field.has-error input { border-color: #e51a40; box-shadow: none; }
+.login-panel .login-submit { display: flex; justify-content: center; position: relative; width: 100%; min-height: 46px; margin-top: 8px; padding: 11px 40px; border: 1px solid #0c1013; border-radius: 6px; background: #0c1013; color: #fff; font-size: 14px; font-weight: 600; line-height: 22px; box-shadow: none; }
+.login-panel .login-submit:hover { background: #262b30; }
+.login-submit img { position: absolute; right: 16px; width: 18px; height: 18px; filter: brightness(0) invert(1); }
+.login-panel button:focus-visible { outline: 2px solid #00917e; outline-offset: 3px; }
+.login-panel .login-error { display: block; position: relative; margin: 0 0 20px; padding: 12px 38px 12px 13px; border: 1px solid #f0cbd3; border-radius: 6px; background: #fff6f8; color: #ae1836; font-size: 12px; line-height: 1.6; box-shadow: none; }
+.login-panel .login-error .errorlist { margin: 0; color: inherit; }
+.login-panel .login-error-dismiss { position: absolute; width: 28px; min-height: 28px; height: 28px; top: 7px; right: 6px; border: 0; border-radius: 4px; background: transparent; color: #ae1836; font-size: 18px; }
+.login-panel .login-error-dismiss:hover { background: #fce6ec; }
+.login-panel .login-field .errorlist { margin-top: 8px; color: #ae1836; font-size: 12px; line-height: 1.5; }
+@media (max-width: 480px) {
+    body main:has(.login-panel) { padding: 28px 26px; }
+    .login-brand { margin-bottom: 30px; }
+    .login-heading h1 { font-size: 28px; }
+}
+@media (max-height: 560px) { body main:has(.login-panel) { align-content: start; padding-top: 28px; } }
