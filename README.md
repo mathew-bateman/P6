@@ -292,6 +292,7 @@ docker compose exec -T web python manage.py makemigrations --check --dry-run
 Run the full Django test suite:
 
 ```bash
+docker compose exec -T web python manage.py collectstatic --noinput
 docker compose exec -T web python manage.py test
 ```
 
@@ -313,25 +314,27 @@ docker run --rm p6backupadmin-check python manage.py test
 
 ## Deployment
 
-The production checkout can be updated from GitHub with a fast-forward-only pull:
+The current production service on `XPS-Server-4` uses the bind-mounted application
+at `/home/mat/Docker/P6-Standby/app`. It is not a Git checkout. The Compose project
+is `p6-standby`, configured by `/home/mat/Docker/P6-Standby/compose.json`; private
+configuration remains outside the application directory. The web container is
+`p6-backup-admin-web`, serving `p6backupadmin.axialprojects.com`.
+
+For a presentation-only release, deploy an explicit file manifest from the tested
+`main` commit. Compare the affected live files with the preflight hashes, save a
+timestamped rollback copy, and preserve production-only backend modules and
+report templates. Then run:
 
 ```bash
-cd /home/mat/P6BackupAdmin
-git fetch origin main
-git status --short
-git pull --ff-only origin main
-docker compose build
-docker compose run --rm web python manage.py migrate --noinput
-docker compose run --rm web python manage.py check
-docker compose run --rm web python manage.py makemigrations --check --dry-run
-docker compose up -d
-docker compose ps
+docker exec p6-backup-admin-web python manage.py check
+docker exec p6-backup-admin-web python manage.py collectstatic --noinput
+docker restart p6-backup-admin-web
 ```
 
 Before a deployment:
 
-1. Confirm the local, GitHub, and production commit IDs.
-2. Confirm the production worktree has no tracked modifications.
+1. Confirm the local and GitHub commit IDs and record the deployed file hashes.
+2. Compare the live application with the release manifest; reconcile differences before replacing files.
 3. Preserve `.env`, SQLite state, and any files affected by the release in a timestamped rollback location.
 4. Back up data stores before migrations or SQL deployments.
 5. Validate the candidate image before restarting services.
@@ -340,7 +343,7 @@ After deployment, rerun checks/tests appropriate to the change, inspect containe
 
 ## Rollback and recovery
 
-- Application rollback: restore the previous Git commit and rebuild/restart the affected services.
+- Application rollback: restore the timestamped copies of the affected files, regenerate collected static assets, and restart the affected service. For image releases, restore the recorded previous image.
 - Django state: restore the pre-deployment SQLite backup when a migration must be reversed through data recovery.
 - Schedule-quality SQL: use only the rollback script paired with the deployed forward change and its required snapshot.
 - Encrypted backups: retain old Fernet keys until no retained artifact depends on them.
@@ -361,7 +364,7 @@ Never perform an application rollback by deleting the production directory or ov
 
 ## Git workflow
 
-`main` is the deployable branch. Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. Production should normally consume GitHub changes with `git pull --ff-only`; production-only edits make future deployments ambiguous and should be avoided.
+`main` is the deployable branch. Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. The current bind-mounted production directory requires an explicit deployment manifest; a GitHub push alone does not deploy it. Reconcile production-only source differences before moving to a complete image or checkout-based deployment.
 
 ## Licence and support
 

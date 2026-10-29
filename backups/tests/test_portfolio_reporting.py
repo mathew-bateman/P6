@@ -332,7 +332,7 @@ class PortfolioReportingViewTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, title)
 
-    def test_landing_card_and_nav_follow_quality_reports(self):
+    def test_landing_exposes_both_authorized_report_areas(self):
         quality_group, _ = Group.objects.get_or_create(
             name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP
         )
@@ -341,6 +341,7 @@ class PortfolioReportingViewTests(TestCase):
 
         response = self.client.get(reverse("suite_landing"))
 
-        self.assertContains(response, "Open Portfolio Reporting")
-        content = response.content.decode()
-        self.assertLess(content.index("Open Quality Reports"), content.index("Open Portfolio Reporting"))
+        self.assertContains(response, f'href="{reverse("portfolio_reporting_overview")}"')
+        self.assertContains(response, f'href="{reverse("schedule_quality_overview")}"')
+        self.assertContains(response, 'id="area-portfolio"')
+        self.assertContains(response, 'id="area-quality"')

@@ -1,0 +1,51 @@
+{% load static %}
+<a class="workspace-skip-link" href="#workspace-main">Skip to content</a>
+<nav class="workspace-rail" aria-label="Workspace areas" data-workspace-navigation>
+    <div class="workspace-rail-primary">
+        {% for section in workspace_navigation.sections %}
+            <div class="workspace-rail-item" data-workspace-section="{{ section.id }}">
+                <a class="workspace-rail-link{% if section.active %} is-active{% endif %}" href="{{ section.url }}" aria-label="{{ section.label }}"{% if section.active %} aria-current="{% if section.id == 'home' %}page{% else %}location{% endif %}"{% endif %}{% if section.groups %} aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-flyout-{{ section.id }}" data-workspace-menu-trigger="{{ section.id }}"{% else %} title="Home"{% endif %}>
+                    <span class="workspace-icon" style="--workspace-icon:url('{% static section.icon_path %}')" aria-hidden="true"></span>
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="workspace-rail-bottom"><button class="workspace-avatar" type="button" aria-label="Account menu" aria-expanded="false" aria-controls="workspace-account-menu" data-workspace-account>{{ workspace_navigation.initials }}</button></div>
+</nav>
+{% if workspace_navigation.has_sidebar %}
+    <button class="workspace-nav-scrim" type="button" aria-label="Close navigation" data-workspace-sidebar-close></button>
+    <aside id="workspace-sidebar" class="workspace-tree" aria-label="{{ workspace_navigation.active_section.label }} navigation">
+        <div class="workspace-tree-scroll">
+            <h2 class="workspace-section-label">{{ workspace_navigation.active_section.label }}</h2>
+            {% for group in workspace_navigation.active_section.groups %}
+                {% if workspace_navigation.active_section.groups|length > 1 %}
+                    <details class="workspace-tree-group" open>
+                        <summary><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/folder-simple.svg' %}')" aria-hidden="true"></span><span>{{ group.label }}</span><span class="workspace-icon workspace-tree-caret" style="--workspace-icon:url('{% static 'backups/icons/caret-right.svg' %}')" aria-hidden="true"></span></summary>
+                        <div class="workspace-tree-children">
+                {% else %}<div class="workspace-tree-links">{% endif %}
+                    {% for link in group.links %}
+                        <a class="workspace-tree-link{% if link.active %} is-selected{% endif %}" href="{{ link.url }}"{% if link.active %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/file.svg' %}')" aria-hidden="true"></span><span>{{ link.label }}</span></a>
+                    {% endfor %}
+                    </div>
+                {% if workspace_navigation.active_section.groups|length > 1 %}</details>{% endif %}
+            {% endfor %}
+        </div>
+    </aside>
+{% endif %}
+{% for section in workspace_navigation.sections %}
+    {% if section.groups %}
+        <nav id="workspace-flyout-{{ section.id }}" class="workspace-flyout" role="menu" aria-label="{{ section.label }} choices" data-workspace-flyout="{{ section.id }}" hidden>
+            <div class="workspace-flyout-title" aria-hidden="true">{{ section.label }}</div>
+            {% for group in section.groups %}
+                <div class="workspace-flyout-group" role="group" aria-label="{{ group.label }}">
+                    {% if section.groups|length > 1 %}<div class="workspace-flyout-group-label" aria-hidden="true">{{ group.label }}</div>{% endif %}
+                    {% for link in group.links %}<a class="workspace-flyout-link{% if link.active %} is-selected{% endif %}" href="{{ link.reset_url }}" role="menuitem" tabindex="-1"{% if link.active %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/file.svg' %}')" aria-hidden="true"></span><span>{{ link.label }}</span></a>{% endfor %}
+                </div>
+            {% endfor %}
+        </nav>
+    {% endif %}
+{% endfor %}
+<section id="workspace-account-menu" class="workspace-account-menu" aria-label="Account" hidden>
+    <strong>{{ workspace_navigation.user_label }}</strong><span>{{ request.user.username }}</span>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/sign-out.svg' %}')" aria-hidden="true"></span>Sign Out</button></form>
+</section>

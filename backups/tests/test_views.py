@@ -123,9 +123,9 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.get(reverse("suite_landing"))
 
-        self.assertContains(response, "Schedule Quality")
-        self.assertNotContains(response, "Open Backup Targets")
-        self.assertNotContains(response, "Open Maintenance")
+        self.assertContains(response, "Data refresh")
+        self.assertNotContains(response, f'href="{reverse("backup_dashboard")}"')
+        self.assertNotContains(response, f'href="{reverse("maintenance_dashboard")}"')
 
     def test_staff_landing_page_lists_all_navigation_areas(self):
         user = get_user_model().objects.create_user(
@@ -145,21 +145,16 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.get(reverse("suite_landing"))
 
-        self.assertContains(response, "Open Backup Targets")
-        self.assertContains(response, "Open Schedule Quality")
-        self.assertContains(response, "Open Maintenance")
-        self.assertContains(response, "Open Quality Reports")
-        self.assertContains(response, "Open Portfolio Reporting")
+        for route in ("backup_dashboard", "schedule_quality_dashboard", "maintenance_dashboard", "schedule_quality_overview", "portfolio_reporting_overview"):
+            self.assertContains(response, f'href="{reverse(route)}"')
 
-        content = response.content.decode()
+        content = response.content.decode().split('class="workspace-area-grid"', 1)[1]
         card_positions = [
             content.index(label)
             for label in (
-                "Open Backup Targets",
-                "Open Maintenance",
-                "Open Schedule Quality",
-                "Open Quality Reports",
-                "Open Portfolio Reporting",
+                'id="area-portfolio"',
+                'id="area-quality"',
+                'id="area-operations"',
             )
         ]
         self.assertEqual(card_positions, sorted(card_positions))
