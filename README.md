@@ -1,6 +1,6 @@
 # P6BackupAdmin
 
-P6BackupAdmin is a self-contained Django operations application for Primavera P6 SQL Server environments. It manages encrypted database backups and restores, SharePoint retention, recurring jobs, database maintenance, and SQL-backed schedule-quality reporting for Django and Power BI.
+P6BackupAdmin is a Django operations application for Primavera P6 SQL Server environments. It manages encrypted database backups and restores, SharePoint retention, recurring jobs, database maintenance, and SQL-backed schedule-quality and portfolio reporting.
 
 The application currently supports the AxialP6, Axial Training, and P62212 environments. Django stores application users, permissions, schedules, and run history in SQLite; P6 data and schedule-quality results remain in SQL Server.
 
@@ -17,6 +17,7 @@ The application currently supports the AxialP6, Axial Training, and P62212 envir
 - Presents schedule-quality overview, validation, evidence, and configuration pages.
 - Publishes versioned schedule-quality configuration and materialised results atomically in SQL Server.
 - Exposes Power BI-compatible schedule-quality views and task-level evidence.
+- Provides portfolio reports for milestones, schedule risk, health, projects, and resources.
 
 ## System overview
 
@@ -46,7 +47,7 @@ Running `bootstrap_p6_targets` creates the following target definitions:
 | Axial Training | `Axial_Training` | `1466` | `/mnt/p6-backups/axialp6` | `P6 Backups/Axial Training` |
 | P62212 | `Axial` | `1433` | `/mnt/p6-backups/p62212` | `P6 Backups/P62212` |
 
-Targets can be edited in the application after bootstrap. SQL Server Express compression must remain disabled.
+Targets are created disabled, with no SQL password. Configure each target's connection and password in the application before enabling jobs. The target password is stored in the application database, so protect SQLite backups and access accordingly. SQL Server Express compression must remain disabled.
 
 ## Backup and restore lifecycle
 
@@ -94,6 +95,7 @@ A restore reverses that flow. It downloads the encrypted artifact and manifest, 
 | `backups/management/commands/` | Bootstrap, scheduling, backup, and permission commands |
 | `graph/` | Microsoft Graph token and email helpers |
 | `p6_backup_admin/` | Django settings, URLs, WSGI, and Celery bootstrap |
+| `docs/workspace-navigation.md` | Workspace navigation, permissions, and release notes |
 | `sql/schedule_quality/` | Versioned SQL Server forward, verification, reconciliation, and rollback scripts |
 | `templates/` | Application, email, authentication, and report templates |
 | `docker-compose.yml` | Web, Celery, Beat, Redis, volumes, ports, and external networks |
@@ -148,8 +150,7 @@ python -c "from cryptography.fernet import Fernet; import json; print(json.dumps
 | `P6_DEFAULT_SQL_HOST` | Default P6 SQL Server hostname | `host.docker.internal` |
 | `P6_AXIALP6_SQL_PORT` | AxialP6 host port | `1466` |
 | `P6_P62212_SQL_PORT` | P62212 host port | `1433` |
-| `P6_AXIALP6_SQL_PASSWORD` | AxialP6 password referenced by a target | No default |
-| `P6_P62212_SQL_PASSWORD` | P62212 password and schedule-quality fallback | No default |
+| `P6_P62212_SQL_PASSWORD` | Schedule-quality password fallback | No default |
 | `P6_SCHEDULE_QUALITY_SQL_HOST` | Schedule-quality SQL host | `P6_DEFAULT_SQL_HOST` |
 | `P6_SCHEDULE_QUALITY_SQL_PORT` | Schedule-quality SQL port | `P6_P62212_SQL_PORT` |
 | `P6_SCHEDULE_QUALITY_SQL_DATABASE` | Reporting source database | `P62212_1` |
@@ -166,6 +167,8 @@ python -c "from cryptography.fernet import Fernet; import json; print(json.dumps
 | `P6_SCHEDULE_QUALITY_REFRESH_PROJ_ID` | Optional single-project scheduled refresh | All projects |
 | `P6_SCHEDULE_QUALITY_PROFILE_CODE` | Active profile identifier | `default` |
 | `P6_SCHEDULE_QUALITY_EDITOR_GROUP` | Django group allowed to edit/publish settings | `Schedule Quality Editors` |
+| `P6_SCHEDULE_QUALITY_REPORT_GROUP` | Django group allowed to view schedule-quality reports | `ScheduleQuality` |
+| `P6_PORTFOLIO_REPORTING_GROUP` | Django group allowed to view portfolio reports | `Portfolio Reporting` |
 
 ### Microsoft Graph and email
 
@@ -184,6 +187,8 @@ python -c "from cryptography.fernet import Fernet; import json; print(json.dumps
 Never commit `.env`, encryption keys, SQL passwords, Graph credentials, SQLite databases, or backup artifacts.
 
 ## Start with Docker Compose
+
+The repository's Compose stack is intended for development: it bind-mounts the checkout and runs Django's development server. The production service uses a separate configuration described under Deployment.
 
 Set the host backup paths before starting the stack.
 
@@ -226,8 +231,9 @@ Open `http://localhost:8026/` and sign in with the created superuser.
 | Overview | `/schedule-quality/overview/` | Project-level scorecard metrics |
 | Validation | `/schedule-quality/validation/` | Detailed validation results and evidence |
 | Settings | `/schedule-quality/settings/` | Shared draft, publish, and versioned rule configuration |
+| Portfolio Reporting | `/portfolio-reporting/` | Overview, milestone governance, schedule risk and float, schedule health, project detail, and resource reports |
 
-Authentication is required for operational pages. Schedule-quality editing and publication also require membership of the configured editor group.
+Authentication is required for operational pages. Backup and maintenance administration requires staff access. Schedule-quality overview and validation reports require membership of the configured report group; portfolio reports require membership of their separate report group. These report permissions require group membership even for a superuser. Schedule-quality settings and schedule editing require staff access or membership of the configured editor group. See [`docs/workspace-navigation.md`](docs/workspace-navigation.md) for workspace navigation and permission details.
 
 Grant an existing Django user editor access:
 
@@ -280,6 +286,10 @@ The SQL package includes:
 
 Read [`sql/schedule_quality/README.md`](sql/schedule_quality/README.md) before applying SQL assets. The scripts contain `GO` separators and require a GO-aware runner that keeps a single SQL connection open across batches. Always validate against a restored database first, take the documented snapshot, run every post-deployment assertion, use a canary project, and reconcile immediately after the full refresh while P6 imports are paused.
 
+## Portfolio reporting
+
+The portfolio reporting pages use the configured schedule-quality SQL Server connection and `powerbitables` reporting views. The hub links to portfolio overview, milestone governance, schedule risk and float, schedule health, project detail, and resource reports. Access is controlled independently from schedule-quality reports by `P6_PORTFOLIO_REPORTING_GROUP`.
+
 ## Validation and tests
 
 Run the Django configuration and migration checks:
@@ -318,7 +328,11 @@ The current production service on `XPS-Server-4` uses the bind-mounted applicati
 at `/home/mat/Docker/P6-Standby/app`. It is not a Git checkout. The Compose project
 is `p6-standby`, configured by `/home/mat/Docker/P6-Standby/compose.json`; private
 configuration remains outside the application directory. The web container is
-`p6-backup-admin-web`, serving `p6backupadmin.axialprojects.com`.
+`p6-backup-admin-web`, serving `p6operations.axialprojects.com`. Use this hostname
+in `ALLOWED_HOSTS` and its HTTPS origin in `CSRF_TRUSTED_ORIGINS`. External
+PostgreSQL reporting clients use `p6operations.axialprojects.com:5432` with
+`sslmode=verify-full`.
+The public site is `https://p6operations.axialprojects.com`.
 
 For a presentation-only release, deploy an explicit file manifest from the tested
 `main` commit. Compare the affected live files with the preflight hashes, save a
