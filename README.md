@@ -1,8 +1,20 @@
 # P6BackupAdmin
 
-P6BackupAdmin is a Django operations application for Primavera P6 SQL Server environments. It manages encrypted database backups and restores, SharePoint retention, recurring jobs, database maintenance, and SQL-backed schedule-quality and portfolio reporting.
+P6BackupAdmin is the operations and reporting workspace for the Axial Primavera P6 environments. It brings together database backups and recovery, maintenance, schedule-quality checks, portfolio reports, and access to reporting data for Power BI.
 
-The application currently supports the AxialP6, Axial Training, and P62212 environments. Django stores application users, permissions, schedules, and run history in SQLite; P6 data and schedule-quality results remain in SQL Server.
+The Django application manages AxialP6, Axial Training, and P62212 backup targets and reports from P6 data held in SQL Server. A separate production PostgreSQL reporting database combines snapshots from P6 22 and P6 23 for reporting clients. Django users, permissions, schedules, and operational history are stored in SQLite.
+
+### The main parts
+
+| Area | What it is for |
+| --- | --- |
+| Backup and recovery | Schedule encrypted SQL Server backups to SharePoint, review history and retention, and restore a selected backup. |
+| Database maintenance | Review maintenance history and results, including index work, stale-session cleanup, log retention, and P6 user-data pruning. |
+| Schedule Quality | Review programme scorecards and validation evidence, configure checks, and publish refreshed results. |
+| Portfolio Reporting | Explore portfolio, milestone, risk, health, project, and resource reports. |
+| Reporting Database | Use PostgreSQL snapshots, XERToolkit-compatible views, and Coding Check views as sources for Power BI and other reporting clients. |
+
+**Repository scope:** this checkout contains the backup application and its SQL Server reporting assets. The production PostgreSQL mirror and its management module are not fully present in this repository. A GitHub checkout alone does not recreate the complete production reporting system; see [PostgreSQL reporting and Power BI](#postgresql-reporting-and-power-bi).
 
 ## What it does
 
@@ -34,8 +46,27 @@ flowchart LR
     E --> G["Microsoft Graph / SharePoint"]
     W --> Q["Versioned schedule-quality SQL"]
     C --> Q
-    Q --> BI["Django reports and Power BI views"]
+    Q --> DR["Django reports and SQL Server views"]
+    P6 --> M["Production snapshot refresh"]
+    M --> PG["PostgreSQL p6_reporting"]
+    PG --> BI["Power BI and reporting clients"]
 ```
+
+The backup workflow, SQL Server schedule-quality refresh, and PostgreSQL snapshot refresh serve different purposes and run independently. The PostgreSQL database is a reporting copy; it is not a replacement for a recoverable P6 backup.
+
+### Components and responsibilities
+
+| Component | Responsibility |
+| --- | --- |
+| Django web application | Authenticates users, enforces permissions, renders the workspace, accepts operational requests, and displays reports and run history. |
+| SQLite | Stores Django users and groups, target configuration, schedules, and operational run records. It does not contain the P6 databases. |
+| Celery worker and Redis | Queue and execute long-running backups, restores, schedule-quality refreshes and publications, and maintenance tasks. |
+| Celery Beat | Dispatches recurring jobs using schedules held in Django's database. |
+| P6 SQL Server | Holds the operational P6 data and the `powerbitables` schedule-quality configuration, materialised results and reporting views. |
+| Microsoft Graph and SharePoint | Provide the destination for encrypted backup artifacts, manifests and retention; Graph can also send notifications. |
+| PostgreSQL reporting service | Maintains separate published P6 snapshots and views for reporting consumers. Its complete runtime is maintained in production outside this checkout. |
+
+For schedule quality, the application submits and monitors work, while SQL Server owns the rules and published results. The checked-in portfolio reports query the configured SQL Server reporting source. The production reporting module can also be configured to serve web reports from PostgreSQL; the active engine must be checked in that environment.
 
 ## Default backup targets
 
@@ -78,11 +109,13 @@ A restore reverses that flow. It downloads the encrypted artifact and manifest, 
 
 - Python 3.12
 - Django 5
+- Server-rendered Django templates, CSS, JavaScript, and HTMX for the workspace
 - Celery and `django-celery-beat`
 - Redis 7
 - Microsoft ODBC Driver 18 for SQL Server
 - SQLite for application state
 - SQL Server for P6 and schedule-quality data
+- PostgreSQL for the separate production reporting snapshot
 - Microsoft Graph for SharePoint and optional email delivery
 - Docker Compose for the application stack
 
@@ -90,14 +123,19 @@ A restore reverses that flow. It downloads the encrypted artifact and manifest, 
 
 | Path | Purpose |
 | --- | --- |
-| `backups/` | Backup targets, orchestration, restore, retention, maintenance, reporting, views, tasks, migrations, and tests |
-| `backups/services/` | Service-layer integrations and operational workflows |
+| `backups/models.py`, `backups/forms.py` | Backup and operational state models, and schedule-quality settings forms |
+| `backups/views.py`, `backups/urls.py` | Site pages, request handling, permission checks, and routes |
+| `backups/navigation.py`, `backups/context_processors.py` | Permission-aware workspace navigation and shared template context |
+| `backups/tasks.py` | Celery entry points for backups, restores, reporting refreshes, and maintenance |
+| `backups/services/` | SQL Server, SharePoint, encryption, backup/restore, scheduling, maintenance, and reporting workflows |
 | `backups/management/commands/` | Bootstrap, scheduling, backup, and permission commands |
+| `backups/migrations/`, `backups/tests/` | Django schema changes and automated coverage |
+| `backups/static/backups/` | Workspace styles, scripts, fonts and icons |
 | `graph/` | Microsoft Graph token and email helpers |
 | `p6_backup_admin/` | Django settings, URLs, WSGI, and Celery bootstrap |
 | `docs/workspace-navigation.md` | Workspace navigation, permissions, and release notes |
 | `sql/schedule_quality/` | Versioned SQL Server forward, verification, reconciliation, and rollback scripts |
-| `templates/` | Application, email, authentication, and report templates |
+| `templates/` | Shared shell, navigation, application pages, emails, authentication, and reports |
 | `docker-compose.yml` | Web, Celery, Beat, Redis, volumes, ports, and external networks |
 | `.env.example` | Safe environment-variable template |
 
@@ -220,18 +258,41 @@ docker compose exec web python manage.py createsuperuser
 
 Open `http://localhost:8026/` and sign in with the created superuser.
 
-## Application areas
+## Site and navigation
 
-| Area | Path | Purpose |
-| --- | --- | --- |
-| Suite landing | `/` | Entry point for operational modules |
-| Backup targets | `/backup-targets/` | Target status, schedules, run history, backup and restore |
-| Maintenance | `/maintenance/` | Index, stale-session, log-retention, and user-data maintenance history/actions |
-| Schedule Quality | `/schedule-quality/` | Schedule-quality landing and refresh controls |
-| Overview | `/schedule-quality/overview/` | Project-level scorecard metrics |
-| Validation | `/schedule-quality/validation/` | Detailed validation results and evidence |
-| Settings | `/schedule-quality/settings/` | Shared draft, publish, and versioned rule configuration |
-| Portfolio Reporting | `/portfolio-reporting/` | Overview, milestone governance, schedule risk and float, schedule health, project detail, and resource reports |
+After sign-in, Home provides entry points to the areas available to the user. The persistent icon rail opens each area; its contextual sidebar links to the pages in that area. Home has no secondary sidebar. The menu is built from the user's access, while each view applies its own permission checks.
+
+Report pages provide filters for dimensions such as portfolio, project, lead planner, project status and state, discipline, phase, and update date. Apply the filter drawer to run a selection; cancelling restores the applied filters. Navigating within the same report area carries filters across pages. Changing area resets those filters while preserving a valid report-source selection when the installation supports source selection.
+
+| Navigation area | Pages and purpose |
+| --- | --- |
+| **Home** | The signed-in landing page at `/`. |
+| **Portfolio Reporting** | Overview, Milestones, Risk & float, Schedule health, Projects and Resources. Starts at `/portfolio-reporting/overview/`; the report hub is `/portfolio-reporting/`. |
+| **Quality Reports** | Programme check at `/schedule-quality/overview/` and Validation & evidence at `/schedule-quality/validation/`. |
+| **Operations** | Backup Targets at `/backup-targets/`, maintenance history at `/maintenance/`, and schedule-quality data refresh at `/schedule-quality/`. |
+| **Quality Settings** | Shared quality rules and publication at `/schedule-quality/settings/`. |
+| **Reporting Database** | Optional production module for reporting-source status, views, refresh history and authorised controls. It appears only when the module is installed and the user has access. |
+
+### Portfolio Reporting
+
+| Page | What it shows |
+| --- | --- |
+| Overview | Portfolio health, project status and projects requiring attention. |
+| Milestones | Milestone delivery, upcoming dates and overdue exposure by project. |
+| Risk & float | Total-float distribution and schedule-risk exposure. |
+| Schedule health | Configured schedule-quality scores and health bands by project. |
+| Projects | Progress, float, milestones and critical exposure for a selected project. |
+| Resources | Planned, actual and remaining units from P6 resource assignments. |
+
+### Quality Reports and Settings
+
+Programme check presents project-level scorecards; Validation & evidence explains check results and associated task-level evidence. The Quality Settings page manages a shared draft of checks, scope, thresholds, scoring and evidence display. Publishing builds and activates the revised configuration and results together. The data-refresh page shows refresh history and provides a manual refresh and schedule controls to users with the relevant access.
+
+### Operations and Reporting Database
+
+Backup Targets shows target configuration, schedules and run history, with backup, remote artifact and restore workflows. Restore requires superuser access and a confirmation step. Maintenance history records the outcomes and details of database-maintenance work. Background tasks include index maintenance, session cleanup, log and user-data pruning, statistics and integrity checks.
+
+Where installed in production, Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings and reporting-engine comparison. The complete module is not included in this checkout.
 
 Authentication is required for operational pages. Backup and maintenance administration requires staff access. Schedule-quality overview and validation reports require membership of the configured report group; portfolio reports require membership of their separate report group. These report permissions require group membership even for a superuser. Schedule-quality settings and schedule editing require staff access or membership of the configured editor group. See [`docs/workspace-navigation.md`](docs/workspace-navigation.md) for workspace navigation and permission details.
 
@@ -239,6 +300,13 @@ Grant an existing Django user editor access:
 
 ```bash
 docker compose exec -T web python manage.py grant_schedule_quality_editor USERNAME
+```
+
+Grant access to the two report areas separately, including for superusers who need to view them:
+
+```bash
+docker compose exec -T web python manage.py grant_schedule_quality_report_access USERNAME
+docker compose exec -T web python manage.py grant_portfolio_reporting_access USERNAME
 ```
 
 ## Useful management commands
@@ -288,7 +356,21 @@ Read [`sql/schedule_quality/README.md`](sql/schedule_quality/README.md) before a
 
 ## Portfolio reporting
 
-The portfolio reporting pages use the configured schedule-quality SQL Server connection and `powerbitables` reporting views. The hub links to portfolio overview, milestone governance, schedule risk and float, schedule health, project detail, and resource reports. Access is controlled independently from schedule-quality reports by `P6_PORTFOLIO_REPORTING_GROUP`.
+The checked-in portfolio reporting pages use the configured schedule-quality SQL Server connection and `powerbitables` reporting views. Access is controlled independently from schedule-quality reports by `P6_PORTFOLIO_REPORTING_GROUP`. Production may use the optional PostgreSQL reporting engine when configured.
+
+## PostgreSQL reporting and Power BI
+
+The production reporting service copies data from the P6 22 and P6 23 SQL Server sources into the separate `p6_reporting` PostgreSQL database. It exposes source-specific and combined reporting views, including XERToolkit-compatible views, so reporting clients can query a published snapshot rather than the live P6 databases. Source identifiers matter when combining data: project and activity IDs can overlap between P6 systems.
+
+The reporting snapshot has its own refresh process, separate from both SharePoint backups and the temporary IONOS recovery-continuity export. The last documented verification on 29 October 2026 found the hourly reporting refresh enabled without an expiry; check the reporting service and its latest refresh before relying on current data. Snapshot time and refresh status matter when interpreting any report.
+
+External clients connect to `p6operations.axialprojects.com` on port `5432`, database `p6_reporting`, using an authorised reporting account and TLS with `sslmode=verify-full`. Obtain credentials and the trusted CA configuration privately. A Power BI model must refresh its data and metadata to reflect changes to source views.
+
+### Coding Check views
+
+Eight `reporting.coding_check_*` PostgreSQL views support the Coding Check dashboard. They cover Global Project Stage, Discipline, Design Key, Milestone Type and Responsible Company, plus activity-code counts and float/path summaries. They were deployed and verified on 29 October 2026; the public views are restricted to **P6 22**, Live and Client Submitted programmes, excluding deleted activities. They retain `_snapshot_at` and use grouped counts rather than individual task rows. Missing or unassigned codes are represented as uncoded; the source data can contain gaps.
+
+The combined reporting database still contains both P6 sources, so select P6 22 explicitly when joining the coding views to combined data. Refresh Power BI metadata after the view-column changes and update any query steps that refer to removed columns. The local Coding Check SQL package and the production reporting-mirror implementation are not currently included in this GitHub checkout; use the separately retained production release assets and their verification instructions when maintaining them.
 
 ## Validation and tests
 
@@ -373,12 +455,12 @@ Never perform an application rollback by deleting the production directory or ov
 - Restore verifies both encrypted and decrypted content against the manifest.
 - Operational routes require Django authentication and CSRF protection.
 - Use `DEBUG=false`, a unique `DJANGO_SECRET_KEY`, explicit trusted hosts/origins, and least-privilege Graph permissions in production.
-- Rotate Graph and SQL credentials through environment configuration, not source changes.
+- Rotate Graph and reporting SQL credentials through private configuration. Backup target SQL passwords are maintained in the application and stored in its SQLite database.
 - Test backup restoration regularly; an untested backup is not a proven recovery path.
 
 ## Git workflow
 
-`main` is the deployable branch. Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. The current bind-mounted production directory requires an explicit deployment manifest; a GitHub push alone does not deploy it. Reconcile production-only source differences before moving to a complete image or checkout-based deployment.
+Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. The current bind-mounted production directory requires an explicit deployment manifest; a GitHub push alone does not deploy it. This checkout does not contain every production component, so reconcile production-only source differences before moving to a complete image or checkout-based deployment.
 
 ## Licence and support
 
