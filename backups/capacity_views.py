@@ -13,7 +13,7 @@ class DatabaseCapacityView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        rows = collect_database_capacity(BackupTarget.objects.order_by("name"))
+        rows = collect_database_capacity(BackupTarget.objects.order_by("name"), include_log_usage=True)
         context["databases"] = rows
         context["available_count"] = sum(row["status"] == "ok" for row in rows)
         return context

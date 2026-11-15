@@ -173,3 +173,66 @@ class DatabaseCapacityTests(SimpleTestCase):
     def test_empty_target_list_does_not_connect(self, connect):
         self.assertEqual(collect_database_capacity([]), [])
         connect.assert_not_called()
+
+    @patch("backups.services.database_capacity.pyodbc.connect")
+    def test_log_reading_is_opt_in(self, connect):
+        connection = self.connection()
+        connect.return_value = connection
+        row, = collect_database_capacity([self.target()])
+        self.assertEqual(row["log_status"], "not_checked")
+        self.assertIsNone(row["log_used_gb"])
+        self.assertEqual(connection.cursor.return_value.execute.call_count, 1)
+
+    @patch("backups.services.database_capacity.pyodbc.connect")
+    def test_log_usage_uses_log_capacity_separately_from_the_50_gb_data_limit(self, connect):
+        connection = self.connection()
+        data_row = connection.cursor.return_value.fetchone.return_value
+        connection.cursor.return_value.fetchone.side_effect = [data_row, (8 * 1024 ** 3, 2 * 1024 ** 3, 25)]
+        connect.return_value = connection
+        row, = collect_database_capacity([self.target()], include_log_usage=True)
+        self.assertEqual(row["status"], "ok")
+        self.assertEqual(row["log_status"], "ok")
+        self.assertEqual(row["log_used_gb"], 2)
+        self.assertEqual(row["log_total_gb"], 8)
+        self.assertEqual(row["log_remaining_gb"], 6)
+        self.assertEqual(row["log_used_percent"], 25)
+        self.assertEqual(row["data_used_gb"], 12.5)
+        self.assertEqual(row["remaining_gb"], 37.5)
+        self.assertEqual(connection.cursor.return_value.execute.call_count, 2)
+        connection.close.assert_called_once()
+
+    @patch("backups.services.database_capacity.pyodbc.connect")
+    def test_log_permission_failure_preserves_successful_data_usage(self, connect):
+        connection = self.connection()
+        connection.cursor.return_value.execute.side_effect = [None, RuntimeError("PWD=private-password; permission denied")]
+        connect.return_value = connection
+        with self.assertLogs("backups.services.database_capacity", level="WARNING") as logs:
+            row, = collect_database_capacity([self.target()], include_log_usage=True)
+        self.assertEqual(row["status"], "ok")
+        self.assertEqual(row["data_used_gb"], 12.5)
+        self.assertEqual(row["log_status"], "unavailable")
+        self.assertIsNone(row["log_used_percent"])
+        self.assertNotIn("private-password", " ".join(logs.output))
+        connection.close.assert_called_once()
+
+    @patch("backups.services.database_capacity.pyodbc.connect")
+    def test_missing_or_invalid_log_counters_do_not_hide_data_usage(self, connect):
+        for log_row in (None, (0, 0, 0), (1024, 2048, 200), (1024, -1, -1), (1024, 256, float("nan"))):
+            with self.subTest(log_row=log_row):
+                connection = self.connection()
+                data_row = connection.cursor.return_value.fetchone.return_value
+                connection.cursor.return_value.fetchone.side_effect = [data_row, log_row]
+                connect.return_value = connection
+                with self.assertLogs("backups.services.database_capacity", level="WARNING"):
+                    row, = collect_database_capacity([self.target()], include_log_usage=True)
+                self.assertEqual(row["status"], "ok")
+                self.assertEqual(row["log_status"], "unavailable")
+                self.assertIsNone(row["log_used_gb"])
+
+    @patch("backups.services.database_capacity.pyodbc.connect")
+    def test_data_failure_with_log_requested_is_unavailable_for_both(self, connect):
+        connect.side_effect = RuntimeError("connection refused")
+        with self.assertLogs("backups.services.database_capacity", level="WARNING"):
+            row, = collect_database_capacity([self.target()], include_log_usage=True)
+        self.assertEqual(row["status"], "unavailable")
+        self.assertEqual(row["log_status"], "unavailable")

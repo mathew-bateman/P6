@@ -36,6 +36,7 @@ class DatabaseCapacityViewTests(TestCase):
             "used_percent": 25, "allocated_percent": 40, "used_bar_percent": 25,
             "reserved_bar_percent": 15, "severity": "healthy", "checked_at": timezone.now(),
             "unavailable_message": "", "capacity_note": "Transaction logs are shown separately.",
+            "log_status": "ok", "log_used_gb": 0.1, "log_used_percent": 5,
         }
         return {**row, **overrides}
 
@@ -77,6 +78,10 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, 'aria-label="Production P6 data capacity"')
         self.assertContains(response, "Allocated, unused")
         self.assertContains(response, "Transaction log allocated")
+        self.assertContains(response, "Transaction log used")
+        self.assertContains(response, "0.10 GB (5.0%)")
+        self.assertContains(response, "What are data files and transaction logs?")
+        self.assertContains(response, "https://monitoring.axialprojects.com/applications/p6-backup-admin/")
         self.assertContains(response, "1 of 1 configured targets checked successfully.")
         self.assertEqual([target.pk for target in targets], [self.target.pk, self.disabled.pk])
 
@@ -126,6 +131,13 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, "No databases configured")
         self.assertContains(response, 'href="/backup-targets/"')
         self.assertNotContains(response, 'role="meter"')
+
+    def test_unavailable_log_reading_preserves_the_data_measurement(self):
+        response, _ = self.page([self.row(log_status="unavailable", log_used_gb=None, log_used_percent=None)])
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "Transaction log usage")
+        self.assertContains(response, "Unavailable")
+        self.assertNotContains(response, "0.00 GB (0.0%)")
 
     def test_target_labels_and_errors_are_html_escaped(self):
         target = BackupTarget(

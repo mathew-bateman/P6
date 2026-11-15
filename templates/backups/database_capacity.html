@@ -32,6 +32,9 @@
     .capacity-details { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin: 20px 0 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; }
     .capacity-details dt { color: var(--muted); }
     .capacity-details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .capacity-explanation { margin: 0 0 24px; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 90ch; }
+    .capacity-explanation summary { cursor: pointer; color: var(--text); font-weight: 600; }
+    .capacity-explanation p { margin: 10px 0 0; }
     .capacity-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 15px 0 0; }
     .capacity-unavailable { margin: 22px 0; line-height: 1.6; color: var(--muted); }
     .capacity-footer { margin: 22px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 90ch; }
@@ -44,9 +47,14 @@
 
 <section class="page-hero capacity-heading">
     <h1>Database capacity</h1>
-    <a class="button" href="{% url 'database_capacity' %}">Refresh usage</a>
+    <div class="capacity-heading"><a class="button" href="https://monitoring.axialprojects.com/applications/p6-backup-admin/">View monitoring</a><a class="button" href="{% url 'database_capacity' %}">Refresh usage</a></div>
 </section>
 <p class="capacity-intro">See how much space each SQL database is using. SQL Server 2025 Express allows 50 GB per database; the limit below follows each server's installed edition and version.</p>
+<details class="capacity-explanation">
+    <summary>What are data files and transaction logs?</summary>
+    <p><strong>Data files</strong> hold P6 records and indexes. Allocated space is reserved on disk and can include reusable space; used data is the part currently occupied.</p>
+    <p><strong>Transaction logs</strong> record database changes so SQL Server can complete or undo transactions and recover after a crash. Log space can be reused. A large allocated log file does not mean it is full: check the log usage below. Logs use disk space separately from the Express data limit.</p>
+</details>
 
 <div class="capacity-grid">
     {% for database in databases %}
@@ -73,6 +81,11 @@
             <dl class="capacity-details">
                 <dt>Data files allocated</dt><dd>{{ database.data_allocated_gb|floatformat:2 }} GB</dd>
                 <dt>Transaction log allocated</dt><dd>{{ database.log_allocated_gb|floatformat:2 }} GB</dd>
+                {% if database.log_status == 'ok' %}
+                <dt>Transaction log used</dt><dd>{{ database.log_used_gb|floatformat:2 }} GB ({{ database.log_used_percent|floatformat:1 }}%)</dd>
+                {% else %}
+                <dt>Transaction log usage</dt><dd>Unavailable</dd>
+                {% endif %}
             </dl>
             <p class="capacity-note">{{ database.edition }} &middot; {{ database.version }}<br>Checked {{ database.checked_at|timezone:"Europe/London"|date:"d M Y, H:i:s" }}</p>
             {% if database.capacity_note and not database.limit_gb %}<p class="capacity-note">{{ database.capacity_note }}</p>{% endif %}

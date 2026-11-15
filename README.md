@@ -304,6 +304,17 @@ restrictions. Unknown editions/versions show usage without an assumed limit; fai
 show Unavailable. Refresh usage repeats the live checks. GB follows SQL Server's 1024 MB
 convention. Capacity warnings begin at 80% used and critical status at 90% used.
 
+The page also reads actual transaction-log usage from `sys.dm_db_log_space_usage`.
+If that reading is unavailable, data-file measurements remain visible and log usage
+is marked Unavailable. The expandable explanation distinguishes used and allocated
+space. `python manage.py check_database_capacity` emits a read-only JSON summary for
+AxialMonitor's fixed P6 capacity check, using the same 80% warning and 90% critical
+thresholds for data and occupied log space. It reports missing readings as red rather
+than zero usage. The monitoring check polls every five minutes, requires two consecutive
+critical readings before opening a critical incident, and uses the existing critical
+and recovery notification path. Warning readings remain amber. This command does not
+send email or modify databases.
+
 Where installed in production, Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings and reporting-engine comparison. The complete module is not included in this checkout.
 
 Authentication is required for operational pages. Backup and maintenance administration requires staff access. Schedule-quality overview and validation reports require membership of the configured report group; portfolio reports require membership of their separate report group. These report permissions require group membership even for a superuser. Schedule-quality settings and schedule editing require staff access or membership of the configured editor group. See [`docs/workspace-navigation.md`](docs/workspace-navigation.md) for workspace navigation and permission details.
