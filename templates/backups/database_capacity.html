@@ -36,6 +36,10 @@
     .capacity-unavailable { margin: 22px 0; line-height: 1.6; color: var(--muted); }
     .capacity-footer { margin: 22px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 90ch; }
     @media (max-width: 520px) { .workspace-app .workspace-content section.panel.capacity-card { padding: 18px; } .capacity-value { font-size: 32px; } }
+    @media (max-width: 600px) {
+        .workspace-app:has(.capacity-grid) .workspace-tree { display: none; }
+        .workspace-app.workspace-with-sidebar:has(.capacity-grid) .workspace-main { margin-left: var(--workspace-rail-width); padding: 14px 12px 24px; }
+    }
 </style>
 
 <section class="page-hero capacity-heading">
