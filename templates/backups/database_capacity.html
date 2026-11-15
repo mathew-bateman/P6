@@ -8,8 +8,8 @@
     .capacity-heading, .capacity-card-heading, .capacity-scale, .capacity-key { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .capacity-heading h1 { margin: 0; }
     .capacity-intro { max-width: 76ch; margin: 8px 0 24px; color: var(--muted); line-height: 1.6; }
-    .capacity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 370px), 1fr)); gap: 18px; }
-    .workspace-app .workspace-content section.panel.capacity-card { margin: 0; padding: 24px; min-width: 0; border-radius: 12px; }
+    .capacity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+    .workspace-app .workspace-content section.panel.capacity-card { margin: 0; padding: 20px; min-width: 0; border-radius: 12px; }
     .capacity-card h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
     .capacity-source { margin: 7px 0 24px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
     .capacity-badge { padding: 4px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; background: #eff6f3; color: #176c52; }
@@ -71,7 +71,7 @@
                 <dt>Transaction log allocated</dt><dd>{{ database.log_allocated_gb|floatformat:2 }} GB</dd>
             </dl>
             <p class="capacity-note">{{ database.edition }} &middot; {{ database.version }}<br>Checked {{ database.checked_at|timezone:"Europe/London"|date:"d M Y, H:i:s" }}</p>
-            {% if database.capacity_note %}<p class="capacity-note">{{ database.capacity_note }}</p>{% endif %}
+            {% if database.capacity_note and not database.limit_gb %}<p class="capacity-note">{{ database.capacity_note }}</p>{% endif %}
         {% else %}
             <p class="capacity-unavailable">{{ database.unavailable_message }} Use Refresh usage to try again.</p>
         {% endif %}
