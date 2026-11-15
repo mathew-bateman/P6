@@ -111,7 +111,7 @@ class WorkspaceNavigationTests(TestCase):
                 self.assertNotIn("portfolio", ids)
                 self.assertIn("settings", ids)
                 operations = next(section for section in context["workspace_navigation"]["sections"] if section["id"] == "operations")
-                self.assertEqual([group["id"] for group in operations["groups"]], ["backups", "maintenance", "refresh"])
+                self.assertEqual([group["id"] for group in operations["groups"]], ["capacity", "backups", "maintenance", "refresh"])
 
     def test_report_groups_are_independent_and_editor_does_not_gain_reports(self):
         for user, included, excluded in (
@@ -199,4 +199,5 @@ class WorkspaceNavigationTests(TestCase):
         context = schedule_quality_access(request)
         section = context["workspace_navigation"]["active_section"]
         self.assertEqual(section["id"], "operations")
-        self.assertTrue(section["groups"][0]["links"][0]["active"])
+        backups = next(group for group in section["groups"] if group["id"] == "backups")
+        self.assertTrue(backups["links"][0]["active"])

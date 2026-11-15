@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load l10n tz %}
+
+{% block title %}Database capacity | P6 Operations Hub{% endblock %}
+
+{% block content %}
+<style>
+    .capacity-heading, .capacity-card-heading, .capacity-scale, .capacity-key { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .capacity-heading h1 { margin: 0; }
+    .capacity-intro { max-width: 76ch; margin: 8px 0 24px; color: var(--muted); line-height: 1.6; }
+    .capacity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 370px), 1fr)); gap: 18px; }
+    .workspace-app .workspace-content section.panel.capacity-card { margin: 0; padding: 24px; min-width: 0; border-radius: 12px; }
+    .capacity-card h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+    .capacity-source { margin: 7px 0 24px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+    .capacity-badge { padding: 4px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; background: #eff6f3; color: #176c52; }
+    .capacity-card.warning .capacity-badge { background: #fff4df; color: #875300; }
+    .capacity-card.critical .capacity-badge { background: #fff0ef; color: #b42318; }
+    .capacity-badge.unavailable { background: #f1f3f5; color: #52606d; }
+    .capacity-value { margin: 0; font-size: 36px; font-weight: 650; line-height: 1.2; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .capacity-value small { color: var(--muted); font-size: 15px; font-weight: 400; letter-spacing: 0; white-space: nowrap; }
+    .capacity-scale { margin: 13px 0 10px; font-size: 13px; color: var(--muted); }
+    .capacity-scale strong { color: var(--text); font-weight: 600; }
+    .capacity-bar { display: flex; height: 16px; border-radius: 5px; overflow: hidden; background: #edf0f3; }
+    .capacity-used { background: #15816f; }
+    .capacity-card.warning .capacity-used { background: #b87913; }
+    .capacity-card.critical .capacity-used { background: #c44336; }
+    .capacity-reserved { background: #b7c7d1; }
+    .capacity-key { justify-content: flex-start; gap: 16px; margin: 11px 0 20px; color: var(--muted); font-size: 12px; }
+    .capacity-key span { display: inline-flex; align-items: center; gap: 5px; }
+    .capacity-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    .capacity-key .capacity-empty { background: #edf0f3; border: 1px solid #d8dee8; box-sizing: border-box; }
+    .capacity-details { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin: 20px 0 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; }
+    .capacity-details dt { color: var(--muted); }
+    .capacity-details dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .capacity-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 15px 0 0; }
+    .capacity-unavailable { margin: 22px 0; line-height: 1.6; color: var(--muted); }
+    .capacity-footer { margin: 22px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 90ch; }
+    @media (max-width: 520px) { .workspace-app .workspace-content section.panel.capacity-card { padding: 18px; } .capacity-value { font-size: 32px; } }
+</style>
+
+<section class="page-hero capacity-heading">
+    <h1>Database capacity</h1>
+    <a class="button" href="{% url 'database_capacity' %}">Refresh usage</a>
+</section>
+<p class="capacity-intro">See how much space each SQL database is using. SQL Server 2025 Express allows 50 GB per database; the limit below follows each server's installed edition and version.</p>
+
+<div class="capacity-grid">
+    {% for database in databases %}
+    <section class="panel capacity-card {{ database.severity }}" aria-labelledby="capacity-{{ forloop.counter }}">
+        <div class="capacity-card-heading">
+            <h2 id="capacity-{{ forloop.counter }}">{{ database.target.name }}</h2>
+            {% if database.status != 'ok' %}<span class="capacity-badge unavailable">Unavailable</span>
+            {% elif not database.limit_gb %}<span class="capacity-badge unavailable">Usage available</span>
+            {% elif database.severity == 'critical' %}<span class="capacity-badge">Near limit</span>
+            {% elif database.severity == 'warning' %}<span class="capacity-badge">Watch capacity</span>
+            {% else %}<span class="capacity-badge">Within capacity</span>{% endif %}
+        </div>
+        <p class="capacity-source">{{ database.target.sql_database }} &middot; {{ database.target.sql_host }}:{{ database.target.sql_port }}{% if not database.target.enabled %} &middot; Backups disabled{% endif %}</p>
+        {% if database.status == 'ok' %}
+            <p class="capacity-value">{{ database.data_used_gb|floatformat:2 }} <small>GB used{% if database.limit_gb %} / {{ database.limit_gb|floatformat:0 }} GB{% endif %}</small></p>
+            {% if database.limit_gb %}
+            <div class="capacity-scale"><strong>{{ database.used_percent|floatformat:1 }}% used</strong><span>{{ database.remaining_gb|floatformat:2 }} GB remaining</span></div>
+            <div class="capacity-bar" role="meter" aria-label="{{ database.target.name }} data capacity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ database.used_bar_percent|unlocalize }}" aria-valuetext="{{ database.data_used_gb|floatformat:2 }} GB used of {{ database.limit_gb|floatformat:0 }} GB; {{ database.data_allocated_gb|floatformat:2 }} GB allocated">
+                <span class="capacity-used" style="width:{{ database.used_bar_percent|unlocalize }}%"></span>
+                <span class="capacity-reserved" style="width:{{ database.reserved_bar_percent|unlocalize }}%"></span>
+            </div>
+            <div class="capacity-key" aria-hidden="true"><span><i class="capacity-used"></i>Used data</span><span><i class="capacity-reserved"></i>Allocated, unused</span><span><i class="capacity-empty"></i>Room to grow</span></div>
+            {% endif %}
+            <dl class="capacity-details">
+                <dt>Data files allocated</dt><dd>{{ database.data_allocated_gb|floatformat:2 }} GB</dd>
+                <dt>Transaction log allocated</dt><dd>{{ database.log_allocated_gb|floatformat:2 }} GB</dd>
+            </dl>
+            <p class="capacity-note">{{ database.edition }} &middot; {{ database.version }}<br>Checked {{ database.checked_at|timezone:"Europe/London"|date:"d M Y, H:i:s" }}</p>
+            {% if database.capacity_note %}<p class="capacity-note">{{ database.capacity_note }}</p>{% endif %}
+        {% else %}
+            <p class="capacity-unavailable">{{ database.unavailable_message }} Use Refresh usage to try again.</p>
+        {% endif %}
+        <p class="capacity-note"><a href="{{ database.target.get_absolute_url }}">View database target &rarr;</a></p>
+    </section>
+    {% empty %}
+    <section class="panel"><h2>No databases configured</h2><p>Add a backup target to see its SQL database usage here.</p><a class="button" href="{% url 'backup_dashboard' %}">View backup targets</a></section>
+    {% endfor %}
+</div>
+{% if databases %}<p class="capacity-footer">{{ available_count }} of {{ databases|length }} configured targets checked successfully. Used data includes tables and indexes. Allocated space includes reusable space inside data files. Remaining capacity is the limit less used data; transaction logs sit outside this limit. Available disk space and file growth settings can also restrict growth. <a href="https://learn.microsoft.com/en-us/sql/sql-server/editions-and-components-of-sql-server-2025?view=sql-server-ver17" target="_blank" rel="noopener noreferrer">SQL Server edition limits</a>.</p>{% endif %}
+{% endblock %}

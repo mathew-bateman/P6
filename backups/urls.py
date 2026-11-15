@@ -3,9 +3,11 @@ from __future__ import annotations
 from django.urls import path
 
 from backups import views
+from backups.capacity_views import DatabaseCapacityView
 
 
 urlpatterns = [
+    path("database-capacity/", DatabaseCapacityView.as_view(), name="database_capacity"),
     path("", views.LandingPageView.as_view(), name="suite_landing"),
     path("backup-targets/", views.DashboardView.as_view(), name="backup_dashboard"),
     path("maintenance/", views.MaintenanceDashboardView.as_view(), name="maintenance_dashboard"),

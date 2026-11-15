@@ -10,6 +10,7 @@ The Django application manages AxialP6, Axial Training, and P62212 backup target
 | --- | --- |
 | Backup and recovery | Schedule encrypted SQL Server backups to SharePoint, review history and retention, and restore a selected backup. |
 | Database maintenance | Review maintenance history and results, including index work, stale-session cleanup, log retention, and P6 user-data pruning. |
+| Database capacity | Compare each configured SQL database's used and allocated data space with its Express edition limit. |
 | Schedule Quality | Review programme scorecards and validation evidence, configure checks, and publish refreshed results. |
 | Portfolio Reporting | Explore portfolio, milestone, risk, health, project, and resource reports. |
 | Reporting Database | Use PostgreSQL snapshots, XERToolkit-compatible views, and Coding Check views as sources for Power BI and other reporting clients. |
@@ -291,6 +292,17 @@ Programme check presents project-level scorecards; Validation & evidence explain
 ### Operations and Reporting Database
 
 Backup Targets shows target configuration, schedules and run history, with backup, remote artifact and restore workflows. Restore requires superuser access and a confirmation step. Maintenance history records the outcomes and details of database-maintenance work. Background tasks include index maintenance, session cleanup, log and user-data pruning, statistics and integrity checks.
+
+Staff can open **Operations > SQL Databases > Database capacity** at `/database-capacity/`.
+The read-only page checks every configured target, including those with backups disabled.
+Its bar separates used data, allocated but unused space, and room to grow. SQL Server
+2025 Express uses a 50 GB limit, while SQL Server 2022 Express uses 10 GB; the installed
+edition and version are read from each server. Transaction logs are shown separately.
+Remaining capacity is the edition limit less used data, so it includes reusable space
+inside existing data files. Disk capacity and file growth settings can impose additional
+restrictions. Unknown editions/versions show usage without an assumed limit; failed reads
+show Unavailable. Refresh usage repeats the live checks. GB follows SQL Server's 1024 MB
+convention. Capacity warnings begin at 80% used and critical status at 90% used.
 
 Where installed in production, Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings and reporting-engine comparison. The complete module is not included in this checkout.
 
