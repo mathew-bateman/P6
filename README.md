@@ -315,6 +315,26 @@ critical readings before opening a critical incident, and uses the existing crit
 and recovery notification path. Warning readings remain amber. This command does not
 send email or modify databases.
 
+Where the optional reporting mirror is installed, the same review also includes
+the PostgreSQL reporting database. It measures the entire database, tables and
+indexes through the configured reader. PostgreSQL has no Express edition quota:
+its capacity bar uses the shared data disk, including other applications, with
+available space and the filesystem reserve accounted for separately. Warning and
+critical thresholds remain 80% and 90% of usable disk space.
+
+Set `P6_REPORTING_CAPACITY_STORAGE_PATH` to an existing path verified to use the
+PostgreSQL data filesystem. The current P6-Standby deployment uses its read-only
+`/stage` bind; do not substitute a container overlay or an unverified remote path.
+The reader requires no additional privileges, and WAL is not queried separately.
+Database and disk failures retain any other successful readings. Setting
+`P6_REPORTING_CAPACITY_ENABLED` explicitly overrides optional-module detection.
+
+The page and `check_database_capacity` now use one schema-2 report. AxialMonitor
+accepts both schema 1 and schema 2 during release transitions, stores the validated
+measurement with each result, and renders the same per-database figures beneath
+the P6 application's checks. It shows sample times, pending/paused/stale states and
+unavailable readings, and never contacts a database while rendering that page.
+
 Where installed in production, Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings and reporting-engine comparison. The complete module is not included in this checkout.
 
 Authentication is required for operational pages. Backup and maintenance administration requires staff access. Schedule-quality overview and validation reports require membership of the configured report group; portfolio reports require membership of their separate report group. These report permissions require group membership even for a superuser. Schedule-quality settings and schedule editing require staff access or membership of the configured editor group. See [`docs/workspace-navigation.md`](docs/workspace-navigation.md) for workspace navigation and permission details.

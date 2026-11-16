@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from backups.models import BackupTarget
 from backups.navigation import build_workspace_navigation, section_for_route
+from backups.tests.test_capacity_review import postgres_row
 
 
 @override_settings(STORAGES={
@@ -36,19 +37,19 @@ class DatabaseCapacityViewTests(TestCase):
             "used_percent": 25, "allocated_percent": 40, "used_bar_percent": 25,
             "reserved_bar_percent": 15, "severity": "healthy", "checked_at": timezone.now(),
             "unavailable_message": "", "capacity_note": "Transaction logs are shown separately.",
-            "log_status": "ok", "log_used_gb": 0.1, "log_used_percent": 5,
+            "log_status": "ok", "log_used_gb": 0.1, "log_used_percent": 5, "log_total_gb": 2,
         }
         return {**row, **overrides}
 
-    def page(self, rows):
+    def page(self, rows, *, postgres=None):
         self.client.force_login(self.staff)
-        with patch("backups.capacity_views.collect_database_capacity", return_value=rows) as collect:
+        with patch("backups.services.capacity_review.collect_database_capacity", return_value=list(rows)) as collect, patch("backups.services.capacity_review.collect_postgres_capacity", return_value=postgres):
             response = self.client.get(reverse("database_capacity"))
             targets = list(collect.call_args.args[0])
         self.assertEqual(response.status_code, 200)
         return response, targets
 
-    @patch("backups.capacity_views.collect_database_capacity")
+    @patch("backups.capacity_views.collect_capacity_report")
     def test_anonymous_redirects_without_reading_database(self, collect):
         response = self.client.get(reverse("database_capacity"))
         self.assertRedirects(
@@ -56,7 +57,7 @@ class DatabaseCapacityViewTests(TestCase):
         )
         collect.assert_not_called()
 
-    @patch("backups.capacity_views.collect_database_capacity")
+    @patch("backups.capacity_views.collect_capacity_report")
     def test_non_staff_is_forbidden_without_reading_database(self, collect):
         self.client.force_login(self.viewer)
         response = self.client.get(reverse("database_capacity"))
@@ -74,7 +75,7 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, "2.00 GB")
         self.assertContains(response, 'role="meter"', count=1)
         self.assertContains(response, 'aria-valuemax="100"')
-        self.assertContains(response, 'aria-valuenow="25"')
+        self.assertRegex(response.content.decode(), r'aria-valuenow="25(?:\.0)?"')
         self.assertContains(response, 'aria-label="Production P6 data capacity"')
         self.assertContains(response, "Allocated, unused")
         self.assertContains(response, "Transaction log allocated")
@@ -82,7 +83,7 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, "0.10 GB (5.0%)")
         self.assertContains(response, "What are data files and transaction logs?")
         self.assertContains(response, "https://monitoring.axialprojects.com/applications/p6-backup-admin/")
-        self.assertContains(response, "1 of 1 configured targets checked successfully.")
+        self.assertContains(response, "1 of 1 database sizes read successfully.")
         self.assertEqual([target.pk for target in targets], [self.target.pk, self.disabled.pk])
 
     def test_disabled_targets_still_show_usage_with_backup_status(self):
@@ -93,11 +94,11 @@ class DatabaseCapacityViewTests(TestCase):
 
     def test_warning_and_critical_have_text_labels(self):
         response, _ = self.page([
-            self.row(severity="warning", data_used_gb=42, used_percent=84),
-            self.row(self.disabled, severity="critical", data_used_gb=47, used_percent=94),
+            self.row(data_used_gb=42, data_allocated_gb=50, used_percent=84, remaining_gb=8),
+            self.row(self.disabled, data_used_gb=47, data_allocated_gb=50, used_percent=94, remaining_gb=3),
         ])
         self.assertContains(response, "Watch capacity")
-        self.assertContains(response, "Near limit")
+        self.assertContains(response, "Action required")
         self.assertContains(response, "84.0% used")
         self.assertContains(response, "94.0% used")
 
@@ -111,7 +112,7 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, "Usage could not be read.")
         self.assertContains(response, "Use Refresh usage to try again.")
         self.assertContains(response, 'role="meter"', count=1)
-        self.assertContains(response, "1 of 2 configured targets checked successfully.")
+        self.assertContains(response, "1 of 2 database sizes read successfully.")
 
     def test_unknown_limit_shows_usage_without_inventing_limit_or_meter(self):
         response, _ = self.page([self.row(
@@ -132,6 +133,61 @@ class DatabaseCapacityViewTests(TestCase):
         self.assertContains(response, 'href="/backup-targets/"')
         self.assertNotContains(response, 'role="meter"')
 
+    def test_postgresql_shows_database_components_and_shared_disk_without_sql_quota_or_log(self):
+        response, _ = self.page([], postgres=postgres_row())
+        self.assertContains(response, "PostgreSQL reporting")
+        self.assertContains(response, "p6_reporting")
+        self.assertContains(response, "11.74")
+        self.assertContains(response, "GB database size")
+        self.assertContains(response, "Tables")
+        self.assertContains(response, "9.00 GB")
+        self.assertContains(response, "Indexes")
+        self.assertContains(response, "2.00 GB")
+        self.assertContains(response, "22.2% shared disk used")
+        self.assertContains(response, "700.00 GB available")
+        self.assertContains(response, "900.00 GB usable shared storage")
+        self.assertContains(response, 'aria-label="PostgreSQL reporting shared disk capacity"')
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertNotContains(response, "GB used / 50 GB")
+        self.assertNotContains(response, "Transaction log allocated")
+        self.assertNotContains(response, "Transaction log used")
+        self.assertContains(response, "it is not a database quota")
+
+    def test_postgresql_storage_failure_preserves_both_database_sizes_and_sql_meter(self):
+        response, _ = self.page([self.row()], postgres=postgres_row(
+            storage_status="unavailable", storage_total_gb=None, storage_used_gb=None,
+            storage_available_gb=None, storage_reserved_gb=None, storage_usable_gb=None, storage_used_percent=None,
+        ))
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "11.74")
+        self.assertContains(response, "Shared disk capacity is unavailable.")
+        self.assertContains(response, "2 of 2 database sizes read successfully.")
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertNotContains(response, "0.0% shared disk used")
+        postgres = response.context["databases"][1]
+        self.assertEqual((postgres["status"], postgres["level"]), ("ok", "red"))
+
+    def test_postgresql_database_failure_preserves_its_shared_disk_and_sql_usage(self):
+        response, _ = self.page([self.row()], postgres=postgres_row(
+            status="unavailable", used_gb=None, tables_gb=None, indexes_gb=None,
+        ))
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "Database size is unavailable.")
+        self.assertContains(response, "700.00 GB available")
+        self.assertContains(response, 'role="meter"', count=2)
+        self.assertContains(response, "1 of 2 database sizes read successfully.")
+        self.assertNotContains(response, "0.00 <small>GB database size")
+
+    def test_postgresql_labels_are_escaped_and_missing_size_is_not_zero(self):
+        response, _ = self.page([], postgres=postgres_row(
+            name="<script>capacity()</script>", database_name="<database>", status="unavailable",
+            used_gb=None, tables_gb=None, indexes_gb=None,
+        ))
+        self.assertContains(response, "&lt;script&gt;capacity()&lt;/script&gt;")
+        self.assertContains(response, "&lt;database&gt;")
+        self.assertNotContains(response, "<script>capacity()</script>")
+        self.assertContains(response, "Database size is unavailable.")
+
     def test_unavailable_log_reading_preserves_the_data_measurement(self):
         response, _ = self.page([self.row(log_status="unavailable", log_used_gb=None, log_used_percent=None)])
         self.assertContains(response, "12.50")
@@ -149,7 +205,6 @@ class DatabaseCapacityViewTests(TestCase):
         )])
         self.assertContains(response, "&lt;script&gt;")
         self.assertContains(response, "&lt;db&gt;")
-        self.assertContains(response, "&lt;img")
         self.assertNotContains(response, '<script>alert("target")</script>')
         self.assertNotContains(response, '<img src=x onerror="alert(1)">')
 

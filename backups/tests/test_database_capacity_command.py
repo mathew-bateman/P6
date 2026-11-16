@@ -17,15 +17,22 @@ class CapacityProbeSummaryTests(SimpleTestCase):
         row = {
             "target": SimpleNamespace(name="AxialP6", slug="axialp6"),
             "status": "ok", "edition": "Express Edition", "limit_gb": 50,
-            "data_used_gb": 5, "used_percent": 10,
+            "data_used_gb": 5, "data_allocated_gb": 50, "used_percent": 10,
             "log_status": "ok", "log_used_gb": 1, "log_allocated_gb": 8, "log_total_gb": 8,
             "log_used_percent": 12.5,
         }
-        return row | changes
+        row.update(changes)
+        if "used_percent" in changes and "data_used_gb" not in changes:
+            percent = changes["used_percent"]
+            row["data_used_gb"] = percent / 2 if percent is not None else 5
+        if "log_used_percent" in changes and "log_used_gb" not in changes:
+            percent = changes["log_used_percent"]
+            row["log_used_gb"] = percent / 100 * row["log_total_gb"] if percent is not None else None
+        return row
 
     def test_healthy_readings_are_green(self):
         report = build_capacity_report([self.row()])
-        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["schema_version"], 2)
         self.assertEqual(report["level"], "green")
         self.assertIn("data 10.0% (5.00/50 GB)", report["reason"])
         self.assertIn("log 12.5%", report["reason"])
@@ -47,7 +54,8 @@ class CapacityProbeSummaryTests(SimpleTestCase):
         )
         report = build_capacity_report([self.row(), unavailable])
         self.assertEqual(report["level"], "red")
-        self.assertTrue(report["reason"].startswith("Other database: log usage unavailable"))
+        self.assertTrue(report["reason"].startswith("Other database:"))
+        self.assertIn("log usage unavailable", report["reason"])
         self.assertEqual(len(report["databases"]), 2)
 
     def test_missing_data_or_unconfirmed_express_limit_is_red(self):
@@ -88,8 +96,9 @@ class CapacityProbeCommandTests(TestCase):
             sql_host="private-sql-host", sql_password_env="private-password", app_backup_dir="/tmp/backups",
         )
 
-    @patch("backups.management.commands.check_database_capacity.collect_database_capacity")
-    def test_command_reads_all_targets_without_writes_and_outputs_one_json_object(self, collect):
+    @patch("backups.services.capacity_review.collect_postgres_capacity", return_value=None)
+    @patch("backups.services.capacity_review.collect_database_capacity")
+    def test_command_reads_all_targets_without_writes_and_outputs_one_json_object(self, collect, postgres):
         enabled = self.create_target(name="Enabled", slug="enabled", enabled=True)
         disabled = self.create_target(name="Disabled", slug="disabled", enabled=False)
         observed = []
@@ -110,7 +119,7 @@ class CapacityProbeCommandTests(TestCase):
         self.assertNotIn("private-password", output.getvalue())
         self.assertNotIn("private-sql-host", output.getvalue())
 
-    @patch("backups.management.commands.check_database_capacity.collect_database_capacity")
+    @patch("backups.services.capacity_review.collect_database_capacity")
     def test_collection_exception_outputs_safe_red_json_instead_of_raising(self, collect):
         collect.side_effect = RuntimeError("PWD=private-password; private-sql-host")
         output = io.StringIO()

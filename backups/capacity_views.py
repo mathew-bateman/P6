@@ -1,8 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import TemplateView
 
-from backups.models import BackupTarget
-from backups.services.database_capacity import collect_database_capacity
+from django.utils.dateparse import parse_datetime
+
+from backups.services.capacity_review import capacity_card_rows, collect_capacity_report
 
 
 class DatabaseCapacityView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -13,7 +14,10 @@ class DatabaseCapacityView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        rows = collect_database_capacity(BackupTarget.objects.order_by("name"), include_log_usage=True)
+        report = collect_capacity_report()
+        rows = capacity_card_rows(report)
         context["databases"] = rows
+        context["capacity_report"] = report
+        context["checked_at"] = parse_datetime(report["checked_at"])
         context["available_count"] = sum(row["status"] == "ok" for row in rows)
         return context
