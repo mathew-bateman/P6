@@ -1,0 +1,230 @@
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import RequestFactory, TestCase, override_settings
+from django.urls import resolve, reverse
+from django.utils import timezone
+
+from backups.models import BackupTarget
+from backups.navigation import build_workspace_navigation, section_for_route
+from backups.tests.test_capacity_review import postgres_row
+
+
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
+class DatabaseCapacityViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.staff = User.objects.create_user(username="capacity.staff", is_staff=True)
+        cls.viewer = User.objects.create_user(username="capacity.viewer")
+        cls.target = BackupTarget.objects.create(
+            name="Production P6", slug="production-p6", sql_database="P6_live",
+            sql_host="p6-sql", app_backup_dir="/tmp/p6-backups", enabled=True,
+        )
+        cls.disabled = BackupTarget.objects.create(
+            name="Training", slug="training", sql_database="P6_training",
+            sql_host="training-sql", app_backup_dir="/tmp/training-backups", enabled=False,
+        )
+
+    def row(self, target=None, **overrides):
+        row = {
+            "target": target or self.target, "status": "ok", "edition": "Express Edition",
+            "version": "17.0.1000.7", "limit_gb": 50, "data_used_gb": 12.5,
+            "data_allocated_gb": 20, "log_allocated_gb": 2, "remaining_gb": 37.5,
+            "used_percent": 25, "allocated_percent": 40, "used_bar_percent": 25,
+            "reserved_bar_percent": 15, "severity": "healthy", "checked_at": timezone.now(),
+            "unavailable_message": "", "capacity_note": "Transaction logs are shown separately.",
+            "log_status": "ok", "log_used_gb": 0.1, "log_used_percent": 5, "log_total_gb": 2,
+        }
+        return {**row, **overrides}
+
+    def page(self, rows, *, postgres=None):
+        self.client.force_login(self.staff)
+        with patch("backups.services.capacity_review.collect_database_capacity", return_value=list(rows)) as collect, patch("backups.services.capacity_review.collect_postgres_capacity", return_value=postgres):
+            response = self.client.get(reverse("database_capacity"))
+            targets = list(collect.call_args.args[0])
+        self.assertEqual(response.status_code, 200)
+        return response, targets
+
+    @patch("backups.capacity_views.collect_capacity_report")
+    def test_anonymous_redirects_without_reading_database(self, collect):
+        response = self.client.get(reverse("database_capacity"))
+        self.assertRedirects(
+            response, "/accounts/login/?next=/database-capacity/", fetch_redirect_response=False,
+        )
+        collect.assert_not_called()
+
+    @patch("backups.capacity_views.collect_capacity_report")
+    def test_non_staff_is_forbidden_without_reading_database(self, collect):
+        self.client.force_login(self.viewer)
+        response = self.client.get(reverse("database_capacity"))
+        self.assertEqual(response.status_code, 403)
+        collect.assert_not_called()
+
+    def test_staff_sees_usage_allocated_space_log_and_accessible_limit(self):
+        response, targets = self.page([self.row()])
+        self.assertTemplateUsed(response, "backups/database_capacity.html")
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "GB used / 50 GB")
+        self.assertContains(response, "25.0% used")
+        self.assertContains(response, "37.50 GB remaining")
+        self.assertContains(response, "20.00 GB")
+        self.assertContains(response, "2.00 GB")
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertContains(response, 'aria-valuemax="100"')
+        self.assertRegex(response.content.decode(), r'aria-valuenow="25(?:\.0)?"')
+        self.assertContains(response, 'aria-label="Production P6 data capacity"')
+        self.assertContains(response, "Allocated, unused")
+        self.assertContains(response, "Transaction log allocated")
+        self.assertContains(response, "Transaction log used")
+        self.assertContains(response, "0.10 GB (5.0%)")
+        self.assertContains(response, "What are data files and transaction logs?")
+        self.assertContains(response, "https://monitoring.axialprojects.com/applications/p6-backup-admin/")
+        self.assertContains(response, "1 of 1 database sizes read successfully.")
+        self.assertEqual([target.pk for target in targets], [self.target.pk, self.disabled.pk])
+
+    def test_disabled_targets_still_show_usage_with_backup_status(self):
+        response, _ = self.page([self.row(self.disabled)])
+        self.assertContains(response, "Training")
+        self.assertContains(response, "Backups disabled")
+        self.assertContains(response, "12.50")
+
+    def test_warning_and_critical_have_text_labels(self):
+        response, _ = self.page([
+            self.row(data_used_gb=42, data_allocated_gb=50, used_percent=84, remaining_gb=8),
+            self.row(self.disabled, data_used_gb=47, data_allocated_gb=50, used_percent=94, remaining_gb=3),
+        ])
+        self.assertContains(response, "Watch capacity")
+        self.assertContains(response, "Action required")
+        self.assertContains(response, "84.0% used")
+        self.assertContains(response, "94.0% used")
+
+    def test_failed_target_does_not_hide_successful_target_or_render_zero_usage(self):
+        unavailable = self.row(
+            self.disabled, status="unavailable", severity="unavailable", data_used_gb=None,
+            limit_gb=None, unavailable_message="Usage could not be read.",
+        )
+        response, _ = self.page([self.row(), unavailable])
+        self.assertContains(response, "Unavailable")
+        self.assertContains(response, "Usage could not be read.")
+        self.assertContains(response, "Use Refresh usage to try again.")
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertContains(response, "1 of 2 database sizes read successfully.")
+
+    def test_unknown_limit_shows_usage_without_inventing_limit_or_meter(self):
+        response, _ = self.page([self.row(
+            edition="Express Edition", version="Unknown version", limit_gb=None,
+            remaining_gb=None, used_percent=None, allocated_percent=None,
+            capacity_note="Express limit could not be confirmed because the SQL Server version is unavailable.",
+        )])
+        self.assertContains(response, "12.50")
+        self.assertNotContains(response, 'role="meter"')
+        self.assertNotContains(response, "GB remaining")
+        self.assertNotContains(response, "GB used / 50 GB")
+        self.assertContains(response, "Express limit could not be confirmed")
+        self.assertContains(response, "Usage available")
+
+    def test_empty_configuration_has_actionable_empty_state(self):
+        response, _ = self.page([])
+        self.assertContains(response, "No databases configured")
+        self.assertContains(response, 'href="/backup-targets/"')
+        self.assertNotContains(response, 'role="meter"')
+
+    def test_postgresql_shows_database_components_and_shared_disk_without_sql_quota_or_log(self):
+        response, _ = self.page([], postgres=postgres_row())
+        self.assertContains(response, "PostgreSQL reporting")
+        self.assertContains(response, "p6_reporting")
+        self.assertContains(response, "11.74")
+        self.assertContains(response, "GB database size")
+        self.assertContains(response, "Tables")
+        self.assertContains(response, "9.00 GB")
+        self.assertContains(response, "Indexes")
+        self.assertContains(response, "2.00 GB")
+        self.assertContains(response, "22.2% shared disk used")
+        self.assertContains(response, "700.00 GB available")
+        self.assertContains(response, "900.00 GB usable shared storage")
+        self.assertContains(response, 'aria-label="PostgreSQL reporting shared disk capacity"')
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertNotContains(response, "GB used / 50 GB")
+        self.assertNotContains(response, "Transaction log allocated")
+        self.assertNotContains(response, "Transaction log used")
+        self.assertContains(response, "it is not a database quota")
+
+    def test_postgresql_storage_failure_preserves_both_database_sizes_and_sql_meter(self):
+        response, _ = self.page([self.row()], postgres=postgres_row(
+            storage_status="unavailable", storage_total_gb=None, storage_used_gb=None,
+            storage_available_gb=None, storage_reserved_gb=None, storage_usable_gb=None, storage_used_percent=None,
+        ))
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "11.74")
+        self.assertContains(response, "Shared disk capacity is unavailable.")
+        self.assertContains(response, "2 of 2 database sizes read successfully.")
+        self.assertContains(response, 'role="meter"', count=1)
+        self.assertNotContains(response, "0.0% shared disk used")
+        postgres = response.context["databases"][1]
+        self.assertEqual((postgres["status"], postgres["level"]), ("ok", "red"))
+
+    def test_postgresql_database_failure_preserves_its_shared_disk_and_sql_usage(self):
+        response, _ = self.page([self.row()], postgres=postgres_row(
+            status="unavailable", used_gb=None, tables_gb=None, indexes_gb=None,
+        ))
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "Database size is unavailable.")
+        self.assertContains(response, "700.00 GB available")
+        self.assertContains(response, 'role="meter"', count=2)
+        self.assertContains(response, "1 of 2 database sizes read successfully.")
+        self.assertNotContains(response, "0.00 <small>GB database size")
+
+    def test_postgresql_labels_are_escaped_and_missing_size_is_not_zero(self):
+        response, _ = self.page([], postgres=postgres_row(
+            name="<script>capacity()</script>", database_name="<database>", status="unavailable",
+            used_gb=None, tables_gb=None, indexes_gb=None,
+        ))
+        self.assertContains(response, "&lt;script&gt;capacity()&lt;/script&gt;")
+        self.assertContains(response, "&lt;database&gt;")
+        self.assertNotContains(response, "<script>capacity()</script>")
+        self.assertContains(response, "Database size is unavailable.")
+
+    def test_unavailable_log_reading_preserves_the_data_measurement(self):
+        response, _ = self.page([self.row(log_status="unavailable", log_used_gb=None, log_used_percent=None)])
+        self.assertContains(response, "12.50")
+        self.assertContains(response, "Transaction log usage")
+        self.assertContains(response, "Unavailable")
+        self.assertNotContains(response, "0.00 GB (0.0%)")
+
+    def test_target_labels_and_errors_are_html_escaped(self):
+        target = BackupTarget(
+            name='<script>alert("target")</script>', slug="unsafe", sql_database="<db>",
+            sql_host="<host>", app_backup_dir="/tmp/unsafe",
+        )
+        response, _ = self.page([self.row(
+            target, status="unavailable", unavailable_message='<img src=x onerror="alert(1)">',
+        )])
+        self.assertContains(response, "&lt;script&gt;")
+        self.assertContains(response, "&lt;db&gt;")
+        self.assertNotContains(response, '<script>alert("target")</script>')
+        self.assertNotContains(response, '<img src=x onerror="alert(1)">')
+
+    def navigation(self, user):
+        request = RequestFactory().get(reverse("database_capacity"))
+        request.user = user
+        request.session = {}
+        request.resolver_match = resolve(request.path)
+        return build_workspace_navigation(request)
+
+    def test_staff_navigation_selects_capacity_under_operations(self):
+        navigation = self.navigation(self.staff)
+        self.assertEqual(section_for_route("database_capacity"), "operations")
+        self.assertEqual(navigation["active_section"]["id"], "operations")
+        links = [link for group in navigation["active_section"]["groups"] for link in group["links"]]
+        capacity = next(link for link in links if link["id"] == "database_capacity")
+        self.assertTrue(capacity["active"])
+        self.assertEqual(capacity["url"], reverse("database_capacity"))
+
+    def test_non_staff_navigation_does_not_expose_capacity(self):
+        navigation = self.navigation(self.viewer)
+        links = [link for section in navigation["sections"] for group in section["groups"] for link in group["links"]]
+        self.assertNotIn("database_capacity", [link["id"] for link in links])

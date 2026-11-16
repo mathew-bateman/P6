@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import requests
+from graph.services.diagnostics import checked_request
+from graph.services.inline_logo import graph_logo_attachments
 
 
 def send_graph_email(
@@ -26,10 +28,12 @@ def send_graph_email(
         },
         "saveToSentItems": save_to_sent_items,
     }
-    response = requests.post(
+    attachments = graph_logo_attachments(html_body)
+    if attachments:
+        payload["message"]["attachments"] = attachments
+    checked_request("Microsoft email delivery", requests.post,
         f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json=payload,
         timeout=30,
     )
-    response.raise_for_status()

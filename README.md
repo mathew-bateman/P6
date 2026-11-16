@@ -10,6 +10,7 @@ The Django application manages AxialP6, Axial Training, and P62212 backup target
 | --- | --- |
 | Backup and recovery | Schedule encrypted SQL Server backups to SharePoint, review history and retention, and restore a selected backup. |
 | Database maintenance | Review maintenance history and results, including index work, stale-session cleanup, log retention, and P6 user-data pruning. |
+| Database capacity | Compare each configured SQL database's used and allocated data space with its Express edition limit. |
 | Schedule Quality | Review programme scorecards and validation evidence, configure checks, and publish refreshed results. |
 | Portfolio Reporting | Explore portfolio, milestone, risk, health, project, and resource reports. |
 | Reporting Database | Use PostgreSQL snapshots, XERToolkit-compatible views, and Coding Check views as sources for Power BI and other reporting clients. |
@@ -304,6 +305,48 @@ Programme check presents project-level scorecards; Validation & evidence explain
 ### Operations and Reporting Database
 
 Backup Targets shows target configuration, schedules and run history, with backup, remote artifact and restore workflows. Restore requires superuser access and a confirmation step. Maintenance history records the outcomes and details of database-maintenance work. Background tasks include index maintenance, session cleanup, log and user-data pruning, statistics and integrity checks.
+
+Staff can open **Operations > SQL Databases > Database capacity** at `/database-capacity/`.
+The read-only page checks every configured target, including those with backups disabled.
+Its bar separates used data, allocated but unused space, and room to grow. SQL Server
+2025 Express uses a 50 GB limit, while SQL Server 2022 Express uses 10 GB; the installed
+edition and version are read from each server. Transaction logs are shown separately.
+Remaining capacity is the edition limit less used data, so it includes reusable space
+inside existing data files. Disk capacity and file growth settings can impose additional
+restrictions. Unknown editions/versions show usage without an assumed limit; failed reads
+show Unavailable. Refresh usage repeats the live checks. GB follows SQL Server's 1024 MB
+convention. Capacity warnings begin at 80% used and critical status at 90% used.
+
+The page also reads actual transaction-log usage from `sys.dm_db_log_space_usage`.
+If that reading is unavailable, data-file measurements remain visible and log usage
+is marked Unavailable. The expandable explanation distinguishes used and allocated
+space. `python manage.py check_database_capacity` emits a read-only JSON summary for
+AxialMonitor's fixed P6 capacity check, using the same 80% warning and 90% critical
+thresholds for data and occupied log space. It reports missing readings as red rather
+than zero usage. The monitoring check polls every five minutes, requires two consecutive
+critical readings before opening a critical incident, and uses the existing critical
+and recovery notification path. Warning readings remain amber. This command does not
+send email or modify databases.
+
+Where the optional reporting mirror is installed, the same review also includes
+the PostgreSQL reporting database. It measures the entire database, tables and
+indexes through the configured reader. PostgreSQL has no Express edition quota:
+its capacity bar uses the shared data disk, including other applications, with
+available space and the filesystem reserve accounted for separately. Warning and
+critical thresholds remain 80% and 90% of usable disk space.
+
+Set `P6_REPORTING_CAPACITY_STORAGE_PATH` to an existing path verified to use the
+PostgreSQL data filesystem. The current P6-Standby deployment uses its read-only
+`/stage` bind; do not substitute a container overlay or an unverified remote path.
+The reader requires no additional privileges, and WAL is not queried separately.
+Database and disk failures retain any other successful readings. Setting
+`P6_REPORTING_CAPACITY_ENABLED` explicitly overrides optional-module detection.
+
+The page and `check_database_capacity` now use one schema-2 report. AxialMonitor
+accepts both schema 1 and schema 2 during release transitions, stores the validated
+measurement with each result, and renders the same per-database figures beneath
+the P6 application's checks. It shows sample times, pending/paused/stale states and
+unavailable readings, and never contacts a database while rendering that page.
 
 Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings. Retired installations keep PostgreSQL as the reporting and settings engine and reject attempts to restore the SQL reporting path.
 

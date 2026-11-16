@@ -6,6 +6,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
+from graph.services.diagnostics import ServiceOperationError, safe_failure
 
 from backups.models import BackupRun, BackupTarget
 from backups.services.emailing import send_backup_status_email
@@ -118,23 +119,29 @@ def run_restore_for_target(
     manifest_path = target.app_backup_path / manifest_local_name
     artifacts = [encrypted_path, plain_path, manifest_path]
 
+    stage = "SharePoint download"
     try:
         download_file(download_url, encrypted_path)
         download_file(manifest_download_url, manifest_path)
+        stage = "Manifest validation"
         manifest = read_manifest(manifest_path)
 
+        stage = "Encrypted checksum verification"
         expected_encrypted_sha = str(manifest.get("encrypted_sha256", ""))
         actual_encrypted_sha = calculate_file_sha256(encrypted_path)
         if expected_encrypted_sha and actual_encrypted_sha != expected_encrypted_sha:
-            raise RuntimeError("Encrypted backup hash verification failed.")
+            raise ServiceOperationError("Encrypted backup hash verification failed")
 
+        stage = "Backup decryption"
         decrypt_file_chunked(encrypted_path, plain_path, get_encryption_keys())
 
+        stage = "Decrypted checksum verification"
         expected_plain_sha = str(manifest.get("plaintext_sha256", ""))
         actual_plain_sha = calculate_file_sha256(plain_path)
         if expected_plain_sha and actual_plain_sha != expected_plain_sha:
-            raise RuntimeError("Decrypted backup hash verification failed.")
+            raise ServiceOperationError("Decrypted backup hash verification failed")
 
+        stage = "SQL restore"
         restore_database(target, backup_filename=plain_local_name)
 
         backup_run.plaintext_size_bytes = plain_path.stat().st_size
@@ -144,19 +151,21 @@ def run_restore_for_target(
         backup_run.status = BackupRun.STATUS_SUCCESS
         backup_run.finished_at = timezone.now()
         backup_run.save()
+        stage = "Restore notification"
         send_backup_status_email(backup_run=backup_run, success=True)
         return "Restore Complete"
     except Exception as error:
-        logger.exception("P6 restore failed for target %s", target.slug)
+        diagnostic = safe_failure(error, stage)
+        logger.error("P6 restore failed for target %s: %s", target.slug, diagnostic)
         backup_run.status = BackupRun.STATUS_FAILED
         backup_run.finished_at = timezone.now()
-        backup_run.error_message = str(error)
+        backup_run.error_message = diagnostic
         backup_run.save(update_fields=["status", "finished_at", "error_message"])
         try:
             send_backup_status_email(backup_run=backup_run, success=False)
-        except Exception:
-            logger.exception("Failed to send restore failure email")
-        raise
+        except Exception as notification_error:
+            logger.error("%s", safe_failure(notification_error, "Failure notification"))
+        raise ServiceOperationError(diagnostic) from None
     finally:
         keep_local = target.keep_local_files or settings.BACKUP_KEEP_LOCAL
         if not keep_local:

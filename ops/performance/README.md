@@ -32,6 +32,15 @@ resources; retain failed stores privately when needed for diagnosis.
 | `summarize_*.py`, `verify_all_trial.py` | Summarize and validate captured trial results |
 | `native_bulk/` | Typed Arrow transfer and independent full-value verification experiment |
 
+`batch_evidence_candidate.py` preserves an unshipped evidence-rendering
+optimization for isolated comparison. The application's active renderer remains
+`reporting_mirror/native_evidence.py`; preserving the candidate does not activate
+it. `test_batch_evidence.py` tests the candidate by default and accepts an
+explicit alternative through `P6_BATCH_EVIDENCE_RENDERER_PATH`. The optional
+database fixture compares against the reference supplied through
+`P6_LEGACY_EVIDENCE_PATH` and requires an isolated
+`P6_BATCH_EVIDENCE_TEST_DSN`.
+
 Use matching input snapshots, settings, project scope and report filters for the
 reference and candidate. Include all raw rows and nulls in transfer verification,
 and compare report membership, values, metadata and externally visible contracts.

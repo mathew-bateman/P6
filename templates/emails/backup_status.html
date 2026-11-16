@@ -10,7 +10,7 @@
     <strong>{{ target.name }}</strong> has concluded.
 </p>
 
-<div class="card">
+<div class="card" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin: 24px 0;">
     <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e5e7eb;">
         <h2 style="margin: 0; font-size: 18px; color: #111827;">
             {{ backup_run.get_operation_display }} {{ backup_run.get_status_display }}
@@ -52,17 +52,17 @@
 </div>
 
 {% if backup_run.error_message %}
-<div class="info-box" style="background-color: #fef2f2; border-left-color: #dc2626;">
+<div class="info-box" style="padding: 16px; margin: 24px 0; border-left: 4px solid #dc2626; background-color: #fef2f2;">
     <p style="color: #991b1b;"><strong>Error:</strong> {{ backup_run.error_message }}</p>
 </div>
 {% endif %}
 
 {% if backup_run.sharepoint_backup_web_url or backup_run.sharepoint_manifest_web_url %}
-<div class="button-container">
+<div class="button-container" style="text-align: center; margin: 32px 0;">
     {% if backup_run.sharepoint_backup_web_url %}
-        <a href="{{ backup_run.sharepoint_backup_web_url }}" class="button">Open Backup File</a>
+        <a href="{{ backup_run.sharepoint_backup_web_url }}" class="button" style="display: inline-block; background-color: #001689; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">Open Backup File</a>
     {% elif backup_run.sharepoint_manifest_web_url %}
-        <a href="{{ backup_run.sharepoint_manifest_web_url }}" class="button">Open Manifest</a>
+        <a href="{{ backup_run.sharepoint_manifest_web_url }}" class="button" style="display: inline-block; background-color: #001689; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 600; font-size: 16px;">Open Manifest</a>
     {% endif %}
 </div>
 {% endif %}

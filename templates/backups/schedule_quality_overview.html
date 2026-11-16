@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load reporting_navigation %}
 
 {% block title %}Programme Check | P6 Operations Hub{% endblock %}
 
@@ -90,8 +91,8 @@
         <h1>Programme Check</h1>
     </div>
     <nav class="overview-tabs" aria-label="Schedule quality reports">
-        <a class="button current" href="{% url 'schedule_quality_overview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" aria-current="page">Overview</a>
-        <a class="button ghost" href="{% url 'schedule_quality_validation' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Validation &amp; Evidence</a>
+        <a class="button current" href="{% url 'schedule_quality_overview' %}{% report_query %}" aria-current="page">Overview</a>
+        <a class="button ghost" href="{% url 'schedule_quality_validation' %}{% report_query %}">Validation &amp; Evidence</a>
     </nav>
 </section>
 
@@ -112,7 +113,7 @@
 (() => {
     const initTomSelects = (root = document) => {
         if (!window.TomSelect) return;
-        root.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        root.querySelectorAll('select.schedule-quality-select').forEach((select) => {
             if (select.tomselect) return;
             new TomSelect(select, {
                 closeAfterSelect: true,
@@ -124,7 +125,7 @@
         });
     };
     window.resetScheduleQualityFilters = (form) => {
-        form.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        form.querySelectorAll('select.schedule-quality-select').forEach((select) => {
             if (select.tomselect) select.tomselect.clear(true);
             else select.selectedIndex = 0;
         });
@@ -139,7 +140,7 @@
     };
     const initDatePickers = (root = document) => {
         if (!window.flatpickr) return;
-        root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
+        root.querySelectorAll('.schedule-quality-date-picker[name="updated_date"]').forEach((input) => {
             if (input._flatpickr) return;
             const availableDates = input.dataset.updatedDates ? input.dataset.updatedDates.split(',') : [];
             const availableDateSet = new Set(availableDates);
@@ -148,7 +149,7 @@
                 altFormat: 'j M Y',
                 dateFormat: 'Y-m-d',
                 disableMobile: true,
-                enable: availableDates.length ? availableDates : undefined,
+                ...(availableDates.length ? { enable: availableDates } : {}),
                 onReady: (_selectedDates, _dateString, instance) => {
                     instance.altInput.setAttribute('aria-label', 'Filter by updated date');
                 },

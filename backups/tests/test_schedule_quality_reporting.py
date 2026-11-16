@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from html.parser import HTMLParser
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -16,6 +18,28 @@ from backups.services.schedule_quality_reporting import (
     fetch_validation_filter_options,
     fetch_validation_summary,
 )
+
+
+class ReportLinkParser(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.links = []
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        # Area navigation intentionally resets filters; report tabs and the
+        # active section's links preserve the user's current report slice.
+        if tag == "a" and attributes.get("href") and "workspace-rail-link" not in attributes.get("class", "").split():
+            self.links.append(attributes["href"])
+
+
+def report_link_queries(response, route):
+    return [
+        parse_qs(urlsplit(link).query)
+        for link in ReportLinkParser(response.content.decode()).links
+        if urlsplit(link).path == reverse(route)
+    ]
 
 
 class ScheduleQualityReportingServiceTests(SimpleTestCase):
@@ -318,7 +342,7 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertContains(response, "2,779")
         self.assertContains(response, "Build platform")
         self.assertContains(response, "Total Float: 90.00 days")
-        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
+        self.assertContains(response, 'hx-trigger="change"')
         self.assertContains(response, "syncScheduleQualityReportTabs")
         self.assertContains(response, 'data-check-code="high_float"')
         self.assertContains(response, "applyValidationCheck")
@@ -404,10 +428,16 @@ class ScheduleQualityValidationViewTests(TestCase):
         self.assertEqual(summary_filters.project_state, "Live")
         self.assertTrue(summary_filters.exclude_blanks)
         self.assertEqual(evidence_filters.check_code, "high_float")
-        self.assertContains(
-            response,
-            'href="/schedule-quality/overview/?project=7&amp;portfolio=Rail&amp;lead_planner=Alex&amp;project_status=Client+Submitted&amp;project_state=Live&amp;exclude_blanks=1&amp;updated_date=2026-08-14&amp;check=high_float"',
-        )
+        queries = report_link_queries(response, "schedule_quality_overview")
+        self.assertTrue(queries)
+        expected_query = {
+            "project": ["7"], "portfolio": ["Rail"], "lead_planner": ["Alex"],
+            "project_status": ["Client Submitted"], "project_state": ["Live"],
+            "exclude_blanks": ["1"], "updated_date": ["2026-08-14"],
+            "check": ["high_float"], "report_source": ["p6_22"],
+        }
+        for query in queries:
+            self.assertEqual(query, expected_query)
 
 
 class ScheduleQualityOverviewViewTests(TestCase):
@@ -497,7 +527,7 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertNotContains(response, "Green and amber limits mirror the PBIX scoring model.")
         self.assertNotContains(response, "Score the programme against the active schedule-quality checks.")
         self.assertNotContains(response, "Choose the programme slice to score.")
-        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
+        self.assertContains(response, 'hx-trigger="change"')
         self.assertNotContains(response, ">Apply<")
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
@@ -585,7 +615,10 @@ class ScheduleQualityOverviewViewTests(TestCase):
         self.assertContains(response, "All projects in Rail")
         self.assertContains(response, "Rail Project")
         self.assertNotContains(response, "Road Project")
-        self.assertContains(response, 'href="/schedule-quality/validation/?project=7"')
+        queries = report_link_queries(response, "schedule_quality_validation")
+        self.assertTrue(queries)
+        for query in queries:
+            self.assertEqual(query, {"project": ["7"], "report_source": ["p6_22"]})
 
     @patch("backups.views.fetch_schedule_quality_refresh_history", return_value=[])
     @patch(

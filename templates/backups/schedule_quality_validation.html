@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load reporting_navigation %}
 
 {% block title %}Validation Report | P6 Operations Hub{% endblock %}
 
@@ -103,8 +104,8 @@
         <h1>Schedule Quality Validation</h1>
     </div>
     <nav class="validation-tabs" aria-label="Schedule quality reports">
-        <a class="button ghost" href="{% url 'schedule_quality_overview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Overview</a>
-        <a class="button current" href="{% url 'schedule_quality_validation' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" aria-current="page">Validation &amp; Evidence</a>
+        <a class="button ghost" href="{% url 'schedule_quality_overview' %}{% report_query %}">Overview</a>
+        <a class="button current" href="{% url 'schedule_quality_validation' %}{% report_query %}" aria-current="page">Validation &amp; Evidence</a>
     </nav>
 </section>
 
@@ -121,9 +122,11 @@
         <h2>Filters</h2>
         <form method="get"
               hx-get="{% url 'schedule_quality_validation' %}"
-              hx-trigger="change from:select, change from:input"
+
+              hx-trigger="change"
               hx-target="#validation-results"
               hx-push-url="true">
+            {% report_source_input %}
             <div class="field">
                 <label for="validation-portfolio">Portfolio</label>
                 <select id="validation-portfolio" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
@@ -200,8 +203,8 @@
             </div>
             <div class="validation-filter-actions">
                 <a class="button ghost"
-                   href="{% url 'schedule_quality_validation' %}"
-                   hx-get="{% url 'schedule_quality_validation' %}"
+                   href="{% url 'schedule_quality_validation' %}{% report_query reset=True %}"
+                   hx-get="{% url 'schedule_quality_validation' %}{% report_query reset=True %}"
                    hx-target="#validation-results"
                    hx-push-url="true"
                    hx-on::after-request="window.resetScheduleQualityFilters(this.closest('form'))">Clear filters</a>
@@ -223,7 +226,7 @@
 (() => {
     const initTomSelects = (root = document) => {
         if (!window.TomSelect) return;
-        root.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        root.querySelectorAll('select.schedule-quality-select').forEach((select) => {
             if (select.tomselect) return;
             new TomSelect(select, {
                 closeAfterSelect: true,
@@ -235,7 +238,7 @@
         });
     };
     window.resetScheduleQualityFilters = (form) => {
-        form.querySelectorAll('.schedule-quality-select').forEach((select) => {
+        form.querySelectorAll('select.schedule-quality-select').forEach((select) => {
             if (select.tomselect) select.tomselect.clear(true);
             else select.selectedIndex = 0;
         });
@@ -250,7 +253,7 @@
     };
     const initDatePickers = (root = document) => {
         if (!window.flatpickr) return;
-        root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
+        root.querySelectorAll('.schedule-quality-date-picker[name="updated_date"]').forEach((input) => {
             if (input._flatpickr) return;
             const availableDates = input.dataset.updatedDates ? input.dataset.updatedDates.split(',') : [];
             const availableDateSet = new Set(availableDates);
@@ -259,7 +262,7 @@
                 altFormat: 'j M Y',
                 dateFormat: 'Y-m-d',
                 disableMobile: true,
-                enable: availableDates.length ? availableDates : undefined,
+                ...(availableDates.length ? { enable: availableDates } : {}),
                 onReady: (_selectedDates, _dateString, instance) => {
                     instance.altInput.setAttribute('aria-label', 'Filter by updated date');
                 },

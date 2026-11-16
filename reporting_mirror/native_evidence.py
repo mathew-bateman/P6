@@ -1,5 +1,5 @@
 """Configured evidence rendering in PostgreSQL, retaining the existing P6 formats."""
-from itertools import groupby
+from psycopg import sql
 
 from reporting_mirror.native_engine import generation_schema, identifier
 
@@ -58,48 +58,7 @@ def format_expression(schema, table, field, data_type, display_format, config_ve
     return column + "::text"
 
 
-def _field_resolution(schema, tables, field, config_version_id, unique_tasks):
-    """Resolve one configured field without changing multivalue lookup rules."""
-    s = generation_schema(schema)
-    category = field["source_category"].lower()
-    table = CATEGORIES.get(category, category.removeprefix("table:"))
-    column = field["source_identifier"].lower()
-    check = field["check_code"]
-    if category == "activity_code" and column.isdigit():
-        return f"""(SELECT string_agg(DISTINCT ac.actv_code_name::text COLLATE {s}.p6_text_ci,', ' ORDER BY ac.actv_code_name::text COLLATE {s}.p6_text_ci)
-              FROM {s}.taskactv ta JOIN {s}.actvcode ac ON ac.actv_code_id=ta.actv_code_id
-              WHERE ta.task_id=evidence.task_id AND ac.actv_code_type_id={int(column)})"""
-    if category == 'udf' and column.isdigit():
-        return f"""(SELECT string_agg(DISTINCT COALESCE(uv.udf_text,to_char(uv.udf_date,'DD Mon YYYY HH24:MI'),CAST(uv.udf_number AS numeric(38,2))::text,uv.udf_code_id::text) COLLATE {s}.p6_text_ci,', ' ORDER BY COALESCE(uv.udf_text,to_char(uv.udf_date,'DD Mon YYYY HH24:MI'),CAST(uv.udf_number AS numeric(38,2))::text,uv.udf_code_id::text) COLLATE {s}.p6_text_ci)
-              FROM {s}.udfvalue uv JOIN {s}.udftype ut ON ut.udf_type_id=uv.udf_type_id
-              WHERE uv.udf_type_id={int(column)} AND uv.delete_session_id IS NULL AND uv.delete_date IS NULL AND ut.delete_session_id IS NULL AND ut.delete_date IS NULL
-                AND (uv.proj_id IS NULL OR uv.proj_id=evidence.proj_id)
-                AND CASE upper(ut.table_name) WHEN 'TASK' THEN uv.fk_id=evidence.task_id WHEN 'PROJECT' THEN uv.fk_id=evidence.proj_id WHEN 'PROJWBS' THEN uv.fk_id=task_record.wbs_id
-                  WHEN 'TASKRSRC' THEN EXISTS(SELECT 1 FROM {s}.taskrsrc tr WHERE tr.taskrsrc_id=uv.fk_id AND tr.task_id=evidence.task_id AND tr.proj_id=evidence.proj_id) ELSE false END)"""
-    if table not in tables or column not in tables[table]:
-        return "NULL::text"
-    predicate = evidence_predicate(schema, table, tables[table], tables.get("task", {}), check)
-    if not predicate:
-        return "NULL::text"
-    value = format_expression(schema, table, column, tables[table][column], field.get("display_format") or "native", config_version_id)
-    # Ordinary TASK fields already have exactly the source row needed by the
-    # lookup. Open-end checks deliberately display the OTHER endpoint(s), so
-    # those retain the collated DISTINCT aggregate below. Duplicate keys also
-    # retain that aggregate, preserving the original behavior for malformed raw
-    # input instead of assuming an unenforced PostgreSQL primary key.
-    if unique_tasks and table == "task" and check not in {"open_start", "open_finish"}:
-        value = value.replace("source_row.", "task_record.")
-        return f"CASE WHEN task_record.{identifier(column)} IS NOT NULL THEN {value} END"
-    return f"(SELECT string_agg(DISTINCT ({value}) COLLATE {s}.p6_text_ci,', ' ORDER BY ({value}) COLLATE {s}.p6_text_ci) FROM {s}.{identifier(table)} source_row WHERE {predicate} AND source_row.{identifier(column)} IS NOT NULL)"
-
-
 def render_configured_evidence(pg, schema, config_version_id):
-    """Render all fields for each check in one evidence/TASK scan.
-
-    The scratch rows and final ordered JSON/text aggregation deliberately keep
-    the original shape, including duplicate labels and the 1,000-character
-    display limit. Only independent field resolution is batched.
-    """
     s = generation_schema(schema)
     rows = pg.execute("""SELECT c.relname,a.attname,pg_catalog.format_type(a.atttypid,a.atttypmod) data_type
       FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -108,41 +67,34 @@ def render_configured_evidence(pg, schema, config_version_id):
     for row in rows:
         tables.setdefault(row["relname"], {})[row["attname"]] = row["data_type"]
     fields = pg.execute(f"SELECT * FROM {s}.xertoolkit_schedule_quality_detail_field WHERE config_version_id=%s ORDER BY check_code,sort_order,detail_field_id", (config_version_id,)).fetchall()
-    # Source P6 guarantees TASK keys, but raw mirrors intentionally keep plain
-    # indexes. Check once so the fast path does not silently depend on a UNIQUE
-    # constraint that is absent in this database.
-    unique_tasks = False
-    if any(CATEGORIES.get(f["source_category"].lower(), f["source_category"].lower().removeprefix("table:")) == "task"
-           and f["check_code"] not in {"open_start", "open_finish"} for f in fields):
-        unique_tasks = not pg.execute(f"""SELECT EXISTS(
-          SELECT 1 FROM {s}.task GROUP BY proj_id,task_id HAVING count(*)>1
-        ) AS duplicate_task_keys""").fetchone()["duplicate_task_keys"]
     pg.execute(f"CREATE TABLE {s}._configured_evidence_values(proj_id integer,check_code text,task_id integer,detail_field_id bigint,display_label text,sort_order integer,detail_value text)")
-    # Reproduce the original field-by-field insertion order for duplicate TASK
-    # keys, including any ties that reach the final ordered aggregates.
-    if not unique_tasks:
-        for field in fields:
-            resolution = _field_resolution(schema, tables, field, config_version_id, False)
-            pg.execute(f"""INSERT INTO {s}._configured_evidence_values
-              SELECT evidence.proj_id,evidence.check_code,evidence.task_id,%s,%s,%s,COALESCE({resolution},'N/A')
-              FROM {s}.xertoolkit_result_schedule_quality_task_evidence evidence
-              JOIN {s}.task task_record ON task_record.proj_id=evidence.proj_id AND task_record.task_id=evidence.task_id
-              WHERE evidence.check_code=%s""", (field["detail_field_id"], field["display_label"], field["sort_order"], field["check_code"]))
-    for check, check_fields in groupby(fields if unique_tasks else (), key=lambda field: field["check_code"]):
-        values, parameters = [], []
-        for field in check_fields:
-            resolution = _field_resolution(schema, tables, field, config_version_id, unique_tasks)
-            values.append(f"(%s::bigint,%s::text,%s::integer,COALESCE({resolution},'N/A')::text)")
-            parameters.extend((field["detail_field_id"], field["display_label"], field["sort_order"]))
-        parameters.append(check)
+    for field in fields:
+        category = field["source_category"].lower()
+        table = CATEGORIES.get(category, category.removeprefix("table:"))
+        column = field["source_identifier"].lower()
+        check = field["check_code"]
+        resolution = "NULL::text"
+        if category == "activity_code" and column.isdigit():
+            resolution = f"""(SELECT string_agg(DISTINCT ac.actv_code_name::text COLLATE {s}.p6_text_ci,', ' ORDER BY ac.actv_code_name::text COLLATE {s}.p6_text_ci)
+              FROM {s}.taskactv ta JOIN {s}.actvcode ac ON ac.actv_code_id=ta.actv_code_id
+              WHERE ta.task_id=evidence.task_id AND ac.actv_code_type_id={int(column)})"""
+        elif category == 'udf' and column.isdigit():
+            resolution = f"""(SELECT string_agg(DISTINCT COALESCE(uv.udf_text,to_char(uv.udf_date,'DD Mon YYYY HH24:MI'),CAST(uv.udf_number AS numeric(38,2))::text,uv.udf_code_id::text) COLLATE {s}.p6_text_ci,', ' ORDER BY COALESCE(uv.udf_text,to_char(uv.udf_date,'DD Mon YYYY HH24:MI'),CAST(uv.udf_number AS numeric(38,2))::text,uv.udf_code_id::text) COLLATE {s}.p6_text_ci)
+              FROM {s}.udfvalue uv JOIN {s}.udftype ut ON ut.udf_type_id=uv.udf_type_id
+              WHERE uv.udf_type_id={int(column)} AND uv.delete_session_id IS NULL AND uv.delete_date IS NULL AND ut.delete_session_id IS NULL AND ut.delete_date IS NULL
+                AND (uv.proj_id IS NULL OR uv.proj_id=evidence.proj_id)
+                AND CASE upper(ut.table_name) WHEN 'TASK' THEN uv.fk_id=evidence.task_id WHEN 'PROJECT' THEN uv.fk_id=evidence.proj_id WHEN 'PROJWBS' THEN uv.fk_id=task_record.wbs_id
+                  WHEN 'TASKRSRC' THEN EXISTS(SELECT 1 FROM {s}.taskrsrc tr WHERE tr.taskrsrc_id=uv.fk_id AND tr.task_id=evidence.task_id AND tr.proj_id=evidence.proj_id) ELSE false END)"""
+        elif table in tables and column in tables[table]:
+            predicate = evidence_predicate(schema, table, tables[table], tables.get("task", {}), check)
+            if predicate:
+                value = format_expression(schema, table, column, tables[table][column], field.get("display_format") or "native", config_version_id)
+                resolution = f"(SELECT string_agg(DISTINCT ({value}) COLLATE {s}.p6_text_ci,', ' ORDER BY ({value}) COLLATE {s}.p6_text_ci) FROM {s}.{identifier(table)} source_row WHERE {predicate} AND source_row.{identifier(column)} IS NOT NULL)"
         pg.execute(f"""INSERT INTO {s}._configured_evidence_values
-          SELECT evidence.proj_id,evidence.check_code,evidence.task_id,
-            configured.detail_field_id,configured.display_label,configured.sort_order,configured.detail_value
+          SELECT evidence.proj_id,evidence.check_code,evidence.task_id,%s,%s,%s,COALESCE({resolution},'N/A')
           FROM {s}.xertoolkit_result_schedule_quality_task_evidence evidence
           JOIN {s}.task task_record ON task_record.proj_id=evidence.proj_id AND task_record.task_id=evidence.task_id
-          CROSS JOIN LATERAL (VALUES {','.join(values)})
-            configured(detail_field_id,display_label,sort_order,detail_value)
-          WHERE evidence.check_code=%s""", tuple(parameters))
+          WHERE evidence.check_code=%s""", (field["detail_field_id"], field["display_label"], field["sort_order"], check))
     pg.execute(f"""UPDATE {s}.xertoolkit_result_schedule_quality_task_evidence evidence
       SET detail_json=formatted.detail_json,detail_display=formatted.detail_display
       FROM (SELECT proj_id,check_code,task_id,

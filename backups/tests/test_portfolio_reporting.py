@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils.html import escape
 
 from backups.services.portfolio_reporting import (
     _project_metric_rows,
@@ -254,7 +256,7 @@ class PortfolioReportingViewTests(TestCase):
         self.assertContains(response, "72.50%")
         self.assertContains(response, "Milestone Governance")
         self.assertContains(response, 'hx-get="/portfolio-reporting/overview/"')
-        self.assertContains(response, 'hx-trigger="change from:select, change from:input"')
+        self.assertContains(response, 'hx-trigger="change"')
         self.assertContains(response, 'hx-target=".portfolio-layout"')
         self.assertContains(response, 'hx-select=".portfolio-layout"')
         self.assertContains(response, 'hx-push-url="true"')
@@ -299,10 +301,20 @@ class PortfolioReportingViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            'href="/portfolio-reporting/milestones/?portfolio=Rail&amp;exclude_blanks=1"',
+        portfolio = next(
+            section for section in response.context["workspace_navigation"]["sections"]
+            if section["id"] == "portfolio"
         )
+        milestone = next(
+            link for group in portfolio["groups"] for link in group["links"]
+            if link["id"] == "portfolio_reporting_milestones"
+        )
+        self.assertEqual(urlsplit(milestone["url"]).path, reverse("portfolio_reporting_milestones"))
+        self.assertEqual(
+            parse_qs(urlsplit(milestone["url"]).query),
+            {"portfolio": ["Rail"], "exclude_blanks": ["1"], "report_source": ["p6_22"]},
+        )
+        self.assertContains(response, f'href="{escape(milestone["url"])}"')
 
     @patch(
         "backups.views.fetch_validation_filter_options",

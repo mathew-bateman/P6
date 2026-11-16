@@ -13,7 +13,20 @@ TABLE_CATEGORIES = {
 }
 
 
+def _postgres_catalog():
+    from reporting_mirror.native_settings import enabled
+    if not enabled():
+        return None
+    from reporting_mirror.connections import postgres_connection
+    with postgres_connection() as pg:
+        rows = pg.execute("SELECT table_name,columns FROM quality_control.source_catalog WHERE source_code='p6_22' ORDER BY table_name").fetchall()
+    return {row['table_name']:row['columns'] for row in rows}
+
+
 def discover_p6_tables() -> list[str]:
+    catalog = _postgres_catalog()
+    if catalog is not None:
+        return list(catalog)
     target = build_schedule_quality_target()
     rows = fetch_rows(
         target,
@@ -26,6 +39,9 @@ def discover_p6_tables() -> list[str]:
 
 
 def discover_p6_schema() -> list[dict[str, object]]:
+    catalog = _postgres_catalog()
+    if catalog is not None:
+        return [{'name':name,'columns':columns} for name,columns in catalog.items()]
     target = build_schedule_quality_target()
     rows = fetch_rows(
         target,
@@ -41,6 +57,19 @@ def discover_p6_schema() -> list[dict[str, object]]:
 
 
 def discover_p6_fields(category: str) -> list[dict[str, str]]:
+    catalog = _postgres_catalog()
+    if catalog is not None:
+        from reporting_mirror.connections import postgres_connection
+        if category in {'activity_code','udf'}:
+            with postgres_connection(reader=True) as pg:
+                if category == 'activity_code':
+                    rows=pg.execute("SELECT actv_code_type_id,actv_code_type FROM p6_22.actvtype WHERE delete_date IS NULL ORDER BY actv_code_type").fetchall()
+                    seen=set()
+                    return [{'identifier':str(r['actv_code_type_id']),'label':str(r['actv_code_type']),'display_name':str(r['actv_code_type'])} for r in rows if str(r['actv_code_type']).strip() not in seen and not seen.add(str(r['actv_code_type']).strip())]
+                rows=pg.execute("SELECT udf_type_id,table_name,udf_type_label,udf_type_name FROM p6_22.udftype WHERE delete_date IS NULL ORDER BY table_name,COALESCE(udf_type_label,udf_type_name)").fetchall()
+                return [{'identifier':str(r['udf_type_id']),'label':f"{r['udf_type_label'] or r['udf_type_name']} [{r['table_name']}]",'display_name':str(r['udf_type_label'] or r['udf_type_name'])} for r in rows]
+        table=TABLE_CATEGORIES.get(category,category.removeprefix('table:') if category.startswith('table:') else '')
+        return [{'identifier':c,'label':c,'display_name':c} for c in catalog.get(table,[])]
     target = build_schedule_quality_target()
     if category == "activity_code":
         rows = fetch_rows(target, "SELECT actv_code_type_id, actv_code_type FROM dbo.ACTVTYPE WHERE delete_date IS NULL ORDER BY actv_code_type;", database=target.sql_database)

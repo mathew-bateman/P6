@@ -6,6 +6,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
+from graph.services.diagnostics import ServiceOperationError, safe_failure
 
 from backups.models import BackupRun, BackupTarget
 from backups.services.emailing import send_backup_status_email
@@ -79,15 +80,15 @@ def run_backup_for_target(
     manifest_path = target.app_backup_path / manifest_filename
     artifacts = [plain_path, encrypted_path, manifest_path]
 
+    stage = "SQL backup"
     try:
         backup_database(target, backup_filename=plain_filename)
         if not plain_path.exists():
-            raise RuntimeError(
-                f"SQL Server completed backup but the app cannot see {plain_path}. "
-                "Check the target app_backup_dir mount."
-            )
+            raise ServiceOperationError("Local backup validation failed; SQL backup file is not visible in the app mount")
 
+        stage = "Local checksum"
         plaintext_sha256 = calculate_file_sha256(plain_path)
+        stage = "Backup encryption"
         encryption_key = get_encryption_keys()[0]
         encrypt_file_chunked(plain_path, encrypted_path, encryption_key)
         encrypted_sha256 = calculate_file_sha256(encrypted_path)
@@ -108,21 +109,26 @@ def run_backup_for_target(
         )
         write_manifest(manifest_path, manifest_payload)
 
+        stage = "Microsoft authentication and SharePoint access"
         client = build_sharepoint_client(
             sharepoint_site=target.sharepoint_site,
             sharepoint_folder=target.sharepoint_folder,
         )
+        stage = "SharePoint backup upload"
         backup_upload = client.upload_file(encrypted_path, encrypted_filename)
+        stage = "SharePoint manifest upload"
         manifest_upload = client.upload_file(manifest_path, manifest_filename)
 
+        stage = "Remote checksum verification"
         verify_remote = target.verify_sharepoint_upload or settings.BACKUP_VERIFY_SHAREPOINT_UPLOAD
         if verify_remote:
             download_url = str(backup_upload.get("@microsoft.graph.downloadUrl", ""))
             if download_url:
                 remote_sha256 = client.download_and_hash(download_url)
                 if remote_sha256 != encrypted_sha256:
-                    raise RuntimeError("Remote SharePoint backup hash did not match local encrypted hash.")
+                    raise ServiceOperationError("Remote checksum verification failed; SharePoint backup hash did not match local encrypted hash")
 
+        stage = "Backup retention"
         deletion_ids = plan_backup_retention_deletions(
             sharepoint_items=client.list_folder_children(),
             target_slug=target.slug,
@@ -140,19 +146,21 @@ def run_backup_for_target(
         backup_run.status = BackupRun.STATUS_SUCCESS
         backup_run.finished_at = timezone.now()
         backup_run.save()
+        stage = "Backup notification"
         send_backup_status_email(backup_run=backup_run, success=True)
         return "Complete"
     except Exception as error:
-        logger.exception("P6 backup failed for target %s", target.slug)
+        diagnostic = safe_failure(error, stage)
+        logger.error("P6 backup failed for target %s: %s", target.slug, diagnostic)
         backup_run.status = BackupRun.STATUS_FAILED
         backup_run.finished_at = timezone.now()
-        backup_run.error_message = str(error)
+        backup_run.error_message = diagnostic
         backup_run.save(update_fields=["status", "finished_at", "error_message"])
         try:
             send_backup_status_email(backup_run=backup_run, success=False)
-        except Exception:
-            logger.exception("Failed to send backup failure email")
-        raise
+        except Exception as notification_error:
+            logger.error("%s", safe_failure(notification_error, "Failure notification"))
+        raise ServiceOperationError(diagnostic) from None
     finally:
         keep_local = target.keep_local_files or settings.BACKUP_KEEP_LOCAL
         _cleanup(artifacts, keep_local=keep_local)

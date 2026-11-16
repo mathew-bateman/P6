@@ -20,6 +20,8 @@ REPORT_FILTER_KEYS = (
 
 def section_for_route(url_name: str | None) -> str:
     name = url_name or ""
+    if name == "database_capacity":
+        return "operations"
     if name == "suite_landing":
         return "home"
     if name.startswith("portfolio_reporting"):
@@ -103,6 +105,8 @@ def build_workspace_navigation(request, *, can_view_quality=False, can_view_port
                             "route": "schedule_quality_overview" if can_view_quality else "schedule_quality_settings",
                             "groups": quality_groups})
     operations = []
+    if user.is_staff:
+        operations.append({"id": "capacity", "label": "SQL Databases", "links": [("database_capacity", "Database capacity" )]})
     if user.is_staff:
         operations.extend([
             {"id": "backups", "label": "Backup Targets", "links": [("backup_dashboard", "Targets")]},

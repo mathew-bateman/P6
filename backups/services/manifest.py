@@ -23,7 +23,7 @@ def build_backup_manifest(
     plaintext_size_bytes: int,
     encrypted_size_bytes: int,
 ) -> dict[str, object]:
-    return {
+    result = {
         "schema_version": 1,
         "created_at_utc": datetime.now(UTC).isoformat(),
         "target_slug": target.slug,
@@ -44,3 +44,10 @@ def build_backup_manifest(
         "plaintext_size_bytes": plaintext_size_bytes,
         "encrypted_size_bytes": encrypted_size_bytes,
     }
+    from reporting_mirror.connections import reporting_available
+    if reporting_available():
+        from reporting_mirror.models import NativeSettingsCheckpoint
+        checkpoint = NativeSettingsCheckpoint.objects.filter(pk=1).first()
+        if checkpoint:
+            result['postgres_reporting_settings'] = {'sha256': checkpoint.sha256, 'payload': checkpoint.payload, 'captured_at':checkpoint.updated_at.isoformat()}
+    return result

@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 import requests
 
 from graph.services.tokens import get_app_token
+from graph.services.diagnostics import checked_request
 
 
 SMALL_UPLOAD_LIMIT_BYTES = 250 * 1024 * 1024
@@ -67,18 +68,16 @@ def resolve_sharepoint_site_id(token: str, configured_site: str) -> str:
     site_id = normalise_sharepoint_site_identifier(configured_site)
     if site_id == "root":
         return site_id
-    response = requests.get(
+    response = checked_request("SharePoint request", requests.get,
         f"https://graph.microsoft.com/v1.0/sites/{site_id}",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
         timeout=30,
     )
-    response.raise_for_status()
     return str(response.json().get("id", site_id))
 
 
 def download_file(url: str, destination: Path) -> None:
-    response = requests.get(url, stream=True, timeout=300)
-    response.raise_for_status()
+    response = checked_request("SharePoint request", requests.get,url, stream=True, timeout=300)
     with destination.open("wb") as output:
         for chunk in response.iter_content(chunk_size=1024 * 1024):
             if chunk:
@@ -100,12 +99,11 @@ class SharePointClient:
     def drive_id(self) -> str:
         if self._drive_id is not None:
             return self._drive_id
-        response = self.session.get(
+        response = checked_request("SharePoint read", self.session.get,
             f"https://graph.microsoft.com/v1.0/sites/{self.site_id}/drive",
             headers=self.headers,
             timeout=30,
         )
-        response.raise_for_status()
         self._drive_id = str(response.json()["id"])
         return self._drive_id
 
@@ -133,13 +131,12 @@ class SharePointClient:
 
     def _upload_small_file(self, local_file_path: Path, remote_filename: str) -> dict[str, Any]:
         with local_file_path.open("rb") as source:
-            response = self.session.put(
+            response = checked_request("SharePoint file upload", self.session.put,
                 self._content_url(remote_filename),
                 headers={**self.headers, "Content-Type": "application/octet-stream"},
                 data=source,
                 timeout=300,
             )
-        response.raise_for_status()
         return response.json()
 
     def _upload_large_file(
@@ -149,13 +146,12 @@ class SharePointClient:
         *,
         chunk_size: int,
     ) -> dict[str, Any]:
-        response = self.session.post(
+        response = checked_request("SharePoint operation", self.session.post,
             self._upload_session_url(remote_filename),
             headers={**self.headers, "Content-Type": "application/json"},
             json={"item": {"@microsoft.graph.conflictBehavior": "replace", "name": remote_filename}},
             timeout=30,
         )
-        response.raise_for_status()
         upload_url = str(response.json()["uploadUrl"])
         file_size = local_file_path.stat().st_size
 
@@ -167,7 +163,7 @@ class SharePointClient:
                 if not chunk:
                     break
                 end = start + len(chunk) - 1
-                upload_response = self.session.put(
+                upload_response = checked_request("SharePoint upload fragment", self.session.put,
                     upload_url,
                     headers={
                         "Content-Length": str(len(chunk)),
@@ -176,7 +172,6 @@ class SharePointClient:
                     data=chunk,
                     timeout=300,
                 )
-                upload_response.raise_for_status()
                 if upload_response.content:
                     last_payload = upload_response.json()
                 start = end + 1
@@ -189,27 +184,25 @@ class SharePointClient:
         )
         items: list[dict[str, object]] = []
         while next_url:
-            response = self.session.get(next_url, headers=self.headers, timeout=30)
-            response.raise_for_status()
+            response = checked_request("SharePoint read", self.session.get,next_url, headers=self.headers, timeout=30)
             payload = response.json()
             items.extend(payload.get("value", []))
             next_url = payload.get("@odata.nextLink")
         return items
 
     def delete_item(self, item_id: str) -> bool:
-        response = self.session.post(
+        response = checked_request("SharePoint operation", self.session.post,
             f"https://graph.microsoft.com/v1.0/drives/{self.drive_id()}/items/{item_id}/permanentDelete",
             headers=self.headers,
             timeout=30,
+            accepted_statuses=(404,),
         )
         if response.status_code in {204, 404}:
             return True
-        response.raise_for_status()
         return True
 
     def download_and_hash(self, remote_content_url: str) -> str:
-        response = self.session.get(remote_content_url, headers=self.headers, stream=True, timeout=300)
-        response.raise_for_status()
+        response = checked_request("SharePoint read", self.session.get,remote_content_url, headers=self.headers, stream=True, timeout=300)
         digest = hashlib.sha256()
         for chunk in response.iter_content(chunk_size=1024 * 1024):
             if chunk:

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize reporting_navigation %}
 
 {% block title %}{{ active_report.title }} | Portfolio Reporting{% endblock %}
 
@@ -72,10 +72,9 @@
 <section class="toolbar page-hero maintenance-page-heading portfolio-hero">
     <div>
         <h1>{{ active_report.title }}</h1>
-        <p class="subtle">{{ active_report.description }}</p>
     </div>
     <div class="portfolio-hero-actions">
-        <a class="button ghost" href="{% url 'portfolio_reporting_hub' %}">All portfolio reports</a>
+        <a class="button ghost" href="{% url 'portfolio_reporting_hub' %}{% report_query %}">All portfolio reports</a>
     </div>
 </section>
 
@@ -86,11 +85,13 @@
             <h2>Filters</h2>
             <form method="get"
                   hx-get="{% url active_report.url_name %}"
-                  hx-trigger="change from:select, change from:input"
+
+                  hx-trigger="change"
                   hx-target=".portfolio-layout"
                   hx-select=".portfolio-layout"
                   hx-swap="outerHTML"
                   hx-push-url="true">
+                {% report_source_input %}
                 <div class="field">
                     <label for="portfolio-filter">Portfolio</label>
                     <select id="portfolio-filter" class="portfolio-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
@@ -154,8 +155,8 @@
                     </select>
                 </div>
                 <div class="portfolio-filter-actions">
-                    <a class="button ghost" href="{% url active_report.url_name %}"
-                       hx-get="{% url active_report.url_name %}"
+                    <a class="button ghost" href="{% url active_report.url_name %}{% report_query reset=True %}"
+                       hx-get="{% url active_report.url_name %}{% report_query reset=True %}"
                        hx-target=".portfolio-layout"
                        hx-select=".portfolio-layout"
                        hx-swap="outerHTML"
@@ -171,7 +172,7 @@
         <nav class="panel portfolio-report-nav" aria-label="Portfolio reports">
             {% for page in portfolio_report_pages %}
                 <a class="{% if page.key == active_report.key %}current{% endif %}"
-                   href="{% url page.url_name %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                   href="{% url page.url_name %}{% report_query %}"
                    {% if page.key == active_report.key %}aria-current="page"{% endif %}>{{ page.title }}</a>
             {% endfor %}
         </nav>
@@ -192,7 +193,7 @@
                 {% for kpi in report_data.kpis %}
                     <article class="panel portfolio-kpi resources-kpi report-kpi {{ kpi.tone|default:'' }}">
                         <div class="resource-kpi-label report-kpi-label"><span>{{ kpi.label }}</span>{% if kpi.detail %}<div class="resource-kpi-info"><button type="button" class="resource-kpi-trigger" aria-label="About {{ kpi.label }}" aria-expanded="false"></button><div class="resource-kpi-popover" role="tooltip">{{ kpi.detail }}</div></div>{% endif %}</div>
-                        <strong>{{ kpi.value|intcomma }}</strong>
+                        {% with display_value=kpi.value|intcomma %}<strong{% if display_value|length > 8 %} class="portfolio-kpi-value--long" tabindex="0"{% endif %}>{{ display_value }}</strong>{% endwith %}
                     </article>
                 {% empty %}
                     <article class="panel portfolio-kpi resources-kpi report-kpi"><div class="resource-kpi-label report-kpi-label"><span>Report status</span><div class="resource-kpi-info"><button type="button" class="resource-kpi-trigger" aria-label="About report status" aria-expanded="false"></button><div class="resource-kpi-popover" role="tooltip">No current data matched the filters.</div></div></div><strong>N/A</strong></article>
@@ -255,7 +256,7 @@
 (() => {
     const initTomSelects = (root = document) => {
         if (!window.TomSelect) return;
-        root.querySelectorAll('.portfolio-select').forEach((select) => {
+        root.querySelectorAll('select.portfolio-select').forEach((select) => {
             if (select.tomselect) return;
             new TomSelect(select, { closeAfterSelect: true, create: false, maxItems: 1, maxOptions: null, searchField: ['text'] });
         });
@@ -274,12 +275,12 @@
     };
     const initDatePickers = (root = document) => {
         if (!window.flatpickr) return;
-        root.querySelectorAll('.schedule-quality-date-picker').forEach((input) => {
+        root.querySelectorAll('.schedule-quality-date-picker[name="updated_date"]').forEach((input) => {
             if (input._flatpickr) return;
             const availableDates = input.dataset.updatedDates ? input.dataset.updatedDates.split(',') : [];
             flatpickr(input, {
                 altInput: true, altFormat: 'j M Y', dateFormat: 'Y-m-d', disableMobile: true,
-                enable: availableDates.length ? availableDates : undefined,
+                ...(availableDates.length ? { enable: availableDates } : {}),
                 onChange: () => input.dispatchEvent(new Event('change', { bubbles: true })),
             });
         });

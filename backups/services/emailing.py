@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
 from graph.services.email import send_graph_email
 from graph.services.tokens import get_app_token
+from graph.services.inline_logo import attach_inline_logo
 
 
 def format_bytes(size_bytes: int) -> str:
@@ -53,11 +54,13 @@ def send_backup_status_email(*, backup_run, success: bool) -> None:
         )
         return
 
-    send_mail(
+    message = EmailMultiAlternatives(
         subject=subject,
-        message=plain_body,
+        body=plain_body,
         from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=recipients,
-        html_message=html_body,
-        fail_silently=False,
+        to=recipients,
     )
+    message.mixed_subtype = "related"
+    message.attach_alternative(html_body, "text/html")
+    attach_inline_logo(message, html_body)
+    message.send(fail_silently=False)

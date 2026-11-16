@@ -1,13 +1,16 @@
+{% load reporting_navigation %}
 <div class="overview-layout">
 <dialog class="workspace-filter-dialog" data-workspace-filter-shell><div class="workspace-filter-body">{% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}
     <aside class="panel overview-filters" aria-live="polite">
         <h2>Filters</h2>
         <form method="get"
               hx-get="{% url 'schedule_quality_overview' %}"
-              hx-trigger="change from:select, change from:input"
+
+              hx-trigger="change"
               hx-target=".overview-layout"
               hx-swap="outerHTML"
               hx-push-url="true">
+            {% report_source_input %}
             <div class="field">
                 <label for="overview-portfolio">Portfolio</label>
                 <select id="overview-portfolio" class="schedule-quality-select" name="portfolio" onchange="this.form.elements.project.tomselect?.clear(true); this.form.elements.project.value = ''">
@@ -75,8 +78,8 @@
             </div>
             <div class="overview-filter-actions">
                 <a class="button ghost"
-                   href="{% url 'schedule_quality_overview' %}"
-                   hx-get="{% url 'schedule_quality_overview' %}"
+                   href="{% url 'schedule_quality_overview' %}{% report_query reset=True %}"
+                   hx-get="{% url 'schedule_quality_overview' %}{% report_query reset=True %}"
                    hx-target=".overview-layout"
                    hx-push-url="true">Clear filters</a>
             </div>

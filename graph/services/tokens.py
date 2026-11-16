@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import requests
 from django.conf import settings
+from graph.services.diagnostics import checked_request, ServiceOperationError
 
 
 class GraphConfigurationError(RuntimeError):
@@ -34,7 +35,7 @@ def get_app_token() -> str:
             "GRAPH_TENANT_ID, GRAPH_CLIENT_ID, and GRAPH_CLIENT_SECRET are required."
         )
 
-    response = requests.post(
+    response = checked_request("Microsoft authentication", requests.post,
         f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
         data={
             "client_id": client_id,
@@ -44,9 +45,13 @@ def get_app_token() -> str:
         },
         timeout=30,
     )
-    response.raise_for_status()
-    payload = response.json()
-    access_token = str(payload["access_token"])
-    expires_in = int(payload.get("expires_in", 3600))
+    try:
+        payload = response.json()
+        access_token = payload["access_token"]
+        if not isinstance(access_token, str) or not access_token:
+            raise ValueError("token missing")
+        expires_in = int(payload.get("expires_in", 3600))
+    except (ValueError, TypeError, KeyError):
+        raise ServiceOperationError("Microsoft authentication failed; invalid token response") from None
     _cached_token = CachedToken(access_token=access_token, expires_at=time.time() + expires_in)
     return access_token

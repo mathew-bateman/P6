@@ -20,8 +20,8 @@ from psycopg import sql
 
 
 def load_renderer(path, name):
-    # The repository's native engine is currently supplied by the deployed app;
-    # the renderer itself only needs its two identifier helpers for local tests.
+    # Isolate this benchmark candidate from the active calculation engine;
+    # the renderer only needs its two identifier helpers for local tests.
     helpers = ModuleType("reporting_mirror.native_engine")
     helpers.identifier = lambda value: sql.Identifier(value).as_string()
 
@@ -39,7 +39,7 @@ def load_renderer(path, name):
 
 
 renderer = load_renderer(os.environ.get("P6_BATCH_EVIDENCE_RENDERER_PATH") or
-                         Path(__file__).resolve().parents[2] / "reporting_mirror/native_evidence.py", "batch_evidence")
+                         Path(__file__).with_name("batch_evidence_candidate.py"), "batch_evidence")
 SCHEMA = "native_test_0123456789abcdef_p6_23"
 TABLES = {
     "task": {"proj_id": "integer", "task_id": "integer", "wbs_id": "integer", "task_name": "text",
