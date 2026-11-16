@@ -27,11 +27,11 @@ def section_for_route(url_name: str | None) -> str:
     if name in {"schedule_quality_overview", "schedule_quality_validation"}:
         return "quality"
     if name.startswith("schedule_quality_settings") or name == "schedule_quality_p6_fields_api":
-        return "settings"
+        return "quality"
     if name.startswith("reporting_mirror"):
         return "reporting"
     if (
-        name == "backup_dashboard" or name.startswith("backup_target_")
+        name in {"backup_dashboard", "backup_target_create"} or name.startswith("backup_target_")
         or "maintenance" in name or "userdata" in name
         or name in {"schedule_quality_dashboard", "schedule_quality_refresh", "schedule_quality_schedule_update"}
     ):
@@ -73,7 +73,7 @@ def build_workspace_navigation(request, *, can_view_quality=False, can_view_port
     user = request.user
     installed_mirror = apps.is_installed("reporting_mirror")
     mirror_url = _reverse_optional("reporting_mirror_dashboard") if installed_mirror else ""
-    mirror_allowed = bool(mirror_url and (user.is_staff or can_view_quality or can_view_portfolio))
+    mirror_allowed = bool(mirror_url and (user.is_staff or user.has_perm("reporting_mirror.refresh_reporting") or can_view_quality or can_view_portfolio))
     active_id = section_for_route(getattr(getattr(request, "resolver_match", None), "url_name", None))
     reset_query = report_query(request)
     definitions = [{"id": "home", "label": "Home", "icon": "house", "route": "suite_landing", "groups": []}]
@@ -88,30 +88,33 @@ def build_workspace_navigation(request, *, can_view_quality=False, can_view_port
                 ("portfolio_reporting_resources", "Resources"),
             ]},
         ]})
+    quality_groups = []
     if can_view_quality:
-        definitions.append({"id": "quality", "label": "Quality Reports", "icon": "shield-check", "route": "schedule_quality_overview", "groups": [
-            {"id": "quality-pages", "label": "Quality Reports", "links": [
-                ("schedule_quality_overview", "Programme check"),
-                ("schedule_quality_validation", "Validation & evidence"),
-            ]},
+        quality_groups.append({"id": "quality-pages", "label": "Quality Reports", "links": [
+            ("schedule_quality_overview", "Programme check"),
+            ("schedule_quality_validation", "Validation & evidence"),
         ]})
+    if can_edit_settings:
+        quality_groups.append({"id": "quality-settings", "label": "Quality Settings", "links": [
+            ("schedule_quality_settings", "Quality rules"),
+        ]})
+    if quality_groups:
+        definitions.append({"id": "quality", "label": "Quality", "icon": "shield-check",
+                            "route": "schedule_quality_overview" if can_view_quality else "schedule_quality_settings",
+                            "groups": quality_groups})
     operations = []
     if user.is_staff:
         operations.extend([
-            {"id": "backups", "label": "Backup Targets", "links": [("backup_dashboard", "Targets & schedules")]},
-            {"id": "maintenance", "label": "Database Maintenance", "links": [("maintenance_dashboard", "Maintenance history")]},
+            {"id": "backups", "label": "Backup Targets", "links": [("backup_dashboard", "Targets")]},
         ])
     operations.append({"id": "refresh", "label": "Schedule Quality", "links": [("schedule_quality_dashboard", "Data refresh")]})
+    if user.is_staff:
+        operations.append({"id": "maintenance", "label": "P6 Maintenance", "links": [("maintenance_dashboard", "P6 Maintenance History")]})
     definitions.append({"id": "operations", "label": "Operations", "icon": "database", "route": "backup_dashboard" if user.is_staff else "schedule_quality_dashboard", "groups": operations})
     if mirror_allowed:
         definitions.append({"id": "reporting", "label": "Reporting Database", "icon": "database", "route": "reporting_mirror_dashboard", "groups": [
             {"id": "reporting-database", "label": "Reporting Database", "links": [("reporting_mirror_dashboard", "Reporting database")]},
         ]})
-    if can_edit_settings:
-        definitions.append({"id": "settings", "label": "Quality Settings", "icon": "gear-six", "route": "schedule_quality_settings", "groups": [
-            {"id": "quality-settings", "label": "Quality Settings", "links": [("schedule_quality_settings", "Quality rules")]},
-        ]})
-
     route_name = getattr(getattr(request, "resolver_match", None), "url_name", "")
     sections = []
     for definition in definitions:
@@ -119,7 +122,8 @@ def build_workspace_navigation(request, *, can_view_quality=False, can_view_port
         if not destination:
             continue
         section = {**definition, "url": destination + reset_query, "active": definition["id"] == active_id, "icon_path": f"backups/icons/{definition['icon']}.svg", "groups": []}
-        preserve = definition["id"] == active_id and active_id in {"portfolio", "quality"}
+        current_is_report = (route_name.startswith("portfolio_reporting") or
+                             route_name in {"schedule_quality_overview", "schedule_quality_validation"})
         for group in definition["groups"]:
             links = []
             for name, label in group["links"]:
@@ -131,6 +135,8 @@ def build_workspace_navigation(request, *, can_view_quality=False, can_view_port
                         or (name == "maintenance_dashboard" and ("maintenance" in route_name or "userdata" in route_name))
                         or (name == "reporting_mirror_dashboard" and active_id == "reporting")
                     )
+                    preserve = (definition["id"] == active_id and current_is_report and
+                                (name.startswith("portfolio_reporting") or name in {"schedule_quality_overview", "schedule_quality_validation"}))
                     links.append({"id": name, "label": label, "url": destination + report_query(request, preserve_filters=preserve), "reset_url": destination + reset_query, "active": active})
             if links:
                 section["groups"].append({"id": group["id"], "label": group["label"], "links": links})

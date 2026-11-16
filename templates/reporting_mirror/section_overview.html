@@ -1,0 +1,9 @@
+{% load humanize %}
+<div class="mirror-grid">
+    <section class="panel"><span class="subtle">Project records across both sources</span><strong>{{ total_projects|intcomma }}</strong></section>
+    <section class="panel"><span class="subtle">Relationship records</span><strong>{{ total_relationships|intcomma }}</strong></section>
+</div>
+<div class="mirror-sources">{% for source in source_rows %}<a class="panel mirror-source mirror-source-link" href="{% url 'reporting_mirror_dashboard' %}?section=source&amp;source={{ source.code }}{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}" aria-label="View {{ source.label }} source details">
+    <h2>{{ source.label }} <span class="badge {% if source.stale %}warning{% else %}success{% endif %}">{% if source.stale %}Needs refresh{% else %}Current{% endif %}</span></h2>
+    <dl><dt>Database</dt><dd>{{ source.database }}</dd><dt>Source snapshot</dt><dd>{{ source.snapshot_at|date:"d M Y H:i:s T"|default:"Not published" }}</dd><dt>Published to reports</dt><dd>{{ latest_publication.published_at|date:"d M Y H:i:s T"|default:"Not published" }}</dd><dt>Quality settings version</dt><dd>{{ source.quality.config_version_id|default:"—" }}</dd><dt>Projects / activities</dt><dd>{{ source.counts.projects|intcomma }} / {{ source.counts.activities|intcomma }}</dd></dl>
+</a>{% endfor %}</div>

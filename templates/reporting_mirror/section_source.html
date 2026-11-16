@@ -1,0 +1,9 @@
+{% load humanize %}
+{% for source in source_rows %}{% if source.code == request.GET.source %}
+<section class="panel mirror-source mirror-source-detail">
+    <h2>{{ source.label }} <span class="badge {% if source.stale %}warning{% else %}success{% endif %}">{% if source.stale %}Needs refresh{% else %}Current{% endif %}</span></h2>
+    <dl><dt>Database</dt><dd>{{ source.database }}</dd><dt>Source snapshot</dt><dd>{{ source.snapshot_at|date:"d M Y H:i:s T"|default:"Not published" }}</dd><dt>Published to reports</dt><dd>{{ latest_publication.published_at|date:"d M Y H:i:s T"|default:"Not published" }}</dd><dt>Quality settings version</dt><dd>{{ source.quality.config_version_id|default:"—" }}</dd></dl>
+    <h3>Source records</h3><dl>{% for name, count in source.counts.items %}<dt>{{ name|capfirst }}</dt><dd>{{ count|intcomma }}</dd>{% empty %}<dt>Records</dt><dd>Not published</dd>{% endfor %}</dl>
+    <a class="button ghost" href="{% url 'reporting_mirror_dashboard' %}{{ workspace_report_query }}">Back to overview</a>
+</section>
+{% endif %}{% empty %}<p>No reporting sources available.</p>{% endfor %}

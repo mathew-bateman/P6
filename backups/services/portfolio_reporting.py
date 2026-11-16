@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from backups.services.mssql import fetch_rows
+from reporting_mirror.reader import fetch_rows
 from backups.services.schedule_quality import build_schedule_quality_target
 from backups.services.schedule_quality_reporting import (
     CHECK_METRICS,

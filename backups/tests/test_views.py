@@ -80,10 +80,10 @@ class ScheduleQualityRefreshViewTests(TestCase):
             reverse("schedule_quality_dashboard"),
             fetch_redirect_response=False,
         )
-        refresh_task.delay.assert_called_once_with(trigger="manual")
+        refresh_task.delay.assert_called_once_with(trigger="manual", requested_by="staff")
 
     @patch("backups.views.execute_schedule_quality_refresh")
-    def test_non_staff_user_can_queue_schedule_quality_refresh(self, refresh_task):
+    def test_non_staff_without_refresh_permission_cannot_queue_schedule_quality_refresh(self, refresh_task):
         user = get_user_model().objects.create_user(
             username="jason.mappin",
             password="password",
@@ -92,12 +92,8 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.post(reverse("schedule_quality_refresh"))
 
-        self.assertRedirects(
-            response,
-            reverse("schedule_quality_dashboard"),
-            fetch_redirect_response=False,
-        )
-        refresh_task.delay.assert_called_once_with(trigger="manual")
+        self.assertEqual(response.status_code, 403)
+        refresh_task.delay.assert_not_called()
 
     def test_non_staff_dashboard_redirects_to_schedule_quality_page(self):
         user = get_user_model().objects.create_user(
@@ -184,7 +180,8 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
         response = self.client.get(reverse("schedule_quality_dashboard"))
 
-        self.assertContains(response, "Refresh all data")
+        self.assertNotContains(response, "Refresh all data")
+        self.assertNotContains(response, f'action="{reverse("schedule_quality_refresh")}"')
         self.assertContains(response, "Manual")
         self.assertContains(response, "32s")
         self.assertContains(response, "554")
@@ -271,7 +268,7 @@ class ScheduleQualityRefreshViewTests(TestCase):
 
     @patch("backups.views.fetch_schedule_quality_settings")
     @patch("backups.views.get_or_create_schedule_quality_draft")
-    def test_editor_can_open_sql_backed_quality_settings(self, get_draft, fetch_settings):
+    def test_editor_can_open_versioned_quality_settings(self, get_draft, fetch_settings):
         get_draft.return_value = 11
         fetch_settings.return_value = build_settings_snapshot()
         user = self.create_schedule_quality_editor()
@@ -285,10 +282,9 @@ class ScheduleQualityRefreshViewTests(TestCase):
         self.assertNotContains(response, "How changes reach Power BI")
         self.assertNotContains(response, "Stores your changes in SQL Server only")
         self.assertNotContains(response, "Unpublished drafts are ignored")
-        self.assertContains(
-            response,
-            "These published settings supply the scope, thresholds and points",
-        )
+        self.assertEqual(response.context["settings_snapshot"].config_version_id, 11)
+        self.assertEqual(response.context["settings_form"]["config_version_id"].value(), 11)
+        self.assertEqual(response.context["settings_form"]["expected_settings_hash"].value(), SETTINGS_HASH)
         self.assertContains(response, "Publish")
         self.assertContains(response, "N/A")
         self.assertNotContains(response, 'class="settings-advanced"')
@@ -508,7 +504,8 @@ class ScheduleQualityReportVisibilityTests(TestCase):
 
         self.client.force_login(member)
         member_response = self.client.get(reverse("suite_landing"))
-        self.assertContains(member_response, "Quality Reports")
+        self.assertContains(member_response, 'id="area-quality"')
+        self.assertContains(member_response, f'href="{reverse("schedule_quality_overview")}"')
         self.assertNotContains(member_response, "Portfolio Reporting")
         self.assertEqual(
             self.client.get(reverse("portfolio_reporting_hub")).status_code,
@@ -517,7 +514,8 @@ class ScheduleQualityReportVisibilityTests(TestCase):
 
         self.client.force_login(non_member)
         non_member_response = self.client.get(reverse("suite_landing"))
-        self.assertNotContains(non_member_response, "Quality Reports")
+        self.assertNotContains(non_member_response, 'id="area-quality"')
+        self.assertNotContains(non_member_response, reverse("schedule_quality_overview"))
 
 
 class PortfolioReportingVisibilityTests(TestCase):

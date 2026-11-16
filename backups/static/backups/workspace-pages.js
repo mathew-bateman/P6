@@ -13,7 +13,8 @@
     const synchronizeSidebar = () => {
         if (!['quality', 'portfolio'].includes(document.body.dataset.workspaceActiveSection)) return;
         const applied = new URLSearchParams(location.search);
-        document.querySelectorAll('#workspace-sidebar .workspace-tree-link').forEach(link => {
+        if (!document.querySelector('.overview-layout, .validation-layout, .portfolio-layout')) return;
+        document.querySelectorAll('#workspace-sidebar .workspace-tree-link[data-workspace-report-link]').forEach(link => {
             const destination = new URL(link.href, location.href);
             if (destination.origin !== location.origin) return;
             const source = [applied.get('report_source'), destination.searchParams.get('report_source')].find(value => reportSources.has(value));
@@ -44,6 +45,79 @@
         }
         return node;
     };
+    // Enhance only the in-drawer source panel. The original form remains the
+    // fallback outside the drawer, including its refresh-details link.
+    const prepareSourceInfo = (status, dialog) => {
+        if (!status || status.dataset.sourceInfoReady === 'true') return;
+        const form = status.querySelector('form');
+        const label = form?.querySelector('label[for="report-source"]');
+        const source = form?.querySelector('#report-source');
+        const meta = form?.querySelector('.subtle');
+        const refreshLink = form?.querySelector('a');
+        if (!form || !label || !source || !meta) return;
+        refreshLink?.classList.add('workspace-source-refresh-link');
+        const row = element('div', 'workspace-source-label-row');
+        const info = button('workspace-source-info', 'Reporting snapshot information');
+        info.textContent = 'i';
+        info.setAttribute('aria-label', 'Reporting snapshot information');
+        const popover = element('div', 'workspace-source-info-popover');
+        popover.id = `workspace-source-info-${++serial}`;
+        popover.hidden = true;
+        popover.setAttribute('role', 'tooltip');
+        info.setAttribute('aria-controls', popover.id);
+        info.setAttribute('aria-expanded', 'false');
+        info.setAttribute('aria-describedby', popover.id);
+        form.insertBefore(row, label);
+        row.append(label, info, popover);
+        popover.append(meta);
+        const warningText = meta.querySelector('strong')?.textContent.trim()
+            || (meta.textContent.trim().startsWith('No reporting snapshot') ? meta.textContent.trim() : '');
+        if (warningText) {
+            const warning = element('p', 'workspace-source-warning', warningText);
+            warning.setAttribute('role', 'status');
+            source.after(warning);
+            if (refreshLink) {
+                const warningLink = element('a', 'workspace-source-warning-link', 'View reporting status');
+                warningLink.href = refreshLink.href;
+                warning.after(warningLink);
+            }
+        }
+        info.dataset.pinned = 'false';
+        const show = () => { popover.hidden = false; info.setAttribute('aria-expanded', 'true'); };
+        const hide = () => { popover.hidden = true; info.setAttribute('aria-expanded', 'false'); };
+        info.addEventListener('mouseenter', show);
+        info.addEventListener('mouseleave', () => { if (info.dataset.pinned !== 'true' && document.activeElement !== info) hide(); });
+        info.addEventListener('focus', show);
+        info.addEventListener('blur', () => { if (info.dataset.pinned !== 'true' && !info.matches(':hover')) hide(); });
+        info.addEventListener('click', () => { if (info.dataset.pinned === 'true') { info.dataset.pinned = 'false'; hide(); } else { info.dataset.pinned = 'true'; show(); } });
+        status.dataset.sourceInfoReady = 'true';
+    };
+    const restoreSourceInfo = status => {
+        if (!status || status.dataset.sourceInfoReady !== 'true') return;
+        const form = status.querySelector('form');
+        const row = form?.querySelector('.workspace-source-label-row');
+        const label = row?.querySelector('label[for="report-source"]');
+        const source = form?.querySelector('#report-source');
+        const meta = row?.querySelector('.subtle');
+        if (row && label && source && meta) {
+            row.before(label);
+            source.after(meta);
+            row.remove();
+            form.querySelector('.workspace-source-warning')?.remove();
+            form.querySelector('.workspace-source-warning-link')?.remove();
+            form.querySelector('.workspace-source-refresh-link')?.classList.remove('workspace-source-refresh-link');
+        }
+        delete status.dataset.sourceInfoReady;
+    };
+    const dismissSourceInfo = (dialog, event) => {
+        if (event.key !== 'Escape') return;
+        const popover = dialog.querySelector('.workspace-source-info-popover:not([hidden])');
+        if (!popover) return;
+        event.preventDefault(); event.stopPropagation();
+        popover.hidden = true;
+        const info = popover.parentElement?.querySelector('.workspace-source-info');
+        if (info) { info.dataset.pinned = 'false'; info.setAttribute('aria-expanded', 'false'); }
+    };
     const fields = form => Array.from(form.elements).filter(control => control.name && !['submit', 'button', 'reset'].includes(control.type));
     const snapshot = form => fields(form).map(control => ({
         control,
@@ -68,6 +142,9 @@
             setValue(control, values ?? value);
             if (['checkbox', 'radio'].includes(control.type)) control.checked = checked;
         });
+        const source = state.dialog?.querySelector('#report-source');
+        const sourceInput = state.form.elements.namedItem('report_source');
+        if (source && sourceInput) source.value = sourceInput.value;
         state.restoring = false;
     };
     const closeWidgets = state => {
@@ -138,7 +215,7 @@
                 const dates = (input.dataset.updatedDates || '').split(',').filter(Boolean);
                 window.flatpickr(input, {
                     altInput: true, altFormat: 'j M Y', dateFormat: 'Y-m-d', disableMobile: true,
-                    enable: dates.length ? dates : undefined,
+                    ...(dates.length ? { enable: dates } : {}),
                     onChange: () => input.dispatchEvent(new Event('change', { bubbles: true })),
                 });
             }
@@ -165,6 +242,9 @@
     const open = state => {
         if (state.submitting || !state.dialog.isConnected) return;
         prepareWidgets(state);
+        // OOB refreshes can replace this select; keep it a draft until Apply.
+        state.dialog.querySelector('#report-source')?.removeAttribute('onchange');
+        prepareSourceInfo(state.dialog.querySelector('#reporting-source-status'), state.dialog);
         restore(state);
         state.dialog.returnValue = '';
         state.dialog.showModal();
@@ -216,7 +296,12 @@
             if (style === null) node.removeAttribute('style'); else node.setAttribute('style', style);
         });
         state.toolbar.remove();
-        state.dialog.remove();
+        if (state.serverDialog) {
+            state.dialog.close();
+            state.dialog.querySelector('.workspace-filter-header')?.remove();
+            state.dialog.querySelector('.workspace-filter-footer')?.remove();
+            state.status.remove();
+        } else state.dialog.remove();
         state.layout.classList.remove('workspace-filters-enhanced');
         state.emptySidebar?.classList.remove('workspace-filter-origin');
         state.listeners.forEach(([node, name, handler, capture]) => node.removeEventListener(name, handler, capture));
@@ -228,9 +313,10 @@
         if (enhanced.has(panel)) { prepareWidgets(enhanced.get(panel)); return; }
         const form = panel.querySelector('form');
         const layout = panel.closest('.overview-layout, .validation-layout, .portfolio-layout');
-        if (!form || !layout || panel.closest('dialog')) return;
+        if (!form || !layout) return;
+        const serverDialog = panel.closest('dialog[data-workspace-filter-shell]');
         const id = `workspace-report-filters-${++serial}`;
-        const dialog = element('dialog', 'workspace-filter-dialog');
+        const dialog = serverDialog || element('dialog', 'workspace-filter-dialog');
         dialog.id = id;
         dialog.setAttribute('aria-labelledby', `${id}-title`);
         const heading = element('div', 'workspace-filter-header');
@@ -241,7 +327,7 @@
         const closeButton = button('workspace-filter-close workspace-icon-button', 'Close filters', 'x');
         headingActions.append(resetButton, closeButton);
         heading.append(title, headingActions);
-        const body = element('div', 'workspace-filter-body');
+        const body = serverDialog?.querySelector('.workspace-filter-body') || element('div', 'workspace-filter-body');
         const status = element('p', 'workspace-filter-status');
         status.setAttribute('role', 'status');
         status.hidden = true;
@@ -251,7 +337,7 @@
         footer.append(cancelButton, applyButton);
         dialog.append(heading, body, status, footer);
         const toolbar = element('div', 'workspace-filter-toolbar');
-        const toggle = button('workspace-filter-toggle', 'Filters');
+        const toggle = button('workspace-filter-toggle', 'Filters', 'magnifying-glass');
         toggle.setAttribute('aria-controls', id);
         toggle.setAttribute('aria-haspopup', 'dialog');
         toggle.setAttribute('aria-expanded', 'false');
@@ -260,7 +346,7 @@
         const triggerAttribute = form.hasAttribute('data-hx-trigger') ? 'data-hx-trigger' : 'hx-trigger';
         const clearLink = form.querySelector('.overview-filter-actions a, .validation-filter-actions a, .portfolio-filter-actions a');
         const state = {
-            panel, form, layout, dialog, toolbar, toggle, closeButton, applyButton, status,
+            panel, form, layout, dialog, serverDialog, toolbar, toggle, closeButton, applyButton, status,
             triggerAttribute, triggerValue: form.getAttribute(triggerAttribute),
             placeholder: document.createComment('Report filters'),
             originalHeading: panel.querySelector('h2'),
@@ -276,8 +362,14 @@
         enhanced.set(panel, state);
         states.add(state);
         panel.before(state.placeholder);
+        const reportPage = layout.matches('.overview-layout, .validation-layout, .portfolio-layout');
+        const sourceStatus = body.querySelector('#reporting-source-status');
+        sourceStatus?.querySelector('#report-source')?.removeAttribute('onchange');
+        prepareSourceInfo(sourceStatus, dialog);
         body.append(panel);
-        layout.prepend(toolbar);
+        const pageHeading = reportPage && document.querySelector('.workspace-content > .page-hero');
+        if (pageHeading) { toolbar.classList.add('workspace-filter-toolbar--header'); pageHeading.append(toolbar); }
+        else layout.prepend(toolbar);
         layout.append(dialog);
         layout.classList.add('workspace-filters-enhanced');
         state.emptySidebar?.classList.add('workspace-filter-origin');
@@ -295,11 +387,22 @@
         }
         form.removeAttribute('hx-trigger');
         form.removeAttribute('data-hx-trigger');
+        listen(body, 'change', event => {
+            if (event.target.id !== 'report-source') return;
+            const sourceInput = form.elements.namedItem('report_source');
+            if (sourceInput && reportSources.has(event.target.value)) {
+                const changed = sourceInput.value !== event.target.value;
+                sourceInput.value = event.target.value;
+                // Project IDs are source-specific and can collide between sources.
+                if (changed && form.elements.namedItem('project')) setValue(form.elements.namedItem('project'), '');
+            }
+        });
         listen(toggle, 'click', () => open(state));
         listen(resetButton, 'click', () => resetDraft(state));
         listen(closeButton, 'click', () => close(state));
         listen(cancelButton, 'click', () => close(state));
         listen(applyButton, 'click', () => apply(state));
+        listen(dialog, 'keydown', event => dismissSourceInfo(dialog, event));
         listen(dialog, 'cancel', event => { event.preventDefault(); close(state); });
         listen(dialog, 'click', event => {
             if (event.target !== dialog) return;
@@ -351,7 +454,59 @@
         prepareWidgets(state);
         state.applied = snapshot(form);
     };
+    // The portfolio landing page has only a reporting-source selector. Keep its
+    // ordinary GET form as a no-JavaScript fallback and enhance it into a drawer.
+    const enhancePortfolioHub = () => {
+        const hero = document.querySelector('.portfolio-hub-hero');
+        const sourceStatus = document.getElementById('reporting-source-status');
+        const source = sourceStatus?.querySelector('#report-source');
+        const form = source?.form;
+        if (!hero || !sourceStatus || !form || hero.querySelector('.workspace-filter-toggle')) return;
+        const id = `workspace-report-filters-${++serial}`;
+        const dialog = sourceStatus.closest('dialog[data-workspace-source-shell]');
+        if (!dialog) return;
+        dialog.id = id;
+        dialog.setAttribute('aria-labelledby', `${id}-title`);
+        const heading = element('div', 'workspace-filter-header');
+        const title = element('h2', 'workspace-filter-title', 'Filters');
+        title.id = `${id}-title`;
+        const headingActions = element('div', 'workspace-filter-heading-actions');
+        const closeButton = button('workspace-filter-close workspace-icon-button', 'Close filters', 'x');
+        headingActions.append(closeButton);
+        heading.append(title, headingActions);
+        const body = dialog.querySelector('.workspace-filter-body');
+        source.removeAttribute('onchange');
+        prepareSourceInfo(sourceStatus, dialog);
+        const footer = element('div', 'workspace-filter-footer');
+        const cancelButton = button('workspace-filter-cancel', 'Cancel');
+        const applyButton = button('workspace-filter-apply', 'Apply filters');
+        footer.append(cancelButton, applyButton);
+        dialog.append(heading, body, footer);
+        const toolbar = element('div', 'workspace-filter-toolbar workspace-filter-toolbar--header');
+        const toggle = button('workspace-filter-toggle', 'Filters', 'magnifying-glass');
+        toggle.setAttribute('aria-controls', id);
+        toggle.setAttribute('aria-haspopup', 'dialog');
+        toggle.setAttribute('aria-expanded', 'false');
+        toolbar.append(toggle);
+        hero.append(toolbar);
+        document.body.append(dialog);
+        let appliedSource = source.value;
+        const close = () => { source.value = appliedSource; dialog.close(); };
+        toggle.addEventListener('click', () => { source.value = appliedSource; dialog.showModal(); toggle.setAttribute('aria-expanded', 'true'); closeButton.focus(); });
+        closeButton.addEventListener('click', close);
+        cancelButton.addEventListener('click', close);
+        applyButton.addEventListener('click', () => form.requestSubmit());
+        dialog.addEventListener('keydown', event => dismissSourceInfo(dialog, event));
+        dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
+        dialog.addEventListener('click', event => {
+            if (event.target !== dialog) return;
+            const box = dialog.getBoundingClientRect();
+            if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close();
+        });
+        dialog.addEventListener('close', () => { toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); });
+    };
     const initialize = (root = document) => {
+        enhancePortfolioHub();
         if (root.matches?.(panelSelector)) enhance(root);
         root.querySelectorAll?.(panelSelector).forEach(enhance);
         for (const state of states) {
@@ -382,7 +537,10 @@
             restore(state);
             teardown(state);
             state.form.querySelectorAll('select').forEach(select => select.tomselect?.destroy());
-            state.form.querySelectorAll('.schedule-quality-date-picker').forEach(input => input._flatpickr?.destroy());
+            state.form.querySelectorAll('.schedule-quality-date-picker').forEach(input => {
+                input._flatpickr?.destroy();
+                delete input._flatpickr;
+            });
             restore(state);
             fields(state.form).forEach(control => {
                 if (control.tagName === 'SELECT') Array.from(control.options).forEach(option => option.toggleAttribute('selected', option.selected));

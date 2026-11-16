@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Reporting Temporarily Unavailable | P6 Operations Hub{% endblock %}
+{% block content %}<section class="panel"><h1>Reporting is temporarily unavailable</h1><p>The reporting database could not complete this request. P6 itself continues using its normal SQL connection.</p><p>Refresh this page to retry, or review the reporting status and settings.</p><a class="button" href="{% url 'reporting_mirror_dashboard' %}">Reporting Database</a></section>{% endblock %}

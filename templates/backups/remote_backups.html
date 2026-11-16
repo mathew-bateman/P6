@@ -4,6 +4,7 @@
 
 {% block content %}
 <style>
+    .workspace-app .workspace-content section.panel.remote-backups-list { margin-top: 16px; }
     .remote-backups-hero { align-items: center; }
     .remote-backups-hero h1 { margin: 0; }
     .remote-backups-hero .subtle { margin: 6px 0 0; }
@@ -35,16 +36,16 @@
         .remote-restore-actions { flex-direction: column-reverse; }
         .remote-restore-actions > button { width: 100%; }
     }
+    .workspace-app .remote-backups-hero { display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .workspace-app .remote-backups-hero > div:first-child { flex: 1 1 200px; min-width: 0; }
+    .workspace-app .remote-backups-hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; width: auto; margin-left: auto; gap: 8px; }
+    .workspace-app .remote-backups-hero-actions > .button { width: auto; min-width: 0; min-height: 38px; height: 38px; padding: 7px 12px; }
 </style>
 
 <div class="toolbar page-hero remote-backups-hero">
     <div>
         <h1>{{ target.name }} Remote Backups</h1>
-        <p class="subtle">SharePoint folder: <code>{{ target.sharepoint_folder }}</code></p>
-    </div>
-    <div class="remote-backups-hero-actions">
-        <a class="button" href="{{ target.get_absolute_url }}">Settings</a>
-        <a class="button" href="{% url 'backup_dashboard' %}">Targets</a>
+        
     </div>
 </div>
 
@@ -55,7 +56,7 @@
     </section>
 {% endif %}
 
-<section class="panel refresh-history">
+<section class="panel refresh-history remote-backups-list">
     <div class="toolbar">
         <div>
             <h2>Available Backups</h2>
@@ -65,6 +66,7 @@
             <span class="badge success">Type {{ target.sql_database }}</span>
         </nav>
     </div>
+    <div class="workspace-table-scroll" role="region" aria-label="Available remote backups" tabindex="0">
     <table>
         <thead>
         <tr>
@@ -126,6 +128,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
 
     {% if page_obj.has_other_pages %}
         <div class="pagination-container">

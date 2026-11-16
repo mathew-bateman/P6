@@ -43,9 +43,8 @@
     .overview-filter-actions .button, .overview-filter-actions button { width: 100%; min-width: 0; box-sizing: border-box; }
     .overview-main { min-width: 0; }
     .overview-report { overflow: hidden; margin: 0; padding: 0; }
-    .overview-score-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; padding: 0; border: 0; background: transparent; }
     .overview-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fbfefd; }
-    .overview-heading-title { display: flex; align-items: center; min-width: 0; min-height: 46px; padding-left: 13px; border-left: 3px solid var(--accent); }
+    .overview-heading-title { display: flex; align-items: center; min-width: 0; min-height: 46px; padding-left: 0; border-left: 0; }
     .overview-panel-heading h2 { margin: 0; font-size: 23px; letter-spacing: -.015em; }
     .overview-heading-kpis { display: grid; grid-template-columns: repeat(2, minmax(145px, 1fr)); gap: 6px; flex: 0 0 auto; }
     .overview-heading-kpi { min-width: 0; min-height: 46px; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--accent); font-size: 9px; font-weight: 750; letter-spacing: .055em; line-height: 1.2; text-align: left; text-transform: uppercase; box-shadow: none; }
@@ -67,11 +66,6 @@
     .overview-result.green { background: #b7e4bd; color: #14532d; }
     .overview-result.amber { background: #fef0c7; color: #8a4b0f; }
     .overview-result.red { background: #ef9a9a; color: #7f1d1d; }
-    .overview-scorecard { min-width: 0; min-height: 88px; box-sizing: border-box; margin: 0; padding: 14px 16px; border-left: 3px solid var(--accent); background: #fff; }
-    .overview-scorecard span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-    .overview-scorecard strong { display: block; margin-top: 8px; font-size: 24px; }
-    .overview-scorecard.outcome.pass { background: #c6efce; color: #14532d; }
-    .overview-scorecard.outcome.fail { background: #fee4e2; color: #991b1b; }
     .overview-error { margin: 0 0 16px; border-color: #fecdca; background: #fff7f6; color: var(--danger); }
     .overview-empty { padding: 34px 20px; text-align: center !important; color: var(--muted); }
     @media (max-width: 1120px) {
@@ -88,8 +82,6 @@
         .overview-filter-actions { grid-column: auto; width: 100%; }
         .overview-panel-heading { align-items: stretch; flex-direction: column; gap: 12px; }
         .overview-heading-kpis { width: 100%; }
-        .overview-score-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .overview-scorecard.outcome { grid-column: 1 / -1; }
     }
 </style>
 

@@ -3,6 +3,43 @@
 {% block title %}Power BI Refresh | P6 Operations Hub{% endblock %}
 
 {% block content %}
+<style>
+    /* Give the three actions matching label, description and control rows. */
+    .refresh-workspace-body { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    .refresh-workspace-manual,
+    .refresh-workspace-settings,
+    .refresh-workspace-schedule summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 32px minmax(42px, 1fr) auto;
+        gap: 4px;
+        height: 100%;
+        padding: 16px 18px;
+    }
+    .refresh-workspace-schedule summary .operation-label { grid-column: 1; grid-row: 1; }
+    .refresh-workspace-schedule summary strong { grid-column: 1; grid-row: 2; }
+    .refresh-workspace-schedule summary .schedule-edit-button { grid-column: 1; grid-row: 3; }
+    .refresh-workspace-manual strong,
+    .refresh-workspace-settings strong,
+    .refresh-workspace-schedule summary strong { align-self: start; }
+    .refresh-workspace-manual button,
+    .refresh-workspace-settings .button,
+    .refresh-workspace-schedule .schedule-edit-button { width: min(116px, 100%); }
+    @media (max-width: 520px) {
+        .refresh-workspace-body { grid-template-columns: 1fr; }
+        .refresh-workspace-manual,
+        .refresh-workspace-settings,
+        .refresh-workspace-schedule summary { height: auto; grid-template-rows: auto auto auto; gap: 8px; }
+    }
+    .workspace-app .refresh-workspace { margin-top: 16px; border-radius: 10px; box-shadow: none; background: #fff; }
+    .workspace-app .refresh-workspace-body { display: flex; flex-direction: column; gap: 0; }
+    .workspace-app .refresh-workspace-manual, .workspace-app .refresh-workspace-settings, .workspace-app .refresh-workspace-schedule summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 4px 16px; min-height: 0; height: auto; padding: 14px 18px; background: #fff; }
+    .workspace-app .refresh-workspace-body > * + * { border-top: 1px solid var(--line); }
+    .workspace-app .refresh-workspace .operation-label { grid-column: 1; grid-row: 1; margin: 0; }
+    .workspace-app .refresh-workspace strong { grid-column: 1; grid-row: 2; font-size: 15px; }
+    .workspace-app .refresh-workspace-manual form, .workspace-app .refresh-workspace-settings > .button, .workspace-app .refresh-workspace-schedule summary .schedule-edit-button { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+    .workspace-app .refresh-workspace-manual button, .workspace-app .refresh-workspace-settings .button, .workspace-app .refresh-workspace-schedule .schedule-edit-button { width: auto; min-width: 76px; min-height: 34px; }
+</style>
 <section class="toolbar page-hero maintenance-page-heading schedule-quality-page-heading">
     <div>
         <h1>Schedule Quality</h1>
@@ -12,6 +49,7 @@
 
 <section class="refresh-workspace">
     <div class="refresh-workspace-body">
+        {% if can_refresh_schedule_quality %}
         <div class="refresh-workspace-manual">
             <p class="operation-label">Run refresh</p>
             <strong>Refresh all data</strong>
@@ -20,6 +58,7 @@
                 <button type="submit">Run</button>
             </form>
         </div>
+        {% endif %}
 
         {% if can_edit_schedule_quality_schedule %}
         <details class="refresh-workspace-schedule">
@@ -106,6 +145,7 @@
     {% if refresh_history_error %}
         <p class="subtle">{{ refresh_history_error }}</p>
     {% else %}
+        <div class="workspace-table-scroll" role="region" aria-label="Data refresh history" tabindex="0">
         <table>
             <thead>
             <tr>
@@ -148,6 +188,7 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
         {% if history_page.total_pages > 1 %}
             <div class="pagination-container">
                 <span class="pagination-info">

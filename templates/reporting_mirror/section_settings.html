@@ -1,0 +1,5 @@
+{% load humanize %}
+{% if request.user.is_staff %}<section class="panel"><h2>Refresh settings</h2><p class="subtle">Use the versioned settings editor to adjust reporting checks, thresholds and evidence fields. Saving a draft keeps existing reports unchanged; publishing rebuilds and publishes both sources together.</p>
+<p><a class="button ghost" href="{% url 'schedule_quality_settings' %}">Schedule-quality settings</a></p>
+<form method="post" action="{% url 'reporting_mirror_settings' %}?section=settings">{% csrf_token %}{{ settings_form.non_field_errors }}<div class="mirror-settings">{% for field in settings_form %}<div class="field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<p class="subtle">{{ field.help_text }}</p>{% endif %}{{ field.errors }}</div>{% endfor %}</div><p><button type="submit">Save reporting settings</button></p></form></section>{% endif %}
+

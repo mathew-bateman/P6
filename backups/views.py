@@ -19,6 +19,7 @@ from django.views import View
 from django.views.generic import ListView, TemplateView
 
 from backups.forms import ScheduleQualitySettingsForm
+from backups.target_forms import BackupTargetCreateForm
 from backups.models import BackupRun, BackupTarget, DatabaseMaintenanceRun
 from backups.services.schedule_quality import (
     ScheduleQualitySettingsConflict,
@@ -51,8 +52,17 @@ from backups.services.scheduling import (
     sync_target_schedule,
 )
 from backups.services.sharepoint import build_sharepoint_client, parse_sharepoint_url
+from reporting_mirror.access import can_refresh_reporting
+from reporting_mirror.reader import active_config as reporting_active_config
 from backups.tasks import (
     execute_schedule_quality_refresh,
+    execute_index_defragmentation,
+    execute_stale_session_cleanup,
+    execute_log_retention_pruning,
+    execute_userdata_bloat_prune,
+    execute_statistics_refresh,
+    execute_physical_integrity_check,
+    execute_p6_background_health_check,
     execute_target_backup,
     execute_target_restore,
     publish_schedule_quality_config_task,
@@ -383,6 +393,7 @@ class ScheduleQualityDashboardView(LoginRequiredMixin, TemplateView):
             context["refresh_history_error"] = str(error)
             context["history_page"] = {"number": 1, "total_pages": 1, "total_runs": 0}
         context["selected_status"] = selected_status
+        context["can_refresh_schedule_quality"] = can_refresh_reporting(self.request.user)
 
         schedule_state = get_schedule_quality_refresh_schedule(
             default_crontab=settings.P6_SCHEDULE_QUALITY_REFRESH_SCHEDULE,
@@ -390,7 +401,8 @@ class ScheduleQualityDashboardView(LoginRequiredMixin, TemplateView):
         )
         context["schedule_quality_enabled"] = schedule_state["enabled"]
         context["schedule_quality_crontab"] = schedule_state["crontab"]
-        context["can_edit_schedule_quality_schedule"] = can_edit_schedule_quality_schedule(
+        from reporting_mirror.sql_retirement import retired
+        context["can_edit_schedule_quality_schedule"] = not retired() and can_edit_schedule_quality_schedule(
             self.request.user
         )
         context["can_edit_schedule_quality_settings"] = can_edit_schedule_quality_settings(
@@ -547,10 +559,8 @@ class ScheduleQualityOverviewView(
                 context["report_scope_label"] = f"{filters.portfolio} portfolio"
             else:
                 context["report_scope_label"] = "All matching projects"
-            latest_runs = fetch_schedule_quality_refresh_history(
-                limit=1,
-                offset=0,
-                status="success",
+            latest_runs = [] if reporting_active_config() else fetch_schedule_quality_refresh_history(
+                limit=1, offset=0, status="success",
             )
             context["latest_refresh"] = latest_runs[0] if latest_runs else None
         except Exception as error:
@@ -648,10 +658,8 @@ class ScheduleQualityValidationView(
             query = self.request.GET.copy()
             query.pop("page", None)
             context["pagination_query"] = query.urlencode()
-            latest_runs = fetch_schedule_quality_refresh_history(
-                limit=1,
-                offset=0,
-                status="success",
+            latest_runs = [] if reporting_active_config() else fetch_schedule_quality_refresh_history(
+                limit=1, offset=0, status="success",
             )
             context["latest_refresh"] = latest_runs[0] if latest_runs else None
         except Exception as error:
@@ -809,6 +817,25 @@ class ResourceReportingView(PortfolioReportingView):
     report_fetcher = staticmethod(fetch_resource_overview)
 
 
+class TargetCreateView(StaffRequiredMixin, View):
+    template_name = "backups/target_create.html"
+
+    def get(self, request):
+        from django.shortcuts import render
+        return render(request, self.template_name, {"form": BackupTargetCreateForm()})
+
+    def post(self, request):
+        from django.shortcuts import render
+        form = BackupTargetCreateForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form}, status=400)
+        target = form.save(commit=False)
+        target.enabled = False
+        target.save()
+        messages.success(request, f"{target.name} added. Review its settings before enabling backups.")
+        return redirect(target)
+
+
 class TargetDetailView(StaffRequiredMixin, TemplateView):
     template_name = "backups/target_detail.html"
 
@@ -901,12 +928,17 @@ class TriggerBackupView(StaffRequiredMixin, View):
         return redirect(target)
 
 
-class TriggerScheduleQualityRefreshView(LoginRequiredMixin, View):
+class TriggerScheduleQualityRefreshView(LoginRequiredMixin, UserPassesTestMixin, View):
     http_method_names = ["post"]
 
+    def test_func(self):
+        return can_refresh_reporting(self.request.user)
+
     def post(self, request):
-        execute_schedule_quality_refresh.delay(trigger="manual")
-        messages.success(request, "Power BI schedule quality refresh queued.")
+        execute_schedule_quality_refresh.delay(
+            trigger="manual", requested_by=request.user.get_username()
+        )
+        messages.success(request, "Reporting refresh queued.")
         return redirect("schedule_quality_dashboard")
 
 
@@ -916,6 +948,11 @@ class ScheduleQualityScheduleUpdateView(LoginRequiredMixin, View):
     def post(self, request):
         if not can_edit_schedule_quality_schedule(request.user):
             raise PermissionDenied
+
+        from reporting_mirror.sql_retirement import retired
+        if retired():
+            messages.warning(request, "Legacy SQL refresh schedule is retired. Manage PostgreSQL refresh in Reporting Database.")
+            return redirect("reporting_mirror_dashboard")
 
         schedule = build_schedule_from_post(request)
         if schedule is None:
@@ -1072,6 +1109,34 @@ class ScheduleQualityP6FieldsApiView(LoginRequiredMixin, View):
         if request.GET.get("category") == "schema":
             return JsonResponse({"tables": discover_p6_schema()})
         return JsonResponse({"fields": discover_p6_fields(request.GET.get("category", ""))})
+
+
+class TriggerMaintenanceView(StaffRequiredMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request):
+        tasks = {
+            "index": ("Index defragmentation", execute_index_defragmentation),
+            "sessions": ("Stale session and lock cleanup", execute_stale_session_cleanup),
+            "logs": ("Audit and job log pruning", execute_log_retention_pruning),
+            "userdata": ("USERDATA cleanup", execute_userdata_bloat_prune),
+            "statistics": ("SQL statistics refresh", execute_statistics_refresh),
+            "integrity": ("Physical integrity check", execute_physical_integrity_check),
+            "background": ("P6 background health check", execute_p6_background_health_check),
+        }
+        choice = tasks.get(request.POST.get("task", ""))
+        if choice is None:
+            messages.error(request, "Choose a valid maintenance task.")
+            return redirect("maintenance_dashboard")
+        label, task = choice
+        try:
+            task.delay(trigger=DatabaseMaintenanceRun.TRIGGER_MANUAL)
+        except Exception:
+            logger.exception("Could not queue manual maintenance task %s", label)
+            messages.error(request, f"Could not queue {label}. Please try again.")
+        else:
+            messages.success(request, f"{label} queued for a manual run.")
+        return redirect("maintenance_dashboard")
 
 
 class MaintenanceDashboardView(StaffRequiredMixin, TemplateView):

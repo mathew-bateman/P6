@@ -4,48 +4,115 @@
     <div class="workspace-rail-primary">
         {% for section in workspace_navigation.sections %}
             <div class="workspace-rail-item" data-workspace-section="{{ section.id }}">
-                <a class="workspace-rail-link{% if section.active %} is-active{% endif %}" href="{{ section.url }}" aria-label="{{ section.label }}"{% if section.active %} aria-current="{% if section.id == 'home' %}page{% else %}location{% endif %}"{% endif %}{% if section.groups %} aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-flyout-{{ section.id }}" data-workspace-menu-trigger="{{ section.id }}"{% else %} title="Home"{% endif %}>
-                    <span class="workspace-icon" style="--workspace-icon:url('{% static section.icon_path %}')" aria-hidden="true"></span>
+                <a class="workspace-rail-link{% if section.active %} is-active{% endif %}" href="{% if section.id == 'operations' and request.user.is_staff %}{% url 'backup_dashboard' %}?view=overview{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}{% else %}{{ section.url }}{% endif %}" aria-label="{{ section.label }}"{% if section.active %} aria-current="{% if section.id == 'home' %}page{% else %}location{% endif %}"{% endif %}>
+                    {% if section.id == 'home' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/house-outline.svg' %}')" aria-hidden="true"></span>{% elif section.id == 'operations' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/server-stack.svg' %}')" aria-hidden="true"></span>{% else %}<span class="workspace-icon" style="--workspace-icon:url('{% static section.icon_path %}')" aria-hidden="true"></span>{% endif %}
+                    <span class="workspace-rail-label" aria-hidden="true">{{ section.label }}</span>
                 </a>
             </div>
         {% endfor %}
     </div>
     <div class="workspace-rail-bottom"><button class="workspace-avatar" type="button" aria-label="Account menu" aria-expanded="false" aria-controls="workspace-account-menu" data-workspace-account>{{ workspace_navigation.initials }}</button></div>
 </nav>
+{% if workspace_navigation.active_section.id == 'operations' %}
+<style>
+.workspace-nav-fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; list-style: none; border-radius: 6px; padding-top: 5px; padding-bottom: 5px; }
+.workspace-tree--sections .workspace-tree-link { font-size: 12px; }
+.workspace-tree--sections .workspace-tree-link .workspace-icon { width: 14px; height: 14px; }
+.workspace-target-navigation > summary { font-size: 12px; }
+.workspace-nav-fold > summary::-webkit-details-marker { display: none; }
+.workspace-nav-fold > summary::after { content: ''; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); margin-right: 4px; }
+.workspace-nav-fold[open] > summary::after { transform: rotate(45deg); }
+.workspace-backup-heading { flex: 1; color: inherit; text-decoration: none; }
+.workspace-backup-heading.is-selected { color: #00646a; font-weight: 700; }
+.workspace-backup-heading:focus-visible { outline: 2px solid #087f70; outline-offset: 2px; }
+.workspace-databases > summary { padding: 0; margin: 0; gap: 0; }
+.workspace-databases > summary > .workspace-tree-link { flex: 1; min-width: 0; }
+.workspace-databases > summary::after { margin: 0 9px; }
+.workspace-target-navigation > summary { font-size: 12px; font-weight: 500; color: #526781; }
+.workspace-target-navigation > summary > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.workspace-target-navigation > summary .workspace-icon { width: 16px; height: 16px; color: #70829b; flex: none; }
+.workspace-target-navigation > .workspace-tree-links { margin-left: 12px; }
+.workspace-nav-fold > summary:hover { background: #e9eef2; }
+.workspace-nav-fold > summary:focus-visible { outline: 2px solid #087f70; outline-offset: 1px; }
+</style>
+{% endif %}
 {% if workspace_navigation.has_sidebar %}
-    <button class="workspace-nav-scrim" type="button" aria-label="Close navigation" data-workspace-sidebar-close></button>
-    <aside id="workspace-sidebar" class="workspace-tree" aria-label="{{ workspace_navigation.active_section.label }} navigation">
+    <aside id="workspace-sidebar" class="workspace-tree workspace-tree--sections" aria-label="{{ workspace_navigation.active_section.label }} navigation">
         <div class="workspace-tree-scroll">
             <h2 class="workspace-section-label">{{ workspace_navigation.active_section.label }}</h2>
             {% for group in workspace_navigation.active_section.groups %}
-                {% if workspace_navigation.active_section.groups|length > 1 %}
-                    <details class="workspace-tree-group" open>
-                        <summary><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/folder-simple.svg' %}')" aria-hidden="true"></span><span>{{ group.label }}</span><span class="workspace-icon workspace-tree-caret" style="--workspace-icon:url('{% static 'backups/icons/caret-right.svg' %}')" aria-hidden="true"></span></summary>
-                        <div class="workspace-tree-children">
-                {% else %}<div class="workspace-tree-links">{% endif %}
+                {% if workspace_navigation.active_section.id == 'operations' %}
+                <details class="workspace-tree-section workspace-nav-fold" open>
+                    <summary class="workspace-tree-section-label">{% if group.id == 'backups' %}Backup{% else %}{{ group.label }}{% endif %}</summary>
+                {% else %}
+                <div class="workspace-tree-section" role="group" aria-label="{{ group.label }}">
+                    {% if group.label != workspace_navigation.active_section.label %}<h3 class="workspace-tree-section-label">{{ group.label }}</h3>{% endif %}
+                {% endif %}
+                    <div class="workspace-tree-links">
                     {% for link in group.links %}
-                        <a class="workspace-tree-link{% if link.active %} is-selected{% endif %}" href="{{ link.url }}"{% if link.active %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/file.svg' %}')" aria-hidden="true"></span><span>{{ link.label }}</span></a>
+                    {% if group.id != 'backups' and group.id != 'reporting-database' %}
+                        <a class="workspace-tree-link{% if link.active and group.id != 'backups' or link.active and request.resolver_match.url_name == 'backup_dashboard' %} is-selected{% endif %}" href="{{ link.url }}"{% if group.id == 'quality-pages' or group.id == 'portfolio-pages' %} data-workspace-report-link{% endif %}{% if link.active and group.id != 'backups' or link.active and request.resolver_match.url_name == 'backup_dashboard' %} aria-current="page"{% endif %}>
+                            {% if group.id == 'backups' or link.id == 'reporting_mirror_dashboard' or link.id == 'portfolio_reporting_resources' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}')" aria-hidden="true"></span>{% elif group.id == 'maintenance' or link.id == 'schedule_quality_settings' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/gear-six.svg' %}')" aria-hidden="true"></span>{% elif group.id == 'refresh' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/arrow-counter-clockwise.svg' %}')" aria-hidden="true"></span>{% elif link.id == 'schedule_quality_overview' or link.id == 'portfolio_reporting_health' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/shield-check.svg' %}')" aria-hidden="true"></span>{% elif link.id == 'portfolio_reporting_overview' or link.id == 'portfolio_reporting_risk_float' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/chart-bar.svg' %}')" aria-hidden="true"></span>{% elif link.id == 'portfolio_reporting_project_detail' %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/folder-simple.svg' %}')" aria-hidden="true"></span>{% else %}<span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/file.svg' %}')" aria-hidden="true"></span>{% endif %}
+                            <span>{{ link.label }}</span>
+                        </a>
+                    {% endif %}
                     {% endfor %}
                     </div>
-                {% if workspace_navigation.active_section.groups|length > 1 %}</details>{% endif %}
+                {% if group.id == 'reporting-database' %}
+                <div class="workspace-tree-links">
+                    <a class="workspace-tree-link{% if not request.GET.section and request.resolver_match.url_name == 'reporting_mirror_dashboard' %} is-selected{% endif %}" href="{% url 'reporting_mirror_dashboard' %}{{ workspace_report_query }}"{% if not request.GET.section and request.resolver_match.url_name == 'reporting_mirror_dashboard' %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/chart-bar.svg' %}')" aria-hidden="true"></span><span>Overview</span></a>
+                    <a class="workspace-tree-link{% if request.GET.section == 'views' or request.resolver_match.url_name == 'reporting_mirror_preview' %} is-selected{% endif %}" href="{% url 'reporting_mirror_dashboard' %}?section=views{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}')" aria-hidden="true"></span><span>Reporting views</span></a>
+                    <a class="workspace-tree-link{% if request.GET.section == 'engine' %} is-selected{% endif %}" href="{% url 'reporting_mirror_dashboard' %}?section=engine{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/gear-six.svg' %}')" aria-hidden="true"></span><span>Calculation engine</span></a>
+                    {% if request.user.is_staff %}<a class="workspace-tree-link{% if request.GET.section == 'settings' %} is-selected{% endif %}" href="{% url 'reporting_mirror_dashboard' %}?section=settings{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/gear-six.svg' %}')" aria-hidden="true"></span><span>Refresh settings</span></a>{% endif %}
+                    <a class="workspace-tree-link{% if request.GET.section == 'history' %} is-selected{% endif %}" href="{% url 'reporting_mirror_dashboard' %}?section=history{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/arrow-counter-clockwise.svg' %}')" aria-hidden="true"></span><span>Refresh history</span></a>
+                </div>
+                {% endif %}
+                {% if group.id == 'backups' %}
+                <div class="workspace-tree-links"><a class="workspace-tree-link{% if request.resolver_match.url_name == 'backup_dashboard' and request.GET.view == 'overview' %} is-selected{% endif %}" href="{% url 'backup_dashboard' %}?view=overview{% if workspace_report_source %}&amp;report_source={{ workspace_report_source }}{% endif %}"{% if request.resolver_match.url_name == 'backup_dashboard' and request.GET.view == 'overview' %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/chart-bar.svg' %}')" aria-hidden="true"></span><span>Overview</span></a></div>
+                <details class="workspace-databases workspace-nav-fold" open>
+                    <summary class="workspace-tree-section-label"><a class="workspace-tree-link{% if request.resolver_match.url_name == 'backup_dashboard' and request.GET.view != 'overview' %} is-selected{% endif %}" href="{% url 'backup_dashboard' %}{{ workspace_report_query }}"{% if request.resolver_match.url_name == 'backup_dashboard' and request.GET.view != 'overview' %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}')" aria-hidden="true"></span><span>Databases</span></a></summary>
+                {% for sidebar_target in workspace_backup_targets %}
+                <details class="workspace-target-navigation workspace-nav-fold" style="margin: 8px 0 0 14px;"{% if request.resolver_match.kwargs.slug == sidebar_target.slug %} open{% endif %}>
+                    <summary class="workspace-tree-section-label"><span><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}')" aria-hidden="true"></span><span>{{ sidebar_target.name }}</span></span></summary>
+                    <div class="workspace-tree-links">
+                        <a class="workspace-tree-link{% if request.resolver_match.url_name == 'backup_target_detail' and request.resolver_match.kwargs.slug == sidebar_target.slug %} is-selected{% endif %}" href="{% url 'backup_target_detail' sidebar_target.slug %}"{% if request.resolver_match.url_name == 'backup_target_detail' and request.resolver_match.kwargs.slug == sidebar_target.slug %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/gear-six.svg' %}')" aria-hidden="true"></span><span>Settings</span></a>
+                        <a class="workspace-tree-link{% if request.resolver_match.url_name == 'backup_target_remote' and request.resolver_match.kwargs.slug == sidebar_target.slug %} is-selected{% endif %}" href="{% url 'backup_target_remote' sidebar_target.slug %}"{% if request.resolver_match.url_name == 'backup_target_remote' and request.resolver_match.kwargs.slug == sidebar_target.slug %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}')" aria-hidden="true"></span><span>Backups</span></a>
+                    </div>
+                </details>
+                {% endfor %}
+                </details>{% endif %}
+                {% if workspace_navigation.active_section.id == 'operations' %}</details>{% else %}</div>{% endif %}
             {% endfor %}
         </div>
     </aside>
 {% endif %}
-{% for section in workspace_navigation.sections %}
-    {% if section.groups %}
-        <nav id="workspace-flyout-{{ section.id }}" class="workspace-flyout" role="menu" aria-label="{{ section.label }} choices" data-workspace-flyout="{{ section.id }}" hidden>
-            <div class="workspace-flyout-title" aria-hidden="true">{{ section.label }}</div>
-            {% for group in section.groups %}
-                <div class="workspace-flyout-group" role="group" aria-label="{{ group.label }}">
-                    {% if section.groups|length > 1 %}<div class="workspace-flyout-group-label" aria-hidden="true">{{ group.label }}</div>{% endif %}
-                    {% for link in group.links %}<a class="workspace-flyout-link{% if link.active %} is-selected{% endif %}" href="{{ link.reset_url }}" role="menuitem" tabindex="-1"{% if link.active %} aria-current="page"{% endif %}><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/file.svg' %}')" aria-hidden="true"></span><span>{{ link.label }}</span></a>{% endfor %}
-                </div>
-            {% endfor %}
-        </nav>
-    {% endif %}
-{% endfor %}
+<style>
+#workspace-account-menu { width:210px; max-width:calc(100vw - 72px); bottom:12px; padding:6px; border-radius:10px; }
+.workspace-account-heading { display:flex; align-items:center; padding:6px 8px 9px; }
+.workspace-account-heading > div { flex:1; min-width:0; }
+.workspace-account-heading strong { display:block; font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+.workspace-account-heading > div > span { display:block; font-size:12px; color:#77849a; margin-top:3px; overflow-wrap:anywhere; }
+.workspace-account-avatar { display:grid; place-items:center; width:32px; height:32px; flex:none; background:#edf1f5; color:#526781; border-radius:50%; font-size:12px; }
+.workspace-app #workspace-account-menu button { display:flex; align-items:center; gap:9px; background:transparent; color:#344763; border:0; box-shadow:none; }
+.workspace-app #workspace-account-menu button:hover { background:#f0f3f6; }
+.workspace-app #workspace-account-menu .workspace-account-close { width:26px; min-height:26px; padding:0; justify-content:center; font-size:19px; }
+.workspace-app #workspace-account-menu [data-workspace-signout] { width:100%; padding:9px 10px; min-height:36px; text-align:left; }
+#workspace-account-menu button:focus-visible { outline:2px solid #087f70; outline-offset:1px; }
+</style>
 <section id="workspace-account-menu" class="workspace-account-menu" aria-label="Account" hidden>
-    <strong>{{ workspace_navigation.user_label }}</strong><span>{{ request.user.username }}</span>
-    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/sign-out.svg' %}')" aria-hidden="true"></span>Sign Out</button></form>
+    <div class="workspace-account-heading"><div><strong>{% firstof request.user.get_full_name request.user.email "Signed in" %}</strong></div></div>
+    <button type="button" data-workspace-signout><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/sign-out.svg' %}')" aria-hidden="true"></span>Sign Out</button>
 </section>
+
+<style>
+.workspace-signout-dialog { width:min(360px, calc(100vw - 32px)); box-sizing:border-box; padding:24px; border:1px solid #dce3ec; border-radius:12px; color:var(--text); background:#fff; box-shadow:0 12px 40px #10152625; }
+.workspace-signout-dialog::backdrop { background:#16233e55; }
+.workspace-signout-dialog h2 { margin:0 0 12px; font-size:20px; }
+.workspace-signout-dialog p { margin:0; color:var(--muted); }
+.workspace-signout-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
+</style>
+<dialog id="workspace-signout-dialog" class="workspace-signout-dialog" aria-labelledby="workspace-signout-title" aria-describedby="workspace-signout-description">
+    <h2 id="workspace-signout-title">Sign out?</h2>
+    <p id="workspace-signout-description">Are you sure you want to sign out?</p>
+    <form method="post" action="{% url 'logout' %}" class="workspace-signout-actions">{% csrf_token %}<button type="button" class="button ghost" data-workspace-signout-cancel autofocus>Cancel</button><button type="submit" class="button">Sign out</button></form>
+</dialog>

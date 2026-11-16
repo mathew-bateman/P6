@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AnonymousUser, Group
+from django.contrib.auth.models import AnonymousUser, Group, Permission
 from django.template.loader import render_to_string
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import NoReverseMatch, resolve, reverse
@@ -15,13 +16,36 @@ from backups.context_processors import schedule_quality_access
 from backups.navigation import report_query, section_for_route, selected_report_source
 
 
+class WorkspaceMarkup(HTMLParser):
+    """Inspect navigation controls independently of attribute order or styling."""
+
+    def __init__(self, html):
+        super().__init__()
+        self.tags = []
+        self.forms = []
+        self.current_form = None
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        self.tags.append((tag, attributes))
+        if tag == "form":
+            self.current_form = {"attributes": attributes, "controls": []}
+            self.forms.append(self.current_form)
+        elif self.current_form is not None and tag in {"input", "button"}:
+            self.current_form["controls"].append((tag, attributes))
+
+    def handle_endtag(self, tag):
+        if tag == "form":
+            self.current_form = None
+
+
 class WorkspaceRouteTests(SimpleTestCase):
     def test_each_route_family_has_the_correct_section(self):
         families = {
             "home": ["suite_landing"],
             "portfolio": ["portfolio_reporting_hub", "portfolio_reporting_overview", "portfolio_reporting_milestones", "portfolio_reporting_risk_float", "portfolio_reporting_health", "portfolio_reporting_project_detail", "portfolio_reporting_resources"],
-            "quality": ["schedule_quality_overview", "schedule_quality_validation"],
-            "settings": ["schedule_quality_settings", "schedule_quality_p6_fields_api"],
+            "quality": ["schedule_quality_overview", "schedule_quality_validation", "schedule_quality_settings", "schedule_quality_p6_fields_api"],
             "operations": ["backup_dashboard", "backup_target_detail", "backup_target_update", "backup_target_run", "backup_target_remote", "backup_target_restore", "maintenance_dashboard", "schedule_quality_dashboard", "schedule_quality_refresh", "schedule_quality_schedule_update"],
             "reporting": ["reporting_mirror_dashboard", "reporting_mirror_status"],
         }
@@ -107,23 +131,56 @@ class WorkspaceNavigationTests(TestCase):
             with self.subTest(user=user.username):
                 _, context = self.context(user)
                 ids = [section["id"] for section in context["workspace_navigation"]["sections"]]
-                self.assertNotIn("quality", ids)
                 self.assertNotIn("portfolio", ids)
-                self.assertIn("settings", ids)
+                quality = next(section for section in context["workspace_navigation"]["sections"] if section["id"] == "quality")
+                self.assertEqual([group["id"] for group in quality["groups"]], ["quality-settings"])
                 operations = next(section for section in context["workspace_navigation"]["sections"] if section["id"] == "operations")
-                self.assertEqual([group["id"] for group in operations["groups"]], ["backups", "maintenance", "refresh"])
+                self.assertEqual([group["id"] for group in operations["groups"]], ["capacity", "backups", "refresh", "maintenance"])
 
-    def test_report_groups_are_independent_and_editor_does_not_gain_reports(self):
-        for user, included, excluded in (
-            (self.quality, "quality", {"portfolio", "settings"}),
-            (self.portfolio, "portfolio", {"quality", "settings"}),
-            (self.editor, "settings", {"quality", "portfolio"}),
+    def test_quality_groups_preserve_independent_report_and_editor_access(self):
+        quality_report_group = Group.objects.get(name=settings.P6_SCHEDULE_QUALITY_REPORT_GROUP)
+        quality_editor_group = Group.objects.get(name=settings.P6_SCHEDULE_QUALITY_EDITOR_GROUP)
+        both = get_user_model().objects.create_user(username="quality.both")
+        both.groups.add(quality_report_group, quality_editor_group)
+        for user, expected_groups, route in (
+            (self.quality, ["quality-pages"], "schedule_quality_overview"),
+            (self.editor, ["quality-settings"], "schedule_quality_settings"),
+            (both, ["quality-pages", "quality-settings"], "schedule_quality_overview"),
+            (self.staff, ["quality-settings"], "schedule_quality_settings"),
         ):
             with self.subTest(user=user.username):
                 _, context = self.context(user)
-                ids = {section["id"] for section in context["workspace_navigation"]["sections"]}
-                self.assertIn(included, ids)
-                self.assertFalse(ids & excluded)
+                sections = context["workspace_navigation"]["sections"]
+                section = next(section for section in sections if section["id"] == "quality")
+                self.assertEqual([group["id"] for group in section["groups"]], expected_groups)
+                self.assertEqual(section["url"], reverse(route))
+                self.assertNotIn("settings", [section["id"] for section in sections])
+                ids = [section["id"] for section in sections]
+                if "reporting" in ids:
+                    self.assertLess(ids.index("quality"), ids.index("reporting"))
+        for user in (self.viewer, self.portfolio):
+            with self.subTest(user=user.username):
+                _, context = self.context(user)
+                self.assertNotIn("quality", [section["id"] for section in context["workspace_navigation"]["sections"]])
+
+    def test_combined_quality_sidebar_preserves_filters_only_for_report_links(self):
+        self.quality.groups.add(Group.objects.get(name=settings.P6_SCHEDULE_QUALITY_EDITOR_GROUP))
+        request, context = self.context(self.quality, "schedule_quality_overview", {"report_source": "p6_22", "project": "7"})
+        sidebar = self.render_shell(request, context).split('<aside id="workspace-sidebar"', 1)[1].split('</aside>', 1)[0]
+        quality = context["workspace_navigation"]["active_section"]
+        self.assertEqual(quality["id"], "quality")
+        self.assertEqual([group["id"] for group in quality["groups"]], ["quality-pages", "quality-settings"])
+        self.assertIn("Quality Reports", sidebar)
+        self.assertIn("Quality Settings", sidebar)
+        report_link = quality["groups"][0]["links"][1]
+        settings_link = quality["groups"][1]["links"][0]
+        self.assertEqual(parse_qs(urlsplit(report_link["url"]).query), {"report_source": ["p6_22"], "project": ["7"]})
+        self.assertEqual(parse_qs(urlsplit(settings_link["url"]).query), {"report_source": ["p6_22"]})
+        self.assertIn('data-workspace-report-link', sidebar)
+        _, settings_context = self.context(self.quality, "schedule_quality_settings", {"report_source": "p6_22", "project": "7"})
+        self.assertEqual(settings_context["workspace_navigation"]["active_section"]["id"], "quality")
+        self.assertTrue(settings_context["workspace_navigation"]["active_section"]["groups"][1]["links"][0]["active"])
+        self.assertEqual(parse_qs(urlsplit(settings_context["workspace_navigation"]["active_section"]["groups"][0]["links"][0]["url"]).query), {"report_source": ["p6_22"]})
 
     def test_home_has_rail_and_no_header_secondary_sidebar_or_breadcrumbs(self):
         request, context = self.context(self.quality)
@@ -146,6 +203,57 @@ class WorkspaceNavigationTests(TestCase):
         self.assertNotIn('Data refresh', sidebar)
         self.assertNotIn('Milestones', sidebar)
         self.assertIn('aria-current="page"', sidebar)
+        self.assertNotIn('workspace-mobile-toolbar', html)
+        self.assertNotIn('workspace-nav-scrim', html)
+        self.assertIn('workspace-with-sidebar', html)
+
+    def test_operations_sidebar_uses_expanded_accordions_and_keeps_permission_scope(self):
+        for user in (self.staff, self.viewer):
+            with self.subTest(user=user.username):
+                request, context = self.context(user, "schedule_quality_dashboard")
+                sidebar = self.render_shell(request, context).split('<aside id="workspace-sidebar"', 1)[1].split('</aside>', 1)[0]
+                self.assertIn('workspace-tree--sections', sidebar)
+                self.assertIn('Schedule Quality', sidebar)
+                self.assertIn('Data refresh', sidebar)
+                self.assertIn('aria-current="page"', sidebar)
+                markup = WorkspaceMarkup(sidebar)
+                group_accordions = [
+                    attrs for tag, attrs in markup.tags
+                    if tag == "details" and "workspace-tree-section" in attrs.get("class", "").split()
+                ]
+                self.assertEqual(len(group_accordions), 4 if user.is_staff else 1)
+                self.assertTrue(all("open" in attrs for attrs in group_accordions))
+                self.assertIn(f'href="{reverse("schedule_quality_dashboard")}"', sidebar)
+                for route in ("database_capacity", "backup_dashboard", "maintenance_dashboard"):
+                    link = f'href="{reverse(route)}"'
+                    if user.is_staff:
+                        self.assertIn(link, sidebar)
+                    else:
+                        self.assertNotIn(link, sidebar)
+
+    def test_other_section_sidebars_use_flat_consistent_style(self):
+        for user, route, expected in (
+            (self.quality, "schedule_quality_validation", ("Programme check", "Validation &amp; evidence")),
+            (self.portfolio, "portfolio_reporting_overview", ("Overview", "Milestones", "Risk &amp; float")),
+            (self.editor, "schedule_quality_settings", ("Quality rules",)),
+        ):
+            with self.subTest(route=route):
+                request, context = self.context(user, route)
+                sidebar = self.render_shell(request, context).split('<aside id="workspace-sidebar"', 1)[1].split('</aside>', 1)[0]
+                self.assertIn('workspace-tree--sections', sidebar)
+                self.assertIn('aria-current="page"', sidebar)
+                self.assertNotIn('<details', sidebar)
+                for label in expected:
+                    self.assertIn(label, sidebar)
+
+    def test_rail_sections_are_direct_links_without_mobile_sidebar_marker(self):
+        request, context = self.context(self.quality, data={"report_source": "p6_22"})
+        html = self.render_shell(request, context)
+        self.assertIn(f'href="{reverse("schedule_quality_overview")}?report_source=p6_22"', html)
+        self.assertIn(f'href="{reverse("suite_landing")}?report_source=p6_22"', html)
+        self.assertNotIn('data-workspace-flyout', html)
+        self.assertNotIn('data-workspace-menu-trigger', html)
+        self.assertNotIn('#workspace-open', html)
 
     def test_rail_resets_filters_while_same_section_sidebar_preserves_them(self):
         _, context = self.context(self.portfolio, "portfolio_reporting_overview", {"report_source": "p6_22", "portfolio": "Rail", "project": "7", "page": "4", "unexpected": "omit"})
@@ -165,8 +273,21 @@ class WorkspaceNavigationTests(TestCase):
     def test_logout_stays_a_csrf_protected_post_form(self):
         request, context = self.context(self.viewer)
         html = self.render_shell(request, context)
-        self.assertIn(f'<form method="post" action="{reverse("logout")}">', html)
-        self.assertIn('name="csrfmiddlewaretoken"', html)
+        logout_forms = [
+            form for form in WorkspaceMarkup(html).forms
+            if form["attributes"].get("action") == reverse("logout")
+        ]
+        self.assertEqual(len(logout_forms), 1)
+        logout_form = logout_forms[0]
+        self.assertEqual(logout_form["attributes"].get("method", "").lower(), "post")
+        tokens = [
+            attrs for tag, attrs in logout_form["controls"]
+            if tag == "input" and attrs.get("name") == "csrfmiddlewaretoken"
+        ]
+        self.assertEqual(len(tokens), 1)
+        self.assertEqual(tokens[0].get("type"), "hidden")
+        self.assertTrue(tokens[0].get("value"))
+        self.assertTrue(any(tag == "button" and attrs.get("type") == "submit" for tag, attrs in logout_form["controls"]))
         self.assertIn('aria-label="Account menu"', html)
 
     def test_optional_mirror_requires_installed_app_and_reversible_route(self):
@@ -193,10 +314,23 @@ class WorkspaceNavigationTests(TestCase):
         self.assertFalse(context["workspace_reporting_mirror_available"])
         self.assertNotIn("reporting", {section["id"] for section in context["workspace_navigation"]["sections"]})
 
+    def test_explicit_refresh_permission_exposes_reporting_controls_without_report_groups(self):
+        permission = Permission.objects.get(
+            content_type__app_label="reporting_mirror", codename="refresh_reporting"
+        )
+        self.viewer.user_permissions.add(permission)
+        _, context = self.context(self.viewer)
+        self.assertTrue(context["workspace_reporting_mirror_available"])
+        self.assertEqual(
+            {section["id"] for section in context["workspace_navigation"]["sections"]},
+            {"home", "operations", "reporting"},
+        )
+
     def test_backup_detail_keeps_operations_section_and_target_link_selected(self):
         request = self.request(self.staff, "backup_dashboard")
         request.resolver_match = SimpleNamespace(url_name="backup_target_detail")
         context = schedule_quality_access(request)
         section = context["workspace_navigation"]["active_section"]
         self.assertEqual(section["id"], "operations")
-        self.assertTrue(section["groups"][0]["links"][0]["active"])
+        backups = next(group for group in section["groups"] if group["id"] == "backups")
+        self.assertTrue(backups["links"][0]["active"])

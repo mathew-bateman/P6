@@ -222,7 +222,6 @@
             main { padding: var(--app-header-height, 62px) 18px 18px; }
             .page-hero-shell { margin-top: 12px; }
             .page-hero { padding: 12px 14px; }
-            table { display: block; overflow-x: auto; }
             .schedule-form { margin: 16px 22px 20px; }
             .refresh-history, .recent-runs-card { margin-top: 10px; padding: 0; }
             .maintenance-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -241,15 +240,33 @@
         }
     </style>
     <link rel="stylesheet" href="{% static 'backups/workspace-shell.css' %}">
-    <link rel="stylesheet" href="{% static 'backups/workspace-pages.css' %}">
+    <link rel="stylesheet" href="{% static 'backups/workspace-pages.css' %}?v=20261030-table-scroll">
     {% block extra_css %}{% endblock %}
+
+<style>dialog::backdrop { -webkit-backdrop-filter: blur(4px) !important; backdrop-filter: blur(4px) !important; }</style>
+<link rel="icon" type="image/png" href="https://minio.axialprojects.com/p6backupadmin-branding/axial-x.png">
+<style>
+.workspace-app { --accent:#001f83; }
+.workspace-app .workspace-avatar { background:#001f83; color:#fff; }
+body .login-panel .login-submit { background:#001f83; border-color:#001f83; }
+body .login-panel .login-submit:hover { background:#00165f; }
+body .login-panel .login-field input:focus, body .login-panel button:focus-visible { border-color:#001f83; outline-color:#001f83; }
+.workspace-app .workspace-rail-link { color:#001f83; }
+.workspace-app .workspace-tree-link .workspace-icon { color:#001f83; }
+.workspace-app .button:not(.ghost):not(.danger):not(.warning), .workspace-app button[type="submit"] { background:#001f83; border-color:#001f83; color:#fff; }
+.workspace-app .workspace-tree-link.is-selected, .workspace-app .workspace-tree-link.is-selected .workspace-icon, .workspace-app .workspace-backup-heading.is-selected { color:#001f83; }
+.workspace-app .workspace-tree-link.is-selected { background:#eaf0fa; }
+.workspace-app .workspace-nav-fold > summary:focus-visible, .workspace-app .workspace-backup-heading:focus-visible, .workspace-app a:focus-visible, .workspace-app button:focus-visible, .workspace-app summary:focus-visible { outline-color:#001f83; }
+.workspace-app .ts-wrapper.focus .ts-control { border-color:#001f83; box-shadow:0 0 0 3px rgba(0,31,131,.12); }
+.workspace-app .ts-dropdown .active, .workspace-app .flatpickr-day:hover, .workspace-app .flatpickr-day:focus { background:#eaf0fa; color:#001f83; }
+.workspace-app .flatpickr-day.selected, .workspace-app .flatpickr-day.selected:hover, .workspace-app .flatpickr-day.selected:focus { background:#001f83; border-color:#001f83; color:#fff; }
+.workspace-app .flatpickr-day.has-update::after { background:#001f83; }
+.workspace-app .flatpickr-day.selected.has-update::after { background:#fff; }
+</style>
 </head>
 <body{% if request.user.is_authenticated %} class="workspace-app{% if workspace_is_home %} workspace-home{% elif workspace_navigation.has_sidebar %} workspace-with-sidebar{% endif %}" data-workspace-active-section="{{ workspace_navigation.active_section.id }}"{% endif %}>
 {% if request.user.is_authenticated %}{% include "includes/workspace_navigation.html" %}{% endif %}
 <main{% if request.user.is_authenticated %} id="workspace-main" class="workspace-main" tabindex="-1"{% endif %}>
-    {% if request.user.is_authenticated and workspace_navigation.has_sidebar %}
-        <div class="workspace-mobile-toolbar"><button type="button" class="workspace-mobile-toggle" aria-label="Expand navigation" aria-controls="workspace-sidebar" aria-expanded="false" data-workspace-sidebar-toggle><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/sidebar-simple.svg' %}')" aria-hidden="true"></span></button></div>
-    {% endif %}
     {% if messages %}
         <ul class="messages">
             {% for message in messages %}
@@ -260,12 +277,11 @@
             {% endfor %}
         </ul>
     {% endif %}
-    {% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}
     {% if request.user.is_authenticated %}<div class="workspace-content" hx-history-elt>{% endif %}{% block content %}{% endblock %}{% if request.user.is_authenticated %}</div>{% endif %}
 </main>
 {% block extra_js %}{% endblock %}
 <script src="https://unpkg.com/htmx.org@2.0.7/dist/htmx.min.js" defer></script>
-{% if request.user.is_authenticated %}<script src="{% static 'backups/workspace-navigation.js' %}" defer></script><script src="{% static 'backups/workspace-pages.js' %}" defer></script>{% endif %}
+{% if request.user.is_authenticated %}<script src="{% static 'backups/workspace-navigation.js' %}?v=20261029-signout-modal" defer></script><script src="{% static 'backups/workspace-pages.js' %}?v=20261029-server-drawers" defer></script>{% endif %}
 <script>
 // Dispose document-level widget handlers before HTMX replaces report filters.
 document.addEventListener('htmx:beforeCleanupElement', (event) => {

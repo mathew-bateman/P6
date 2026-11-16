@@ -47,6 +47,11 @@
     .validation-kpi span { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
     .validation-kpi strong { display: block; margin-top: 5px; font-size: 25px; line-height: 1.1; }
     .validation-kpi small { display: block; margin-top: 5px; color: var(--muted); }
+    /* Compact summary that adapts to the available content width. */
+    .workspace-app .validation-main .validation-kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 1px; padding: 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--line); }
+    .workspace-app .validation-main .validation-kpi { min-width: 0; padding: 12px 14px; border: 0; border-radius: 0; background: #fff; }
+    .workspace-app .validation-main .validation-kpi strong { margin-top: 5px; font-size: 25px; line-height: 1.15; letter-spacing: -.3px; overflow-wrap: anywhere; }
+    .workspace-app .validation-main .validation-kpi small { margin-top: 5px; font-size: 12px; line-height: 1.35; }
     .validation-report-panel { overflow: hidden; margin: 0 0 16px; padding: 0; }
     .validation-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
     .validation-panel-header h2 { margin: 0; }
@@ -111,6 +116,7 @@
 {% endif %}
 
 <div class="validation-layout">
+<dialog class="workspace-filter-dialog" data-workspace-filter-shell><div class="workspace-filter-body">{% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}
     <aside class="panel validation-filter-panel">
         <h2>Filters</h2>
         <form method="get"
@@ -202,6 +208,7 @@
             </div>
         </form>
     </aside>
+</div></dialog>
 
     <div class="validation-main" aria-live="polite">
         {% include "backups/partials/schedule_quality_validation_results.html" %}

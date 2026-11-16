@@ -1,0 +1,40 @@
+# Optional application access to an existing, isolated reporting installation.
+# Provision PostgreSQL, the SQL snapshot stage and shared backup storage separately.
+services:
+  web:
+    volumes:
+      - type: bind
+        source: ${P6_REPORTING_RUNTIME_DIR:?Set P6_REPORTING_RUNTIME_DIR to an existing private reporting directory}
+        target: /stage
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - reporting
+
+  celery:
+    volumes:
+      - type: bind
+        source: ${P6_REPORTING_RUNTIME_DIR:?Set P6_REPORTING_RUNTIME_DIR to an existing private reporting directory}
+        target: /stage
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - reporting
+
+  celery-beat:
+    volumes:
+      - type: bind
+        source: ${P6_REPORTING_RUNTIME_DIR:?Set P6_REPORTING_RUNTIME_DIR to an existing private reporting directory}
+        target: /stage
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - reporting
+
+networks:
+  reporting:
+    external: true
+    name: ${P6_REPORTING_NETWORK:-p6-reporting}

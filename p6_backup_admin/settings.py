@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "graph",
     "backups",
+    "reporting_mirror",
 ]
 
 MIDDLEWARE = [
@@ -51,6 +52,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "reporting_mirror.middleware.ReportingSourceMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -102,6 +104,9 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Credentials remain in a restricted server-side file, outside the application DB.
+P6_REPORTING_CONFIG_FILE = os.getenv("P6_REPORTING_CONFIG_FILE", "/stage/reporting-secrets.json")
 
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"

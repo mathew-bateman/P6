@@ -2,7 +2,7 @@
 
 P6BackupAdmin is the operations and reporting workspace for the Axial Primavera P6 environments. It brings together database backups and recovery, maintenance, schedule-quality checks, portfolio reports, and access to reporting data for Power BI.
 
-The Django application manages AxialP6, Axial Training, and P62212 backup targets and reports from P6 data held in SQL Server. A separate production PostgreSQL reporting database combines snapshots from P6 22 and P6 23 for reporting clients. Django users, permissions, schedules, and operational history are stored in SQLite.
+The Django application manages AxialP6, Axial Training, and P62212 backup targets. PostgreSQL combines snapshots from P6 22 and P6 23, calculates reporting results and serves Django and external reporting clients. Django users, permissions, schedules, and operational history are stored in SQLite.
 
 ### The main parts
 
@@ -14,7 +14,9 @@ The Django application manages AxialP6, Axial Training, and P62212 backup target
 | Portfolio Reporting | Explore portfolio, milestone, risk, health, project, and resource reports. |
 | Reporting Database | Use PostgreSQL snapshots, XERToolkit-compatible views, and Coding Check views as sources for Power BI and other reporting clients. |
 
-**Repository scope:** this checkout contains the backup application and its SQL Server reporting assets. The production PostgreSQL mirror and its management module are not fully present in this repository. A GitHub checkout alone does not recreate the complete production reporting system; see [PostgreSQL reporting and Power BI](#postgresql-reporting-and-power-bi).
+**Repository scope:** this checkout contains the Django application, PostgreSQL reporting module, migrations, calculation SQL, report templates and SQL Server recovery assets. Runtime databases, credentials, certificates, backup mounts and host-specific infrastructure remain private. See [Reporting installation and recovery](docs/reporting-installation.md) before connecting a new installation to reporting data.
+
+**Production reporting, 16 November 2026:** PostgreSQL owns reporting rules, settings, calculations and report queries. The superseded SQL views, routines and result tables are retired. The remaining legacy settings/history/rollback tables and obsolete reporting-app tables have also been removed: 28 tables and three custom schemas, with an encrypted, verified offsite archive. SQL Express retains P6 and its maintenance/recovery objects. The separate SQL snapshot-stage restores consistent P6 backups and transfers raw tables into PostgreSQL. Use the [recovery and reporting retirement runbook](docs/recovery-and-reporting-retirement.md) for recovery evidence and change controls.
 
 ## What it does
 
@@ -27,7 +29,7 @@ The Django application manages AxialP6, Axial Training, and P62212 backup target
 - Schedules backup, restore, and schedule-quality work through Celery, Redis, and `django-celery-beat`.
 - Provides database-maintenance operations and auditable run histories.
 - Presents schedule-quality overview, validation, evidence, and configuration pages.
-- Publishes versioned schedule-quality configuration and materialised results atomically in SQL Server.
+- Publishes versioned schedule-quality configuration and results atomically through the active reporting engine; production uses native PostgreSQL.
 - Exposes Power BI-compatible schedule-quality views and task-level evidence.
 - Provides portfolio reports for milestones, schedule risk, health, projects, and resources.
 
@@ -44,15 +46,16 @@ flowchart LR
     P6 --> F["Mounted SQL backup files"]
     F --> E["Encrypted backup and manifest"]
     E --> G["Microsoft Graph / SharePoint"]
-    W --> Q["Versioned schedule-quality SQL"]
+    W --> Q["Versioned PostgreSQL reporting rules and calculations"]
     C --> Q
-    Q --> DR["Django reports and SQL Server views"]
+    Q --> DR["Django reports and PostgreSQL views"]
     P6 --> M["Production snapshot refresh"]
-    M --> PG["PostgreSQL p6_reporting"]
+    M --> ST["SQL snapshot stage: restore and raw-data copy"]
+    ST --> PG["PostgreSQL p6_reporting"]
     PG --> BI["Power BI and reporting clients"]
 ```
 
-The backup workflow, SQL Server schedule-quality refresh, and PostgreSQL snapshot refresh serve different purposes and run independently. The PostgreSQL database is a reporting copy; it is not a replacement for a recoverable P6 backup.
+Backup/recovery and PostgreSQL snapshot refresh serve different purposes and run independently. The obsolete SQL schedule-quality refresh is disabled and cannot be re-enabled after retirement. The PostgreSQL database is a reporting copy; it is not a replacement for a recoverable P6 backup.
 
 ### Components and responsibilities
 
@@ -60,13 +63,14 @@ The backup workflow, SQL Server schedule-quality refresh, and PostgreSQL snapsho
 | --- | --- |
 | Django web application | Authenticates users, enforces permissions, renders the workspace, accepts operational requests, and displays reports and run history. |
 | SQLite | Stores Django users and groups, target configuration, schedules, and operational run records. It does not contain the P6 databases. |
-| Celery worker and Redis | Queue and execute long-running backups, restores, schedule-quality refreshes and publications, and maintenance tasks. |
+| Celery worker and Redis | Queue and execute long-running backups, restores, schedule-quality refreshes and publications, and maintenance tasks. Reporting jobs use the `p6_reporting` queue. |
 | Celery Beat | Dispatches recurring jobs using schedules held in Django's database. |
-| P6 SQL Server | Holds the operational P6 data and the `powerbitables` schedule-quality configuration, materialised results and reporting views. |
+| P6 SQL Server | Holds operational P6 data and its maintenance/recovery objects. Legacy reporting objects and custom reporting schemas have been removed. |
+| SQL snapshot stage | Restores consistent P6 backup copies and supplies raw P6 tables to PostgreSQL; it performs no reporting calculations. |
 | Microsoft Graph and SharePoint | Provide the destination for encrypted backup artifacts, manifests and retention; Graph can also send notifications. |
-| PostgreSQL reporting service | Maintains separate published P6 snapshots and views for reporting consumers. Its complete runtime is maintained in production outside this checkout. |
+| PostgreSQL reporting service | Maintains separate published P6 snapshots, versioned rules and calculated views for Django and external reporting consumers. Its application source is in `reporting_mirror/`. |
 
-For schedule quality, the application submits and monitors work, while SQL Server owns the rules and published results. The checked-in portfolio reports query the configured SQL Server reporting source. The production reporting module can also be configured to serve web reports from PostgreSQL; the active engine must be checked in that environment.
+For production schedule quality, the application submits and monitors work while PostgreSQL owns rules and published results. P6 SQL Server supplies the operational snapshots. The checked-in SQL reporting path remains available for legacy/recovery hosts; check the active engine before making environment-specific changes.
 
 ## Default backup targets
 
@@ -114,7 +118,7 @@ A restore reverses that flow. It downloads the encrypted artifact and manifest, 
 - Redis 7
 - Microsoft ODBC Driver 18 for SQL Server
 - SQLite for application state
-- SQL Server for P6 and schedule-quality data
+- SQL Server for operational P6 data and restoring snapshots for raw-data transfer
 - PostgreSQL for the separate production reporting snapshot
 - Microsoft Graph for SharePoint and optional email delivery
 - Docker Compose for the application stack
@@ -133,10 +137,14 @@ A restore reverses that flow. It downloads the encrypted artifact and manifest, 
 | `backups/static/backups/` | Workspace styles, scripts, fonts and icons |
 | `graph/` | Microsoft Graph token and email helpers |
 | `p6_backup_admin/` | Django settings, URLs, WSGI, and Celery bootstrap |
+| `reporting_mirror/` | PostgreSQL reporting configuration, source snapshots, native calculations, publication, reader, controls and migrations |
+| `docs/reporting-installation.md` | Reporting configuration, worker queues, runtime prerequisites and recovery boundaries |
 | `docs/workspace-navigation.md` | Workspace navigation, permissions, and release notes |
 | `sql/schedule_quality/` | Versioned SQL Server forward, verification, reconciliation, and rollback scripts |
+| `ops/recovery/` | Full recovery capture, offsite verification/resume, isolated restore checks and guarded SQL reporting retirement |
 | `templates/` | Shared shell, navigation, application pages, emails, authentication, and reports |
 | `docker-compose.yml` | Web, Celery, Beat, Redis, volumes, ports, and external networks |
+| `compose.reporting.yml` | Optional private reporting runtime mount and existing reporting network |
 | `.env.example` | Safe environment-variable template |
 
 Runtime databases, secrets, virtual environments, generated static files, deployment staging, rollback snapshots, and local QA captures are intentionally excluded from Git and Docker build contexts.
@@ -183,6 +191,11 @@ python -c "from cryptography.fernet import Fernet; import json; print(json.dumps
 
 ### SQL Server settings
 
+The `P6_SCHEDULE_QUALITY_SQL_*` variables support legacy/recovery SQL reporting.
+Production PostgreSQL connections use the private reporting JSON file described
+in [Reporting installation and recovery](docs/reporting-installation.md); source
+snapshot connections use the mapped `BackupTarget` records.
+
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `P6_DEFAULT_SQL_HOST` | Default P6 SQL Server hostname | `host.docker.internal` |
@@ -200,7 +213,7 @@ python -c "from cryptography.fernet import Fernet; import json; print(json.dumps
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `P6_SCHEDULE_QUALITY_REFRESH_ENABLED` | Enables the Beat refresh task | `true` |
+| `P6_SCHEDULE_QUALITY_REFRESH_ENABLED` | Legacy SQL refresh task; retirement guards keep it disabled after SQL reporting retirement | `true` on legacy hosts |
 | `P6_SCHEDULE_QUALITY_REFRESH_SCHEDULE` | Five-part cron expression | `*/15 * * * *` |
 | `P6_SCHEDULE_QUALITY_REFRESH_PROJ_ID` | Optional single-project scheduled refresh | All projects |
 | `P6_SCHEDULE_QUALITY_PROFILE_CODE` | Active profile identifier | `default` |
@@ -226,7 +239,7 @@ Never commit `.env`, encryption keys, SQL passwords, Graph credentials, SQLite d
 
 ## Start with Docker Compose
 
-The repository's Compose stack is intended for development: it bind-mounts the checkout and runs Django's development server. The production service uses a separate configuration described under Deployment.
+The repository's Compose stack is intended for development: it bind-mounts the checkout and runs Django's development server. Its worker consumes both `celery` and `p6_reporting` so reporting requests can run. The production service uses a separate configuration described under Deployment. PostgreSQL, SQL snapshot staging, TLS and source backup storage must be configured separately; see [Reporting installation and recovery](docs/reporting-installation.md).
 
 Set the host backup paths before starting the stack.
 
@@ -271,7 +284,7 @@ Report pages provide filters for dimensions such as portfolio, project, lead pla
 | **Quality Reports** | Programme check at `/schedule-quality/overview/` and Validation & evidence at `/schedule-quality/validation/`. |
 | **Operations** | Backup Targets at `/backup-targets/`, maintenance history at `/maintenance/`, and schedule-quality data refresh at `/schedule-quality/`. |
 | **Quality Settings** | Shared quality rules and publication at `/schedule-quality/settings/`. |
-| **Reporting Database** | Optional production module for reporting-source status, views, refresh history and authorised controls. It appears only when the module is installed and the user has access. |
+| **Reporting Database** | Reporting-source status, views, refresh history and authorised controls. It appears for users with the appropriate access. |
 
 ### Portfolio Reporting
 
@@ -286,13 +299,13 @@ Report pages provide filters for dimensions such as portfolio, project, lead pla
 
 ### Quality Reports and Settings
 
-Programme check presents project-level scorecards; Validation & evidence explains check results and associated task-level evidence. The Quality Settings page manages a shared draft of checks, scope, thresholds, scoring and evidence display. Publishing builds and activates the revised configuration and results together. The data-refresh page shows refresh history and provides a manual refresh and schedule controls to users with the relevant access.
+Programme check presents project-level scorecards; Validation & evidence explains check results and associated task-level evidence. The Quality Settings page manages a shared draft of checks, scope, thresholds, scoring and evidence display. Publishing builds and activates the revised configuration and results together. After SQL reporting retirement, refresh and schedule controls use Reporting Database; the obsolete SQL refresh cannot be re-enabled.
 
 ### Operations and Reporting Database
 
 Backup Targets shows target configuration, schedules and run history, with backup, remote artifact and restore workflows. Restore requires superuser access and a confirmation step. Maintenance history records the outcomes and details of database-maintenance work. Background tasks include index maintenance, session cleanup, log and user-data pruning, statistics and integrity checks.
 
-Where installed in production, Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings and reporting-engine comparison. The complete module is not included in this checkout.
+Reporting Database shows source freshness and publication status, view previews and refresh history. Authorised users can request a refresh; staff can access additional settings. Retired installations keep PostgreSQL as the reporting and settings engine and reject attempts to restore the SQL reporting path.
 
 Authentication is required for operational pages. Backup and maintenance administration requires staff access. Schedule-quality overview and validation reports require membership of the configured report group; portfolio reports require membership of their separate report group. These report permissions require group membership even for a superuser. Schedule-quality settings and schedule editing require staff access or membership of the configured editor group. See [`docs/workspace-navigation.md`](docs/workspace-navigation.md) for workspace navigation and permission details.
 
@@ -338,11 +351,11 @@ Prefix these commands with `docker compose exec -T web` when operating the Compo
 
 ## Schedule-quality reporting
 
-Schedule-quality configuration and materialised reporting data are owned by SQL Server under the `powerbitables` schema. Django provides the authenticated editor, publisher, refresh controls, and report surfaces; it is not a second copy of the rules.
+In production, PostgreSQL owns versioned schedule-quality configuration under `quality_control` and calculates reporting results from isolated P6 snapshots. Django provides the authenticated editor, publisher, refresh controls and report surfaces. The retained SQL Server assets support legacy/recovery installations; they are no longer the production calculation path.
 
 Editors work on a shared draft. Publication stages a complete rebuild using that draft and activates the configuration and materialised rows only after the full stage succeeds. A failed publication leaves the previously active configuration and results in place.
 
-The SQL package includes:
+The legacy SQL package includes:
 
 - pre-deployment snapshots;
 - versioned forward scripts;
@@ -352,17 +365,36 @@ The SQL package includes:
 - full reconciliation queries;
 - targeted and full rollback scripts.
 
-Read [`sql/schedule_quality/README.md`](sql/schedule_quality/README.md) before applying SQL assets. The scripts contain `GO` separators and require a GO-aware runner that keeps a single SQL connection open across batches. Always validate against a restored database first, take the documented snapshot, run every post-deployment assertion, use a canary project, and reconcile immediately after the full refresh while P6 imports are paused.
+For a legacy/recovery installation, read [`sql/schedule_quality/README.md`](sql/schedule_quality/README.md) before applying SQL assets. The scripts contain `GO` separators and require a GO-aware runner that keeps a single SQL connection open across batches. Validate against a restored database first, take the documented snapshot and run the paired assertions. Do not recreate retired production SQL outputs as part of routine PostgreSQL reporting changes; follow the [recovery runbook](docs/recovery-and-reporting-retirement.md).
 
 ## Portfolio reporting
 
-The checked-in portfolio reporting pages use the configured schedule-quality SQL Server connection and `powerbitables` reporting views. Access is controlled independently from schedule-quality reports by `P6_PORTFOLIO_REPORTING_GROUP`. Production may use the optional PostgreSQL reporting engine when configured.
+Production quality and portfolio pages use PostgreSQL reporting snapshots. This checkout retains the SQL Server connection path for legacy/recovery installations. Portfolio access is controlled independently from schedule-quality reports by `P6_PORTFOLIO_REPORTING_GROUP`.
 
 ## PostgreSQL reporting and Power BI
 
 The production reporting service copies data from the P6 22 and P6 23 SQL Server sources into the separate `p6_reporting` PostgreSQL database. It exposes source-specific and combined reporting views, including XERToolkit-compatible views, so reporting clients can query a published snapshot rather than the live P6 databases. Source identifiers matter when combining data: project and activity IDs can overlap between P6 systems.
 
-The reporting snapshot has its own refresh process, separate from both SharePoint backups and the temporary IONOS recovery-continuity export. The last documented verification on 29 October 2026 found the hourly reporting refresh enabled without an expiry; check the reporting service and its latest refresh before relying on current data. Snapshot time and refresh status matter when interpreting any report.
+The project-linked `xertoolkit_vw_pbi_*` views publish only the latest ordinary
+**Client Submitted** programme for each logical project. This applies to project
+dimensions, metrics, scoring inputs and validation evidence in both P6 source
+schemas, the combined `reporting` schema and the application's compatibility
+views. Programme selection happens before report filters such as Lead Planner.
+Power BI imports must be refreshed to receive the corrected scope.
+
+Selection uses active Project ID code identities, falling back to Client Project
+ID for P6 23 and individual programme identity when neither is assigned. The
+latest nonblank **Updated Date** wins; data date breaks ties and is the fallback
+when a project has no dated submission. Source modification time and numeric
+programme ID settle remaining ties deterministically. Stored baselines, deleted
+projects and inactive status assignments cannot become the selected submission.
+Raw P6 snapshot tables and private calculation generations keep all history, so
+Coding Check, Design Overview and Touchpoints retain their historical inputs.
+The policy is implemented in `reporting_mirror/latest_submission.py` at the
+publication boundary in `reporting_mirror/sync.py`; publication manifests record
+both the exposed row counts and the full-generation counts for affected views.
+
+The reporting snapshot has its own refresh process, separate from SharePoint backups. Verification on 16 November 2026 confirmed a successful native PostgreSQL refresh after legacy SQL retirement, with the hourly PostgreSQL schedule restored and duplicate legacy SQL work disabled. Check the latest publication and source snapshot times before relying on current data.
 
 External clients connect to `p6operations.axialprojects.com` on port `5432`, database `p6_reporting`, using an authorised reporting account and TLS with `sslmode=verify-full`. Obtain credentials and the trusted CA configuration privately. A Power BI model must refresh its data and metadata to reflect changes to source views.
 
@@ -370,7 +402,7 @@ External clients connect to `p6operations.axialprojects.com` on port `5432`, dat
 
 Eight `reporting.coding_check_*` PostgreSQL views support the Coding Check dashboard. They cover Global Project Stage, Discipline, Design Key, Milestone Type and Responsible Company, plus activity-code counts and float/path summaries. They were deployed and verified on 29 October 2026; the public views are restricted to **P6 22**, Live and Client Submitted programmes, excluding deleted activities. They retain `_snapshot_at` and use grouped counts rather than individual task rows. Missing or unassigned codes are represented as uncoded; the source data can contain gaps.
 
-The combined reporting database still contains both P6 sources, so select P6 22 explicitly when joining the coding views to combined data. Refresh Power BI metadata after the view-column changes and update any query steps that refer to removed columns. The local Coding Check SQL package and the production reporting-mirror implementation are not currently included in this GitHub checkout; use the separately retained production release assets and their verification instructions when maintaining them.
+The combined reporting database still contains both P6 sources, so select P6 22 explicitly when joining the coding views to combined data. Refresh Power BI metadata after the view-column changes and update any query steps that refer to removed columns. The Coding Check SQL package is in `sql/coding_check/`; PostgreSQL reporting source and publication code are in `reporting_mirror/`.
 
 ## Validation and tests
 
@@ -417,9 +449,9 @@ PostgreSQL reporting clients use `p6operations.axialprojects.com:5432` with
 The public site is `https://p6operations.axialprojects.com`.
 
 For a presentation-only release, deploy an explicit file manifest from the tested
-`main` commit. Compare the affected live files with the preflight hashes, save a
-timestamped rollback copy, and preserve production-only backend modules and
-report templates. Then run:
+release commit. Compare the affected live files with the preflight hashes, save a
+timestamped rollback copy, and preserve private configuration and runtime state.
+Then run:
 
 ```bash
 docker exec p6-backup-admin-web python manage.py check
@@ -460,7 +492,7 @@ Never perform an application rollback by deleting the production directory or ov
 
 ## Git workflow
 
-Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. The current bind-mounted production directory requires an explicit deployment manifest; a GitHub push alone does not deploy it. This checkout does not contain every production component, so reconcile production-only source differences before moving to a complete image or checkout-based deployment.
+Keep commits focused, run the relevant checks before pushing, and never add runtime state or secrets to a commit. The current bind-mounted production directory requires an explicit deployment manifest; a GitHub push alone does not deploy it. Compare the candidate with the deployed source and record any intentional differences before moving to an image or checkout-based deployment. Keep host-specific Compose, certificates, databases and recovery evidence outside the source release.
 
 ## Licence and support
 

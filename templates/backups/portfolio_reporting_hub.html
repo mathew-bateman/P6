@@ -1,12 +1,12 @@
 {% extends "base.html" %}
+{% load reporting_navigation %}
 
 {% block title %}Portfolio Reporting | P6 Operations Hub{% endblock %}
 
 {% block content %}
 <section class="suite-landing">
-    <section class="page-hero maintenance-page-heading">
+    <section class="toolbar page-hero maintenance-page-heading portfolio-hub-hero">
         <h1>Portfolio Reporting</h1>
-        <p class="subtle">Choose a report to review current portfolio and project schedule performance.</p>
     </section>
 
     <div class="suite-card-grid">
@@ -14,9 +14,10 @@
             <article class="panel suite-card">
                 <h2>{{ page.title }}</h2>
                 <p class="subtle">{{ page.description }}</p>
-                <a class="button" href="{% url page.url_name %}">Open {{ page.title }}</a>
+                <a class="button" href="{% url page.url_name %}{% report_query %}">Open {{ page.title }}</a>
             </article>
         {% endfor %}
     </div>
 </section>
+<dialog class="workspace-filter-dialog" data-workspace-source-shell><div class="workspace-filter-body">{% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}</div></dialog>
 {% endblock %}

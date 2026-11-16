@@ -1,0 +1,4 @@
+mssql-python==1.17.0
+pyarrow==26.0.1
+adbc-driver-postgresql==1.13.0
+psycopg[binary]==3.3.6

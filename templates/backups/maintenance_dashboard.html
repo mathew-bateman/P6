@@ -1,15 +1,54 @@
 {% extends "base.html" %}
+{% load static %}
 {% load tz %}
 
-{% block title %}Database Maintenance | P6 Operations Hub{% endblock %}
+{% block title %}P6 Maintenance | P6 Operations Hub{% endblock %}
 
 {% block content %}
 <section class="page-hero maintenance-page-heading">
-    <h1>Database Maintenance</h1>
-    <p class="subtle">Operational history and database housekeeping.</p>
+    <h1>P6 Maintenance</h1>
+    <button class="button" type="button" onclick="document.getElementById('maintenance-run-dialog').showModal()"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/arrow-counter-clockwise.svg' %}');width:15px;height:15px;vertical-align:-3px;margin-right:6px" aria-hidden="true"></span>Run</button>
+    
 </section>
 
-<section class="maintenance-metrics" aria-label="Maintenance summary">
+<style>
+    .maintenance-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .maintenance-run-dialog { width: min(480px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); }
+    .maintenance-run-dialog::backdrop { background: rgba(15, 23, 42, .45); }
+    .maintenance-run-dialog h2 { margin: 0 0 12px; }
+    .maintenance-run-dialog select { width: 100%; }
+    .maintenance-run-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+</style>
+<dialog id="maintenance-run-dialog" class="maintenance-run-dialog" aria-labelledby="maintenance-run-title">
+    <h2 id="maintenance-run-title">Run maintenance</h2>
+    <form method="post" action="{% url 'maintenance_run' %}">
+        {% csrf_token %}
+        <div class="field"><label for="maintenance-task">Task</label>
+        <select id="maintenance-task" name="task" required>
+            <option value="">Choose a task</option>
+            <option value="index">Index defragmentation</option>
+            <option value="sessions">Stale session and lock cleanup (over 24 hours)</option>
+            <option value="logs">Audit and job log pruning (over 90 days)</option>
+            <option value="userdata">USERDATA cleanup (over 5 MB)</option>
+            <option value="statistics">SQL statistics refresh</option>
+            <option value="integrity">Physical integrity check</option>
+            <option value="background">P6 background health check</option>
+        </select></div>
+        <div class="maintenance-run-actions"><button class="button ghost" type="button" onclick="document.getElementById('maintenance-run-dialog').close()">Cancel</button><button type="submit">Run now</button></div>
+    </form>
+</dialog>
+<script>
+    (() => {
+        const dialog = document.getElementById('maintenance-run-dialog');
+        dialog.addEventListener('click', (event) => {
+            if (event.target !== dialog) return;
+            const bounds = dialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        });
+    })();
+</script>
+
+<section class="maintenance-metrics" aria-label="Maintenance summary" style="margin-top: 16px;">
     <article class="maintenance-kpi">
         <p>Index defrag</p>
         <strong>{{ defrag_runs_count }}</strong>
@@ -45,6 +84,7 @@
         </nav>
     </div>
 
+    <div class="workspace-table-scroll" role="region" aria-label="P6 maintenance history" tabindex="0">
     <table>
         <thead>
             <tr>
@@ -104,6 +144,7 @@
                                         <p class="subtle">{{ run.details.count }} item{% if run.details.count > 1 %}s{% endif %} from {{ run.started_at|timezone:"Europe/London"|date:"d M Y H:i" }}</p>
                                         <nav class="maintenance-detail-pagination" aria-label="Line item detail pages"></nav>
                                     </div>
+                                    <div class="workspace-table-scroll" role="region" aria-label="Maintenance line item details" tabindex="0">
                                     <table>
                                         <thead>
                                             <tr>
@@ -126,6 +167,7 @@
                                             {% endfor %}
                                         </tbody>
                                     </table>
+                                    </div>
                                 </div>
                             </dialog>
                         {% else %}
@@ -138,6 +180,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 
     {% if page_obj.has_other_pages %}
         <div class="pagination-container">

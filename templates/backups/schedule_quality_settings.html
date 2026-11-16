@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Schedule Quality Settings | P6 Operations Hub{% endblock %}
 
@@ -64,6 +65,9 @@
         border-radius: 8px 8px 0 0;
         background: #f8fafc;
     }
+    .settings-scope-panel, .settings-scope-panel .settings-advanced-section { min-width: 0; }
+    .settings-table-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+    .workspace-app .workspace-main .settings-table-scroll .settings-table { display: table; width: 100%; min-width: 1100px; max-width: none; overflow: visible; }
     .settings-table th:not(:first-child), .settings-table td:not(:first-child) { text-align: center; }
     .settings-table td:first-child { min-width: 220px; }
     .settings-table input[type="checkbox"] { transform: scale(1.15); }
@@ -145,7 +149,7 @@
         <h1>Configure Schedule Quality</h1>
     </div>
     <div class="settings-hero-actions">
-        <button type="submit" name="action" value="publish">Publish</button>
+        <button type="submit" name="action" value="publish"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/arrow-right.svg' %}');width:15px;height:15px;vertical-align:-3px;margin-right:6px" aria-hidden="true"></span>Publish</button>
     </div>
 </div>
 
@@ -168,7 +172,9 @@
                 <div class="evidence-builder" aria-label="Add evidence field for {{ check.display_name }}">
                     <div class="field"><label>P6 table<select class="evidence-category" disabled><option>Loading P6 tables…</option></select></label></div>
                     <div class="field"><label>P6 field<select class="evidence-field" disabled><option>Choose a source first…</option></select></label></div><div class="field"><label>Evidence label<input class="evidence-label" type="text" maxlength="120" placeholder="Shown in Power BI"></label></div><button class="secondary add-evidence-field" type="button">Add field</button>
-                </div><table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Display format</th><th>Actions</th></tr></thead><tbody></tbody></table>
+                </div><div class="workspace-table-scroll" role="region" aria-label="Evidence columns for {{ check.display_name }}" tabindex="0">
+                <table class="evidence-fields-table"><thead><tr><th>Order</th><th>P6 Table</th><th>P6 Field</th><th>Evidence label</th><th>Display format</th><th>Actions</th></tr></thead><tbody></tbody></table>
+                </div>
             </details>
         {% endfor %}
     </section>
@@ -176,6 +182,7 @@
     <section class="panel settings-thresholds-panel">
         <h2>Thresholds and options</h2>
         <p class="subtle">These values control what each check finds. Units are shown beside every value.</p>
+        <div class="workspace-table-scroll" role="region" aria-label="Quality thresholds and options" tabindex="0">
         <table class="settings-options">
             <thead>
             <tr>
@@ -199,12 +206,13 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </section>
 
     <section class="panel settings-scope-panel">
             <div class="settings-advanced-section">
                 <h2>Check scope and score policy</h2>
-                <p class="subtle">These published settings supply the scope, thresholds and points used by the Django scorecard and Power BI result view.</p>
+                <div class="settings-table-scroll workspace-table-scroll" role="region" aria-label="Check scope and score policy settings" tabindex="0">
                 <table class="settings-table">
                     <thead>
                     <tr{% if row.enabled.errors %} class="settings-invalid-row"{% endif %}>
@@ -252,6 +260,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
     </section>
 

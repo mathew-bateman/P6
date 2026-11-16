@@ -1,4 +1,5 @@
-{% load humanize %}
+{% load humanize reporting_navigation %}
+{% if reporting_is_partial %}{% include "reporting_mirror/source_status.html" with reporting_oob=True %}{% endif %}
 
 <div id="validation-results">
     <div class="validation-main">
@@ -21,7 +22,7 @@
             <article class="panel validation-kpi">
                 <span>Last refresh</span>
                 <strong style="font-size:18px;">{% if latest_refresh %}{{ latest_refresh.completed_at|date:"d M Y H:i" }}{% else %}Not available{% endif %}</strong>
-                <small>{% if latest_refresh %}Run {{ latest_refresh.check_run_id }} · {{ latest_refresh.duration_display }}{% else %}No successful run found{% endif %}</small>
+                <small>{% if latest_refresh %}{% if latest_refresh.check_run_id %}Run {{ latest_refresh.check_run_id }}{% endif %}{% if latest_refresh.check_run_id and latest_refresh.duration_display %} · {% endif %}{{ latest_refresh.duration_display }}{% else %}No successful run found{% endif %}</small>
             </article>
         </section>
 
@@ -32,7 +33,7 @@
                 </div>
                 {% if validation_filters.check_code %}<span class="badge success">Filtered check</span>{% endif %}
             </div>
-            <div class="validation-table-wrap validation-summary">
+            <div class="validation-table-wrap validation-summary workspace-table-scroll" role="region" aria-label="Quality validation summary" tabindex="0">
                 <table>
                     <thead>
                         <tr>
@@ -74,7 +75,7 @@
             </div>
             <span class="badge">{{ validation_totals.evidence_rows|intcomma }} row{{ validation_totals.evidence_rows|pluralize }}</span>
         </div>
-        <div class="validation-table-wrap">
+        <div class="validation-table-wrap workspace-table-scroll" role="region" aria-label="Quality validation evidence" tabindex="0">
             <table>
                 <thead>
                     <tr>
@@ -107,17 +108,17 @@
                 <span class="pagination-info">Showing {{ evidence_page.start_index|intcomma }}-{{ evidence_page.end_index|intcomma }} of {{ evidence_page.total_rows|intcomma }} evidence rows</span>
                 <ul class="pagination">
                     <li class="page-item {% if not evidence_page.has_previous %}disabled{% endif %}">
-                        {% if evidence_page.has_previous %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.previous_page_number }}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
+                        {% if evidence_page.has_previous %}<a class="page-link" href="{% report_query page=evidence_page.previous_page_number %}">Previous</a>{% else %}<span class="page-link">Previous</span>{% endif %}
                     </li>
                     {% for page in evidence_page.page_range %}
                         {% if page == evidence_page.number %}
                             <li class="page-item active"><span class="page-link">{{ page }}</span></li>
                         {% elif page <= 3 or page == evidence_page.total_pages or page >= evidence_page.number|add:"-1" and page <= evidence_page.number|add:"1" %}
-                            <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ page }}">{{ page }}</a></li>
+                            <li class="page-item"><a class="page-link" href="{% report_query page=page %}">{{ page }}</a></li>
                         {% endif %}
                     {% endfor %}
                     <li class="page-item {% if not evidence_page.has_next %}disabled{% endif %}">
-                        {% if evidence_page.has_next %}<a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&amp;{% endif %}page={{ evidence_page.next_page_number }}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
+                        {% if evidence_page.has_next %}<a class="page-link" href="{% report_query page=evidence_page.next_page_number %}">Next</a>{% else %}<span class="page-link">Next</span>{% endif %}
                     </li>
                 </ul>
             </div>

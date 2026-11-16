@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: p6-backup-admin-celery
-    command: celery -A p6_backup_admin worker -l info --concurrency=1
+    command: celery -A p6_backup_admin worker -l info --concurrency=1 -Q celery,p6_reporting
     env_file:
       - .env
     environment:

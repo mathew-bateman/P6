@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from backups.services.mssql import fetch_rows
+from reporting_mirror.reader import fetch_rows
 from backups.services.schedule_quality import build_schedule_quality_target
 
 

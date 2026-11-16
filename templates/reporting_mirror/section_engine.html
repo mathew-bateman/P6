@@ -1,0 +1,116 @@
+{% load humanize %}
+<style>
+.engine-story { padding:0; overflow:hidden; container:engine-story / inline-size; }
+.engine-story h2 { margin:0; font-size:18px; }
+.engine-story p { margin:0; }
+.engine-story-top, .engine-story-section { padding:20px; }
+.engine-story-section { border-top:1px solid var(--line); }
+.engine-story-title { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+.engine-story-intro { color:#53637b; font-size:13px; line-height:1.5; }
+.engine-flow { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:26px; list-style:none; margin:16px 0 0; padding:0; }
+.engine-flow li { position:relative; min-width:0; padding:12px; border:1px solid var(--line); border-radius:6px; background:#f7f9fc; }
+.engine-flow li:not(:last-child)::after { content:'→'; position:absolute; top:50%; right:-21px; transform:translateY(-50%); color:#8290a5; }
+.engine-flow span { display:block; margin-bottom:6px; color:#667085; font-size:11px; }
+.engine-flow strong { display:block; font-size:14px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
+.engine-flow li:nth-child(2) { background:#eef3ff; border-color:#d6e0f5; color:#001f83; }
+.engine-story-meta { color:#71829a; font-size:12px; line-height:1.5; }
+.engine-story details { margin:14px 0 0; }
+.engine-story summary { cursor:pointer; font-size:13px; font-weight:600; color:#344862; }
+.engine-story details[open] > summary { margin-bottom:12px; }
+.engine-story form { margin:0; }
+.engine-recovery-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin:16px 0 0; gap:16px; }
+.engine-recovery-facts > div { min-width:0; }
+.engine-recovery-facts dt { font-size:13px; font-weight:600; margin-bottom:6px; }
+.engine-recovery-facts dd { margin:0; color:#71829a; font-size:12px; line-height:1.5; }
+.engine-story .mirror-table { overflow:auto; margin-top:12px; }
+.engine-story .mirror-table table { min-width:550px; }
+.engine-story-support { background:#fafbfc; }
+.engine-story-support .engine-story-title { margin-bottom:8px; }
+.engine-story-support h2 { font-size:15px; }
+.engine-check-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; margin-bottom:14px; background:var(--line); border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+.engine-check-metrics > div { display:flex; flex-direction:column; gap:8px; min-width:0; padding:12px; background:#fff; }
+.engine-check-metrics strong { font-size:24px; font-weight:600; line-height:1.2; letter-spacing:-.4px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.engine-table-panel { padding:0; margin-top:16px; overflow:hidden; }
+.engine-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border-bottom:1px solid var(--line); }
+.engine-table-heading h2 { margin:0; font-size:18px; }
+.engine-table-panel .mirror-table { overflow:auto; margin:0; }
+.engine-table-panel .mirror-table table { width:100%; table-layout:fixed; border:0; border-radius:0; font-size:12px; }
+.engine-table-panel th, .engine-table-panel td { padding:10px; vertical-align:top; overflow-wrap:anywhere; }
+.engine-table-panel th { overflow-wrap:normal; word-break:normal; }
+.engine-table-panel .badge { white-space:nowrap; }
+.engine-table-panel .engine-sql-table { min-width:520px; }
+.engine-table-panel .engine-check-table { min-width:360px; }
+.engine-check-table code { white-space:normal; overflow-wrap:anywhere; font-size:11px; }
+.engine-check-scroll { max-height:420px; }
+.engine-check-scroll thead th { position:sticky; top:0; z-index:1; }
+.engine-table-panel details { margin:0; }
+.engine-table-panel summary { cursor:pointer; font-size:12px; }
+.engine-table-note { padding:12px 18px; margin:0; color:#667085; font-size:12px; border-top:1px solid var(--line); }
+@container engine-story (max-width:420px) {
+ .engine-flow { grid-template-columns:1fr; gap:24px; }
+ .engine-flow li:not(:last-child)::after { top:auto; bottom:-24px; right:50%; transform:translateX(50%) rotate(90deg); }
+ .engine-recovery-facts, .engine-check-metrics { grid-template-columns:1fr; }
+ .engine-story-top, .engine-story-section { padding:16px; }
+}
+</style>
+<section class="panel engine-story" aria-label="How reporting works">
+ <div class="engine-story-top">
+  <h2>From P6 data to your reports</h2>
+  <ol class="engine-flow" aria-label="Reporting calculation path">
+   <li><span>Source schedules</span><strong>{% for source in source_rows %}{{ source.label }}{% if not forloop.last %} &amp; {% endif %}{% empty %}Not configured{% endfor %}</strong></li>
+   <li><span>Calculated in</span><strong>{{ config.get_calculation_engine_display }}</strong></li>
+   <li><span>{% if config.serve_reports %}Published to{% else %}Prepared for{% endif %}</span><strong>{% if config.serve_reports %}Quality &amp; portfolio{% else %}Reporting database{% endif %}</strong></li>
+  </ol>
+  {% if not config.serve_reports %}<p class="engine-story-meta" style="margin-top:12px">Web reports currently use their original SQL connection.</p>{% endif %}
+  {% if config.pending_engine %}<p style="margin-top:12px"><span class="badge warning">Switching engines</span> The last published results remain available during the switch.</p>{% endif %}
+ </div>
+ <section class="engine-story-section" aria-label="Latest comparison">
+  <div class="engine-story-title"><h2>Results checked against SQL</h2>{% if request.user.is_staff and reporting_available and not sql_reporting_retired %}<form method="post" action="{% url 'reporting_mirror_validate_engine' %}">{% csrf_token %}<button type="submit" {% if native_validation_running %}disabled{% endif %}>Compare</button></form>{% endif %}</div>
+  {% if engine_validation %}
+  <div class="engine-check-metrics" aria-label="Validation summary">
+   <div><span class="engine-story-meta">{% if engine_validation.status == 'queued' or engine_validation.status == 'running' %}Report check status{% else %}Report checks passed{% endif %}</span>
+    <strong>{% if engine_validation.status == 'queued' %}Queued{% elif engine_validation.status == 'running' %}In progress{% elif engine_validation.results.comparisons %}{{ engine_validation.results.comparisons_passed|default_if_none:0 }} of {{ engine_validation.results.comparisons|length }}{% elif engine_validation.status == 'failed' %}Failed{% else %}{{ engine_validation.status|title }}{% endif %}</strong>
+   </div>
+   <div><span class="engine-story-meta">Last completed</span><strong>{% if engine_validation.finished_at %}{{ engine_validation.finished_at|date:"d M Y" }}{% else %}Not completed{% endif %}</strong>{% if engine_validation.finished_at %}<span class="engine-story-meta">{{ engine_validation.finished_at|date:"H:i T" }}</span>{% endif %}</div>
+  </div>
+  <p class="engine-story-intro">{% if engine_validation.status == 'queued' or engine_validation.status == 'running' or not engine_validation.results.comparisons %}{{ engine_validation.progress }}{% else %}PostgreSQL report outputs were compared with SQL outputs.{% if engine_validation.results.fixture_checks_passed == True %} Additional calculation checks also passed.{% elif engine_validation.results.fixture_checks_passed == False %} Additional calculation checks did not pass.{% endif %}{% endif %}</p>
+  {% if engine_validation.status == 'failed' %}<p style="margin-top:10px"><span class="badge warning">Validation failed</span> Review the comparison details before relying on this result.</p>{% endif %}
+{% if request.user.is_staff and engine_validation.error_message %}<details><summary>Validation failure details</summary><p class="mirror-error">{{ engine_validation.error_message }}</p></details>{% endif %}{% else %}<p class="engine-story-intro">No comparison has been run yet.</p>{% endif %}
+ </section>
+ <section class="engine-story-section" aria-label="Settings protection">
+  <div class="engine-story-title"><h2>{% if settings_checkpoint %}Settings saved for recovery{% else %}Settings recovery unavailable{% endif %}</h2>{% if settings_checkpoint.offsite_backed_up_at and settings_checkpoint.offsite_sha256 == settings_checkpoint.sha256 %}<span class="badge success">Matching copy verified</span>{% else %}<span class="badge warning">Verification pending</span>{% endif %}</div>
+  {% if settings_checkpoint %}
+  <p class="engine-story-intro">Reporting rules and evidence settings have a recovery copy.{% if settings_checkpoint.offsite_backed_up_at and settings_checkpoint.offsite_sha256 == settings_checkpoint.sha256 %} A matching encrypted copy is verified in SharePoint.{% endif %}</p>
+  <dl class="engine-recovery-facts">
+   <div><dt>Settings copy saved</dt><dd>{{ settings_checkpoint.updated_at|date:"d M Y H:i T" }}</dd></div>
+   <div><dt>SharePoint copy{% if settings_checkpoint.offsite_backed_up_at and settings_checkpoint.offsite_sha256 == settings_checkpoint.sha256 %} verified{% endif %}</dt><dd>{% if settings_checkpoint.offsite_backed_up_at and settings_checkpoint.offsite_sha256 == settings_checkpoint.sha256 %}{{ settings_checkpoint.offsite_backed_up_at|date:"d M Y H:i T" }}{% else %}Waiting for verification of a matching copy{% endif %}</dd></div>
+  </dl>
+  {% if request.user.is_staff and settings_checkpoint.offsite_error %}<details><summary>Backup issue</summary><p class="mirror-error">{{ settings_checkpoint.offsite_error }}</p></details>{% endif %}
+  {% else %}<p class="engine-story-intro">No settings recovery copy is available yet.</p>{% endif %}
+ </section>
+ <section class="engine-story-section engine-story-support" aria-label="Legacy SQL reporting">
+  <div class="engine-story-title"><h2>P6 22 legacy reports</h2><span class="badge {% if sql_reporting_retired %}neutral{% elif config.sql_parallel_enabled %}success{% else %}warning{% endif %}">{% if sql_reporting_retired %}Retired{% elif config.sql_parallel_enabled %}SQL refresh enabled{% else %}SQL refresh paused{% endif %}</span></div>
+  <p class="engine-story-intro">{% if sql_reporting_retired %}SQL views and stored results were retired after a verified recovery backup. PostgreSQL serves current reports.{% elif config.sql_parallel_enabled %}The existing P6 22 SQL reports also refresh in parallel. P6 23 has no legacy SQL reporting installation.{% else %}Refreshes for the existing P6 22 SQL reports are paused. P6 23 has no legacy SQL reporting installation.{% endif %}</p>
+  {% if sql_parallel_latest %}<p class="engine-story-meta" style="margin-top:8px">{% if sql_reporting_retired %}Last archived SQL refresh{% else %}Latest SQL refresh{% endif %} · {{ sql_parallel_latest.status|title }}{% if sql_parallel_latest.started_at %} · {{ sql_parallel_latest.started_at|date:"d M Y H:i T" }}{% endif %}</p>{% endif %}
+
+
+ </section>
+</section>
+
+<section class="panel engine-table-panel" aria-labelledby="engine-sql-refresh-title">
+ <div class="engine-table-heading"><h2 id="engine-sql-refresh-title">{% if sql_reporting_retired %}Archived SQL refresh history{% else %}Recent SQL refreshes{% endif %}</h2></div>
+ <div class="mirror-table workspace-table-scroll" role="region" aria-label="SQL refresh history" tabindex="0"><table class="engine-sql-table">
+ <colgroup><col style="width:21%"><col style="width:17%"><col style="width:16%"><col style="width:15%"><col style="width:31%"></colgroup>
+ <thead><tr><th scope="col">Started</th><th scope="col">Status</th><th scope="col">SQL version</th><th scope="col">Projects</th><th scope="col">Progress</th></tr></thead>
+ <tbody>{% for run in sql_parallel_runs %}<tr><td>{{ run.started_at|date:"d M Y H:i T"|default:"Queued" }}</td><td><span class="badge {{ run.status }}">{{ run.status|title }}</span></td><td>{{ run.sql_config_version_id|default:"—" }}</td><td>{{ run.processed_project_count|default_if_none:"—"|intcomma }}</td><td>{{ run.progress }}{% if request.user.is_staff and run.error_message %}<details><summary>Failure details</summary><p class="mirror-error">{{ run.error_message }}</p></details>{% endif %}</td></tr>{% empty %}<tr><td colspan="5">No parallel SQL refreshes have been recorded yet.</td></tr>{% endfor %}</tbody>
+ </table></div>
+</section>
+<section class="panel engine-table-panel" aria-labelledby="engine-report-checks-title">
+ <div class="engine-table-heading"><h2 id="engine-report-checks-title">Report checks</h2>{% if engine_validation.results.comparisons %}<span class="badge">{{ engine_validation.results.comparisons|length }} checks</span>{% endif %}</div>
+ <div class="mirror-table engine-check-scroll workspace-table-scroll" role="region" aria-label="Report check results" tabindex="0"><table class="engine-check-table">
+ <colgroup><col style="width:70px"><col><col style="width:90px"></colgroup>
+ <thead><tr><th scope="col">Source</th><th scope="col">Report output</th><th scope="col">Result</th></tr></thead>
+ <tbody>{% for result in engine_validation.results.comparisons %}<tr><td>{% if result.source == 'p6_22' %}P6 22{% elif result.source == 'p6_23' %}P6 23{% else %}{{ result.source }}{% endif %}</td><td><code>{{ result.view }}</code></td><td><span class="badge {% if result.matched %}success{% else %}failed{% endif %}">{% if result.matched %}Matched{% else %}Different{% endif %}</span></td></tr>{% empty %}<tr><td colspan="3">No report check results are available for this run.</td></tr>{% endfor %}</tbody>
+ </table></div>
+ <p class="engine-table-note">Report rows and business values are compared. Run IDs and calculation timestamps are excluded.</p>
+</section>

@@ -3,11 +3,11 @@
 
 {% block title %}Sign in | P6 Operations{% endblock %}
 
-{% block extra_css %}<link rel="stylesheet" href="{% static 'backups/workspace-login.css' %}">{% endblock %}
+{% block extra_css %}<style>.login-axial-brand { display:flex; flex-direction:column; align-items:center; gap:12px; } .login-axial-brand .login-axial-logo { display:block; width:min(200px, 70%); height:auto; } .login-axial-brand > span { font-size:15px; font-weight:600; } .login-panel .login-submit { background:#001f83; border-color:#001f83; } .login-panel .login-submit:hover { background:#00165f; } .login-panel .login-field input:focus, .login-panel button:focus-visible { outline-color:#001f83; border-color:#001f83; }</style><link rel="stylesheet" href="{% static 'backups/workspace-login.css' %}">{% endblock %}
 
 {% block content %}
 <section class="panel login-panel" aria-label="Sign in">
-    <div class="login-brand"><span class="login-brand-icon" aria-hidden="true"><img src="{% static 'backups/icons/database.svg' %}" alt=""></span><span>P6 Operations</span></div>
+    <div class="login-brand login-axial-brand"><img class="login-axial-logo" src="https://minio.axialprojects.com/p6backupadmin-branding/axial-logo-blue.png" alt="Axial"><span>P6 Operations</span></div>
     <form method="post">
         {% csrf_token %}
         {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}

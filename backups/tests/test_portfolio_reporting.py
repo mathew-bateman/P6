@@ -189,8 +189,18 @@ class PortfolioReportingViewTests(TestCase):
             "Resources",
         ):
             self.assertContains(response, title)
-        self.assertContains(response, 'href="/portfolio-reporting/overview/"')
-        self.assertContains(response, 'href="/portfolio-reporting/resources/"')
+        for route in (
+            "portfolio_reporting_overview",
+            "portfolio_reporting_milestones",
+            "portfolio_reporting_risk_float",
+            "portfolio_reporting_health",
+            "portfolio_reporting_project_detail",
+            "portfolio_reporting_resources",
+        ):
+            self.assertContains(
+                response,
+                f'href="{reverse(route)}?report_source=p6_22"',
+            )
 
     @patch(
         "backups.views.fetch_validation_filter_options",
@@ -331,6 +341,38 @@ class PortfolioReportingViewTests(TestCase):
                 response = self.client.get(reverse(route))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, title)
+
+    @patch("backups.views.fetch_validation_filter_options", return_value={
+        "projects": [], "portfolios": [], "lead_planners": [], "project_statuses": [],
+        "project_states": [], "updated_dates": [], "checks": [],
+    })
+    @patch("backups.views.ResourceReportingView.report_fetcher")
+    def test_resource_totals_retain_precision_with_accessible_detail_controls(self, fetcher, _options):
+        fetcher.return_value = {
+            "kpis": [
+                {"label": "Resources", "value": 245, "detail": "Named resources"},
+                {"label": "Planned units", "value": "145,817.00", "detail": "P6 target quantity"},
+                {"label": "Remaining units", "value": "158,900.79", "detail": "P6 remaining quantity"},
+            ],
+            "rows": [],
+        }
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse("portfolio_reporting_resources"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<strong>245</strong>', html=True)
+        self.assertContains(response, '<strong class="portfolio-kpi-value--long" tabindex="0">145,817.00</strong>', html=True)
+        self.assertContains(response, '<strong class="portfolio-kpi-value--long" tabindex="0">158,900.79</strong>', html=True)
+        for label in ("Resources", "Planned units", "Remaining units"):
+            self.assertContains(
+                response,
+                f'<button type="button" class="resource-kpi-trigger" aria-label="About {label}" aria-expanded="false"></button>',
+                html=True,
+            )
+        self.assertContains(response, '<div class="resource-kpi-popover" role="tooltip">P6 target quantity</div>', html=True)
+        self.assertContains(response, '<div class="resource-kpi-popover" role="tooltip">P6 remaining quantity</div>', html=True)
+        self.assertNotContains(response, '<small>P6 target quantity</small>', html=True)
 
     def test_landing_exposes_both_authorized_report_areas(self):
         quality_group, _ = Group.objects.get_or_create(

@@ -1,4 +1,5 @@
 .env
+/.recovery/
 .env.*
 !.env.example
 .venv/
@@ -25,3 +26,17 @@ retention-prune-*.json
 
 # Local visual QA captures
 /*.png
+
+# Private operational results and deployment receipts; preserve outside public Git.
+/ops/performance/evidence/
+/ops/performance/ALL_PROJECTS.md
+/ops/performance/SPEEDUP_COMPARISON.md
+/ops/performance/batch_evidence_notes.md
+/sql/**/gantt-evidence/
+/sql/**/DEPLOYMENT-*.md
+/sql/**/VALIDATION-*.md
+/sql/**/GANTT-VALIDATION-*.md
+/sql/**/REMOVAL-*.md
+/sql/**/COLUMN-REMOVAL-*.md
+/sql/**/METADATA-TRIM-*.md
+/sql/**/P6-22-SCOPE-*.md

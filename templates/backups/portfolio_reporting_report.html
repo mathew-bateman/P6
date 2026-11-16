@@ -31,16 +31,10 @@
     .portfolio-filter-actions { display:grid; gap:7px; }
     .portfolio-filter-actions .button { width:100%; box-sizing:border-box; }
     .portfolio-main { min-width:0; }
-    .portfolio-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
-    .portfolio-kpi { min-height:106px; box-sizing:border-box; margin:0; padding:14px 15px; border-left:3px solid var(--accent); }
-    .portfolio-kpi.good { border-left-color:#16a34a; background:#f0fdf4; }
-    .portfolio-kpi.fair { border-left-color:#f59e0b; background:#fffbeb; }
-    .portfolio-kpi.poor { border-left-color:#dc2626; background:#fff7f6; }
-    .portfolio-kpi span { display:block; color:#667085; font-size:11px; font-weight:750; letter-spacing:.05em; text-transform:uppercase; }
-    .portfolio-kpi strong { display:block; margin:8px 0 5px; font-size:24px; line-height:1.05; font-variant-numeric:tabular-nums; }
-    .portfolio-kpi small { display:block; color:#667085; font-size:11px; line-height:1.35; }
     .portfolio-panel { overflow:hidden; margin:0 0 16px; padding:0; }
     .portfolio-panel-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:15px 18px; border-bottom:1px solid var(--line); background:#f8fafc; }
+    .portfolio-panel-header > div { min-width:0; }
+    .portfolio-panel-header > .badge { flex:0 0 auto; white-space:nowrap; }
     .portfolio-panel-header h2 { margin:0; font-size:18px; }
     .portfolio-panel-header p { margin:4px 0 0; font-size:12px; }
     .portfolio-table-wrap { overflow:auto; }
@@ -52,22 +46,21 @@
     .health-badge.fair { background:#fef0c7; color:#b54708; }
     .health-badge.poor { background:#fee4e2; color:#b42318; }
     .portfolio-bars { display:grid; gap:12px; padding:18px; }
-    .portfolio-bar-row { display:grid; grid-template-columns:minmax(120px,190px) minmax(0,1fr) 75px; gap:12px; align-items:center; }
+    .portfolio-bar-row { display:grid; grid-template-columns:minmax(0,190px) minmax(0,1fr) max-content; gap:12px; align-items:center; }
     .portfolio-bar-label { color:#344054; font-size:13px; font-weight:650; }
     .portfolio-bar-track { height:14px; overflow:hidden; border-radius:999px; background:#eef2f7; }
     .portfolio-bar-fill { min-width:2px; height:100%; border-radius:999px; background:#0f766e; }
     .portfolio-bar-fill.good { background:#16a34a; }
     .portfolio-bar-fill.fair { background:#f59e0b; }
     .portfolio-bar-fill.poor { background:#dc2626; }
-    .portfolio-bar-value { text-align:right; font-weight:750; font-variant-numeric:tabular-nums; }
+    .portfolio-bar-value { white-space:nowrap; text-align:right; font-weight:750; font-variant-numeric:tabular-nums; }
     .portfolio-empty, .portfolio-error { padding:28px 20px; text-align:center; color:#667085; }
     .portfolio-error { margin:0 0 16px; border-color:#fecdca; background:#fff7f6; color:#b42318; text-align:left; }
     .portfolio-note { margin:0 0 16px; padding:12px 14px; border:1px solid #b2ddff; border-radius:8px; background:#eff8ff; color:#175cd3; font-size:12px; line-height:1.45; }
     @media (max-width:760px) {
         .portfolio-report-nav { grid-template-columns:none; grid-auto-columns:max-content; grid-auto-flow:column; overflow-x:auto; }
         .portfolio-report-nav a { padding-left:8px; padding-right:8px; font-size:12px; }
-        .portfolio-kpis { grid-template-columns:1fr 1fr; }
-        .portfolio-bar-row { grid-template-columns:1fr 60px; }
+        .portfolio-bar-row { grid-template-columns:minmax(0,1fr) max-content; }
         .portfolio-bar-track { grid-column:1/-1; grid-row:2; }
     }
     @media (max-width:480px) {
@@ -88,6 +81,7 @@
 
 <div class="portfolio-layout">
     <aside class="portfolio-sidebar">
+<dialog class="workspace-filter-dialog" data-workspace-filter-shell><div class="workspace-filter-body">{% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}
         <section class="panel portfolio-filters">
             <h2>Filters</h2>
             <form method="get"
@@ -170,6 +164,7 @@
                 </div>
             </form>
         </section>
+</div></dialog>
     </aside>
 
     <div class="portfolio-main">
@@ -193,22 +188,21 @@
                 <p>Project Detail is intentionally project-specific. Choose a project from the filters to load its current schedule measures.</p>
             </section>
         {% else %}
-            <section class="portfolio-kpis" aria-label="{{ active_report.title }} summary">
+            <section class="portfolio-kpis report-kpis" data-kpi-count="{{ report_data.kpis|length }}" aria-label="{{ active_report.title }} summary">
                 {% for kpi in report_data.kpis %}
-                    <article class="panel portfolio-kpi {{ kpi.tone|default:'' }}">
-                        <span>{{ kpi.label }}</span>
+                    <article class="panel portfolio-kpi resources-kpi report-kpi {{ kpi.tone|default:'' }}">
+                        <div class="resource-kpi-label report-kpi-label"><span>{{ kpi.label }}</span>{% if kpi.detail %}<div class="resource-kpi-info"><button type="button" class="resource-kpi-trigger" aria-label="About {{ kpi.label }}" aria-expanded="false"></button><div class="resource-kpi-popover" role="tooltip">{{ kpi.detail }}</div></div>{% endif %}</div>
                         <strong>{{ kpi.value|intcomma }}</strong>
-                        <small>{{ kpi.detail }}</small>
                     </article>
                 {% empty %}
-                    <article class="panel portfolio-kpi"><span>Report status</span><strong>N/A</strong><small>No current data matched the filters.</small></article>
+                    <article class="panel portfolio-kpi resources-kpi report-kpi"><div class="resource-kpi-label report-kpi-label"><span>Report status</span><div class="resource-kpi-info"><button type="button" class="resource-kpi-trigger" aria-label="About report status" aria-expanded="false"></button><div class="resource-kpi-popover" role="tooltip">No current data matched the filters.</div></div></div><strong>N/A</strong></article>
                 {% endfor %}
             </section>
 
             {% if active_report.key == 'overview' %}
                 <section class="panel portfolio-panel">
                     <div class="portfolio-panel-header"><div><h2>Projects requiring intervention</h2><p class="subtle">Lowest schedule-health scores, with float and critical exposure for context.</p></div><span class="badge">Top {{ report_data.top_projects|length }}</span></div>
-                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Lead planner</th><th>Health</th><th>Negative float</th><th>Critical</th><th>Near critical</th></tr></thead><tbody>
+                    <div class="portfolio-table-wrap workspace-table-scroll" role="region" aria-label="Projects requiring intervention" tabindex="0"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Lead planner</th><th>Health</th><th>Negative float</th><th>Critical</th><th>Near critical</th></tr></thead><tbody>
                         {% for row in report_data.top_projects %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td>{{ row.portfolio|default:"N/A" }}</td><td>{{ row.lead_planner|default:"N/A" }}</td><td><span class="badge health-badge {{ row.health_band|lower }}">{{ row.health_score }}%</span></td><td class="number">{{ row.negative_float_count|intcomma }}</td><td class="number">{{ row.critical_task_count|intcomma }}</td><td class="number">{{ row.near_critical_task_count|intcomma }}</td></tr>{% empty %}<tr><td colspan="7" class="portfolio-empty">No projects matched these filters.</td></tr>{% endfor %}
                     </tbody></table></div>
                 </section>
@@ -224,7 +218,7 @@
                 </section>
                 <section class="panel portfolio-panel">
                     <div class="portfolio-panel-header"><div><h2>Milestone status by project</h2><p class="subtle">Use the project filter to drill into one submitted schedule.</p></div></div>
-                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Total</th><th>On time</th><th>Completed late</th><th>On-time %</th><th>Due 30 days</th><th>Due 60 days</th><th>Overdue</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td class="number">{{ row.total_milestones|intcomma }}</td><td class="number">{{ row.on_time|intcomma }}</td><td class="number">{{ row.completed_late|intcomma }}</td><td class="number">{{ row.on_time_percent }}%</td><td class="number">{{ row.due_30|intcomma }}</td><td class="number">{{ row.due_60|intcomma }}</td><td class="number">{{ row.overdue|intcomma }}</td></tr>{% empty %}<tr><td colspan="8" class="portfolio-empty">No milestones matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                    <div class="portfolio-table-wrap workspace-table-scroll" role="region" aria-label="Milestone status by project" tabindex="0"><table><thead><tr><th>Project</th><th>Total</th><th>On time</th><th>Completed late</th><th>On-time %</th><th>Due 30 days</th><th>Due 60 days</th><th>Overdue</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td class="number">{{ row.total_milestones|intcomma }}</td><td class="number">{{ row.on_time|intcomma }}</td><td class="number">{{ row.completed_late|intcomma }}</td><td class="number">{{ row.on_time_percent }}%</td><td class="number">{{ row.due_30|intcomma }}</td><td class="number">{{ row.due_60|intcomma }}</td><td class="number">{{ row.overdue|intcomma }}</td></tr>{% empty %}<tr><td colspan="8" class="portfolio-empty">No milestones matched these filters.</td></tr>{% endfor %}</tbody></table></div>
                 </section>
             {% elif active_report.key == 'risk_float' %}
                 <section class="panel portfolio-panel">
@@ -235,7 +229,7 @@
             {% elif active_report.key == 'health' %}
                 <section class="panel portfolio-panel">
                     <div class="portfolio-panel-header"><div><h2>Schedule health by project</h2><p class="subtle">Good is 90-100%, Fair is 80-89.99%, and Poor is below 80%.</p></div><span class="badge">{{ report_data.rows|length }} projects</span></div>
-                    <div class="portfolio-table-wrap"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Planner</th><th>Health band</th><th>Score</th><th>Missing predecessors</th><th>Missing successors</th><th>Constraints</th><th>High float</th><th>Lags</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td>{{ row.portfolio|default:"N/A" }}</td><td>{{ row.lead_planner|default:"N/A" }}</td><td><span class="badge health-badge {{ row.health_band|lower }}">{{ row.health_band }}</span></td><td class="number"><strong>{{ row.health_score }}%</strong></td><td class="number">{{ row.missing_predecessor_count|intcomma }}</td><td class="number">{{ row.missing_successor_count|intcomma }}</td><td class="number">{{ row.constraint_count|intcomma }}</td><td class="number">{{ row.high_float_count|intcomma }}</td><td class="number">{{ row.lag_count|intcomma }}</td></tr>{% empty %}<tr><td colspan="10" class="portfolio-empty">No schedule-health results matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                    <div class="portfolio-table-wrap workspace-table-scroll" role="region" aria-label="Schedule health by project" tabindex="0"><table><thead><tr><th>Project</th><th>Portfolio</th><th>Planner</th><th>Health band</th><th>Score</th><th>Missing predecessors</th><th>Missing successors</th><th>Constraints</th><th>High float</th><th>Lags</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.proj_short_name|default:row.proj_id }}</strong></td><td>{{ row.portfolio|default:"N/A" }}</td><td>{{ row.lead_planner|default:"N/A" }}</td><td><span class="badge health-badge {{ row.health_band|lower }}">{{ row.health_band }}</span></td><td class="number"><strong>{{ row.health_score }}%</strong></td><td class="number">{{ row.missing_predecessor_count|intcomma }}</td><td class="number">{{ row.missing_successor_count|intcomma }}</td><td class="number">{{ row.constraint_count|intcomma }}</td><td class="number">{{ row.high_float_count|intcomma }}</td><td class="number">{{ row.lag_count|intcomma }}</td></tr>{% empty %}<tr><td colspan="10" class="portfolio-empty">No schedule-health results matched these filters.</td></tr>{% endfor %}</tbody></table></div>
                 </section>
             {% elif active_report.key == 'project_detail' %}
                 <section class="panel portfolio-panel">
@@ -245,8 +239,8 @@
                 <p class="portfolio-note">The current project detail uses the selected submitted schedule. Baseline, last accepted and last submitted comparison lines require those submission roles to be explicitly identified in the source.</p>
             {% elif active_report.key == 'resources' %}
                 <section class="panel portfolio-panel">
-                    <div class="portfolio-panel-header"><div><h2>Resource demand</h2><p class="subtle">Top 100 resources ordered by remaining units.</p></div><span class="badge">{{ report_data.rows|length }} resources</span></div>
-                    <div class="portfolio-table-wrap"><table><thead><tr><th>Resource</th><th>Projects</th><th>Activities</th><th>Planned units</th><th>Actual units</th><th>Remaining units</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.resource_name }}</strong></td><td class="number">{{ row.project_count|intcomma }}</td><td class="number">{{ row.activity_count|intcomma }}</td><td class="number">{{ row.planned_units|floatformat:2|intcomma }}</td><td class="number">{{ row.actual_units|floatformat:2|intcomma }}</td><td class="number">{{ row.remaining_units|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td colspan="6" class="portfolio-empty">No resource assignments matched these filters.</td></tr>{% endfor %}</tbody></table></div>
+                    <div class="portfolio-panel-header"><div><h2>Resource demand</h2></div><span class="badge">{{ report_data.rows|length }} resources</span></div>
+                    <div class="portfolio-table-wrap workspace-table-scroll" role="region" aria-label="Resource demand" tabindex="0"><table><thead><tr><th>Resource</th><th>Projects</th><th>Activities</th><th>Planned units</th><th>Actual units</th><th>Remaining units</th></tr></thead><tbody>{% for row in report_data.rows %}<tr><td><strong>{{ row.resource_name }}</strong></td><td class="number">{{ row.project_count|intcomma }}</td><td class="number">{{ row.activity_count|intcomma }}</td><td class="number">{{ row.planned_units|floatformat:2|intcomma }}</td><td class="number">{{ row.actual_units|floatformat:2|intcomma }}</td><td class="number">{{ row.remaining_units|floatformat:2|intcomma }}</td></tr>{% empty %}<tr><td colspan="6" class="portfolio-empty">No resource assignments matched these filters.</td></tr>{% endfor %}</tbody></table></div>
                 </section>
             {% endif %}
         {% endif %}
@@ -295,6 +289,20 @@
         const form = event.target.closest('.portfolio-layout form');
         if (form) syncPortfolioReportNavigation(form);
     });
+    document.addEventListener('click', event => {
+        const trigger = event.target.closest('.resource-kpi-trigger');
+        document.querySelectorAll('.resource-kpi-info.is-open').forEach(info => {
+            if (info !== trigger?.parentElement) { info.classList.remove('is-open'); info.querySelector('button')?.setAttribute('aria-expanded', 'false'); }
+        });
+        if (trigger) { trigger.parentElement.removeAttribute('data-dismissed'); const open = trigger.parentElement.classList.toggle('is-open'); trigger.setAttribute('aria-expanded', String(open)); }
+    });
+    document.addEventListener('keydown', event => {
+        const info = event.target.closest('.resource-kpi-info');
+        if (!info || event.key !== 'Escape') return;
+        info.classList.remove('is-open'); info.dataset.dismissed = ''; info.querySelector('button')?.setAttribute('aria-expanded', 'false'); event.preventDefault(); event.stopPropagation();
+    });
+    document.addEventListener('focusin', event => event.target.closest('.resource-kpi-info')?.removeAttribute('data-dismissed'));
+    document.addEventListener('mouseover', event => { const info = event.target.closest('.resource-kpi-info'); if (info && !info.contains(event.relatedTarget)) info.removeAttribute('data-dismissed'); });
     document.addEventListener('htmx:load', (event) => { initTomSelects(event.detail.elt); initDatePickers(event.detail.elt); });
 })();
 </script>

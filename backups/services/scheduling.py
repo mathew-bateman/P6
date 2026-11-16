@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
+from reporting_mirror.sql_retirement import retired
 
 SCHEDULE_QUALITY_TASK_NAME = "P6 Schedule Quality Refresh"
 
@@ -57,6 +58,12 @@ def sync_schedule_quality_refresh_schedule(
     crontab_string: str,
     proj_id: int | None = None,
 ) -> PeriodicTask:
+    sql_retired = retired()
+    enabled = enabled and not sql_retired
+    description = (
+        "Retired SQL reporting schedule. PostgreSQL refresh is managed by Reporting Database."
+        if sql_retired else "Refreshes materialized Power BI schedule-quality tables."
+    )
     minute, hour, day_of_month, month_of_year, day_of_week = parse_crontab(crontab_string)
     schedule, _ = CrontabSchedule.objects.get_or_create(
         minute=minute,
@@ -73,14 +80,14 @@ def sync_schedule_quality_refresh_schedule(
             "crontab": schedule,
             "enabled": enabled,
             "kwargs": json.dumps(kwargs),
-            "description": "Refreshes materialized Power BI schedule-quality tables.",
+            "description": description,
         },
     )
     task.task = "backups.tasks.execute_schedule_quality_refresh"
     task.crontab = schedule
     task.enabled = enabled
     task.kwargs = json.dumps(kwargs)
-    task.description = "Refreshes materialized Power BI schedule-quality tables."
+    task.description = description
     task.save(update_fields=["task", "crontab", "enabled", "kwargs", "description"])
     return task
 
@@ -90,6 +97,7 @@ def get_schedule_quality_refresh_schedule(
     default_crontab: str,
     default_enabled: bool,
 ) -> dict[str, object]:
+    sql_retired = retired()
     task = (
         PeriodicTask.objects.select_related("crontab")
         .filter(name=SCHEDULE_QUALITY_TASK_NAME)
@@ -101,12 +109,12 @@ def get_schedule_quality_refresh_schedule(
             f"{task.crontab.day_of_month} {task.crontab.month_of_year} {task.crontab.day_of_week}"
         )
         return {
-            "enabled": task.enabled,
+            "enabled": task.enabled and not sql_retired,
             "crontab": crontab_string,
             "task": task,
         }
     return {
-        "enabled": default_enabled,
+        "enabled": default_enabled and not sql_retired,
         "crontab": default_crontab,
         "task": None,
     }

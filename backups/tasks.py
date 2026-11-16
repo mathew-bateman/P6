@@ -56,7 +56,21 @@ def execute_schedule_quality_refresh(
     *,
     proj_id: int | None = None,
     trigger: str = "scheduled",
+    requested_by: str = "",
 ) -> str:
+    from reporting_mirror.native_settings import enabled as postgres_settings_enabled
+    if postgres_settings_enabled():
+        from reporting_mirror.models import ReportingConfig
+        if trigger == "scheduled" and ReportingConfig.objects.filter(pk=1, sql_parallel_enabled=True).exists():
+            from reporting_mirror.sql_parallel import queue_sql_parallel
+            identifier = queue_sql_parallel(trigger=trigger)
+            return "Retained P6 22 SQL reporting refresh queued: " + str(identifier)
+        from reporting_mirror.tasks import refresh_reporting
+        refresh_reporting.apply_async(
+            kwargs={"trigger": trigger, "requested_by": requested_by, "force": True, "recalculate_only": False},
+            queue="p6_reporting",
+        )
+        return "Reporting-engine refresh queued for both P6 versions."
     try:
         return refresh_schedule_quality(proj_id=proj_id, trigger=trigger)
     except Exception as error:
@@ -73,6 +87,11 @@ def publish_schedule_quality_config_task(
     published_by: str,
 ) -> None:
     """Publish a saved draft and run its all-project rebuild off the web request."""
+    from reporting_mirror.native_settings import enabled as postgres_settings_enabled
+    if postgres_settings_enabled():
+        from reporting_mirror.tasks import refresh_reporting
+        refresh_reporting.apply_async(kwargs={"trigger": "settings_publish", "requested_by": published_by, "force": True, "recalculate_only": True, "config_version_id": config_version_id, "expected_settings_hash": expected_settings_hash}, queue="p6_reporting")
+        return
     try:
         publish_schedule_quality_config(
             config_version_id=config_version_id,
@@ -85,6 +104,14 @@ def publish_schedule_quality_config_task(
             "Schedule quality publish task failed for draft %s", config_version_id
         )
         raise self.retry(exc=error)
+
+    # Publication has committed. A queue failure must not retry the SQL publish;
+    # the normal reporting schedule will pick up the active settings as well.
+    try:
+        from reporting_mirror.tasks import queue_after_settings_publish
+        queue_after_settings_publish()
+    except Exception:
+        logger.exception("Settings were published; PostgreSQL refresh could not be queued and will use its normal schedule.")
 
 
 @shared_task(bind=True, max_retries=1, default_retry_delay=120)

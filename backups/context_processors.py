@@ -4,6 +4,7 @@ from backups.views import (
     can_view_schedule_quality_reports,
 )
 from backups.navigation import build_workspace_navigation, report_query, selected_report_source
+from backups.models import BackupTarget
 
 
 def schedule_quality_access(request):
@@ -18,6 +19,7 @@ def schedule_quality_access(request):
         "can_view_portfolio_reporting": portfolio,
         "workspace_can_edit_settings": editable,
         "workspace_navigation": navigation,
+        "workspace_backup_targets": BackupTarget.objects.only("name", "slug") if request.user.is_authenticated and request.user.is_staff and navigation and navigation["active_section"] and navigation["active_section"]["id"] == "operations" else (),
         "workspace_is_home": bool(navigation and navigation["is_home"]),
         "workspace_report_source": selected_report_source(request),
         "workspace_report_query": report_query(request),

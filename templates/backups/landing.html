@@ -3,21 +3,18 @@
 {% block title %}Home | P6 Operations{% endblock %}
 {% block content %}
 <section class="workspace-welcome" aria-labelledby="welcome-title">
-    <div class="workspace-welcome-heading">
-        <p class="workspace-eyebrow">Workspace</p>
-        <h1 id="welcome-title">A clearer view of your programmes</h1>
-        <p class="subtle">Reports, schedule quality and P6 operations, together in one workspace.</p>
-    </div>
-    <div class="workspace-welcome-intro">
-        <span class="workspace-welcome-symbol" aria-hidden="true"><img src="{% static 'backups/icons/database.svg' %}" alt=""></span>
-        <div><h2>Your P6 workspace, organised.</h2><p class="subtle">Choose an area below to get started.</p></div>
-    </div>
+    <h1 id="welcome-title" class="workspace-welcome-title">Home</h1>
     <div class="workspace-area-grid">
         {% for section in workspace_navigation.sections %}
             {% if section.id != "home" %}
             <section class="workspace-area" aria-labelledby="area-{{ section.id }}">
-                <h2 id="area-{{ section.id }}">{{ section.label }}</h2>
-                <p class="subtle">{% if section.id == "portfolio" %}A view across every programme.{% elif section.id == "quality" %}Understand the checks behind the score.{% elif section.id == "operations" %}Keep the reporting environment running.{% elif section.id == "reporting" %}Review the reporting source and refresh status.{% else %}Manage your schedule quality rules.{% endif %}</p>
+                <div class="workspace-area-heading">
+                    {% if section.id == 'operations' %}<span class="workspace-icon workspace-area-icon" style="--workspace-icon:url('{% static 'backups/icons/server-stack.svg' %}')" aria-hidden="true"></span>{% else %}<span class="workspace-icon workspace-area-icon" style="--workspace-icon:url('{% static section.icon_path %}')" aria-hidden="true"></span>{% endif %}
+                    <div>
+                        <h2 id="area-{{ section.id }}">{{ section.label }}</h2>
+                        <p class="subtle">{% if section.id == "portfolio" %}A view across every programme.{% elif section.id == "quality" %}Explore schedule quality.{% elif section.id == "operations" %}Keep the reporting environment running.{% elif section.id == "reporting" %}Review the reporting source and refresh status.{% else %}Manage your schedule quality rules.{% endif %}</p>
+                    </div>
+                </div>
                 <ul>
                     {% for group in section.groups %}{% for link in group.links %}
                     <li><a href="{{ link.reset_url }}"><span>{{ link.label }}</span><img src="{% static 'backups/icons/arrow-right.svg' %}" alt="" aria-hidden="true"></a></li>

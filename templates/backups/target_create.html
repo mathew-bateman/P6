@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Add target | P6 Operations Hub{% endblock %}
+{% block content %}
+<section class="toolbar page-hero"><h1>Add target</h1><a class="button ghost" href="{% url 'backup_dashboard' %}">Cancel</a></section>
+<form method="post" class="panel" style="margin-top: 16px; max-width: 720px;">
+    {% csrf_token %}
+    <p class="subtle">New targets start with backups disabled. Review the settings and schedule before enabling them.</p>
+    {{ form.non_field_errors }}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button type="submit">Add target</button>
+</form>
+{% endblock %}

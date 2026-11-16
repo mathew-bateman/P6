@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% load humanize %}
+{% block title %}Reporting View | P6 Operations Hub{% endblock %}
+{% block content %}
+<section class="page-hero maintenance-page-heading reporting-preview-hero">
+    <div><h1>Reporting View</h1><p><code>{{ schema }}.{{ view_name }}</code></p><p class="subtle">{{ row_count|intcomma }} rows · Published {{ published_at|date:"d M Y H:i T" }} · Showing 50 rows per page.</p></div>
+    <a class="button ghost" href="{% url 'reporting_mirror_dashboard' %}">Overview</a>
+</section>
+<section class="panel workspace-table-scroll" style="overflow:auto" role="region" aria-label="Reporting data preview" tabindex="0"><table style="display:table;white-space:nowrap;font-size:12px"><thead><tr>{% for column in columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for value in row %}<td style="max-width:450px;overflow:hidden;text-overflow:ellipsis" title="{{ value|default_if_none:'' }}">{{ value|default_if_none:"—"|truncatechars:240 }}</td>{% endfor %}</tr>{% empty %}<tr><td>No matching rows.</td></tr>{% endfor %}</tbody></table></section>
+<div class="toolbar"><span>Page {{ page_number }} of {{ total_pages|intcomma }}</span><div>{% if previous_page %}<a class="button ghost" href="?source={{ schema }}&page={{ previous_page }}">Previous</a>{% endif %}{% if next_page %}<a class="button ghost" href="?source={{ schema }}&page={{ next_page }}">Next</a>{% endif %}</div></div>
+{% endblock %}

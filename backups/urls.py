@@ -8,7 +8,9 @@ from backups import views
 urlpatterns = [
     path("", views.LandingPageView.as_view(), name="suite_landing"),
     path("backup-targets/", views.DashboardView.as_view(), name="backup_dashboard"),
+    path("backup-targets/new/", views.TargetCreateView.as_view(), name="backup_target_create"),
     path("maintenance/", views.MaintenanceDashboardView.as_view(), name="maintenance_dashboard"),
+    path("maintenance/run/", views.TriggerMaintenanceView.as_view(), name="maintenance_run"),
     path("schedule-quality/", views.ScheduleQualityDashboardView.as_view(), name="schedule_quality_dashboard"),
     path(
         "schedule-quality/overview/",

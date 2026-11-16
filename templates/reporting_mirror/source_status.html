@@ -1,0 +1,10 @@
+{% load reporting_navigation %}
+{% if reporting_snapshot %}
+<section id="reporting-source-status" {% if reporting_oob %}hx-swap-oob="outerHTML"{% endif %} class="panel" style="padding:12px 16px;border-left:4px solid {% if reporting_snapshot.stale %}#d97706{% else %}#0f766e{% endif %};margin:12px 0">
+<form method="get" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0">
+{% report_source_filters as source_filters %}{% for name, value in source_filters %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+<label for="report-source" style="margin:0;font-weight:700">Reporting source</label>
+<select id="report-source" name="report_source" style="width:auto;min-width:150px" onchange="this.form.submit()"><option value="combined" {% if reporting_snapshot.source == 'combined' %}selected{% endif %}>Both P6 versions</option><option value="p6_22" {% if reporting_snapshot.source == 'p6_22' %}selected{% endif %}>P6 22</option><option value="p6_23" {% if reporting_snapshot.source == 'p6_23' %}selected{% endif %}>P6 23</option></select><noscript><button type="submit">Apply source</button></noscript>
+<span class="subtle">{% if reporting_snapshot.available %}Snapshot {{ reporting_snapshot.snapshot_at|date:"d M Y H:i T" }} · Published {{ reporting_snapshot.published_at|date:"H:i T" }}{% if reporting_snapshot.stale %} · <strong>Refresh overdue — showing the last successful snapshot</strong>{% endif %}{% else %}No reporting snapshot is available.{% endif %}</span>
+<a href="{% url 'reporting_mirror_dashboard' %}">Refresh details</a></form></section>
+{% endif %}

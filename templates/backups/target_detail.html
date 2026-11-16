@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ target.name }} | P6 Operations Hub{% endblock %}
 
@@ -41,6 +42,12 @@
         .target-hero.is-compact .target-hero-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
         .target-hero.is-compact .target-hero-actions > .button, .target-hero.is-compact .target-hero-actions > button { width: 100%; min-width: 0; }
     }
+    .workspace-app .target-form .target-hero { display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .workspace-app .target-hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; width: auto; margin-left: auto; gap: 8px; }
+    .target-unsaved-note { margin: 0; color: #945b0b; font-size: 13px; }
+    .target-unsaved-note[hidden] { display: none; }
+    .workspace-app .target-hero-actions > button:disabled { opacity: .5; cursor: not-allowed; }
+    .workspace-app .target-hero-actions > .button, .workspace-app .target-hero-actions > button { width: auto; min-width: 0; min-height: 38px; height: 38px; padding: 7px 12px; }
 </style>
 
 <form method="post" action="{% url 'backup_target_update' target.slug %}" class="target-form">
@@ -48,13 +55,15 @@
 <div class="toolbar page-hero target-hero">
     <div>
         <h1>{{ target.name }}</h1>
-        <p class="subtle">{{ target.description }}</p>
+        
     </div>
     <div class="target-hero-actions">
-        <button type="submit" form="target-backup-run-form">Run Backup</button>
-        <button type="submit">Save Target</button>
+        <a class="button ghost" href="{% url 'backup_target_remote' target.slug %}"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/database.svg' %}');width:15px;height:15px;vertical-align:-3px;margin-right:6px" aria-hidden="true"></span>Restore</a>
+        <button id="target-run-backup" type="submit" form="target-backup-run-form" disabled aria-describedby="target-unsaved-note"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/arrow-counter-clockwise.svg' %}');width:15px;height:15px;vertical-align:-3px;margin-right:6px" aria-hidden="true"></span>Backup</button>
+        <button type="submit"><span class="workspace-icon" style="--workspace-icon:url('{% static 'backups/icons/gear-six.svg' %}');width:15px;height:15px;vertical-align:-3px;margin-right:6px" aria-hidden="true"></span>Save</button>
     </div>
 </div>
+<p id="target-unsaved-note" class="target-unsaved-note" role="status">Enable JavaScript to check for unsaved changes before running a backup.</p>
 
 <section class="panel target-panel">
     <h2>Target Settings</h2>
@@ -177,8 +186,8 @@
 <section class="panel recent-runs-card target-runs-card">
     <div class="toolbar">
         <h2>Recent Runs</h2>
-        <a class="button ghost" href="{% url 'backup_target_remote' target.slug %}">Remote Backups</a>
     </div>
+    <div class="workspace-table-scroll" role="region" aria-label="Recent runs for this database" tabindex="0">
     <table>
         <thead>
         <tr>
@@ -217,6 +226,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
     {% if page_obj.has_other_pages %}
         <div class="pagination-container">
             <span class="pagination-info">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total runs)</span>
@@ -238,4 +248,26 @@
         </div>
     {% endif %}
 </section>
+<script>
+(() => {
+    const settings = document.querySelector('.target-form');
+    const backupForm = document.getElementById('target-backup-run-form');
+    const runButton = document.getElementById('target-run-backup');
+    const note = document.getElementById('target-unsaved-note');
+    const snapshot = () => JSON.stringify(Array.from(new FormData(settings).entries()));
+    const saved = snapshot();
+    const update = () => {
+        const changed = snapshot() !== saved;
+        runButton.disabled = changed;
+        note.hidden = !changed;
+        note.textContent = changed ? 'Save your changes before running a backup.' : '';
+        return changed;
+    };
+    settings.addEventListener('input', update);
+    settings.addEventListener('change', update);
+    settings.addEventListener('reset', () => setTimeout(update, 0));
+    backupForm.addEventListener('submit', event => { if (update()) event.preventDefault(); });
+    update();
+})();
+</script>
 {% endblock %}

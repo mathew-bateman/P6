@@ -9,6 +9,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from reporting_mirror.native_settings import enabled as postgres_settings_enabled
 
 from backups.services.mssql import (
     execute_statement,
@@ -141,6 +142,9 @@ def get_or_create_schedule_quality_draft(
     changed_by: str,
     profile_code: str | None = None,
 ) -> int:
+    if postgres_settings_enabled():
+        from reporting_mirror.native_settings import get_or_create_draft
+        return get_or_create_draft(changed_by=changed_by, profile_code=profile_code)
     target = build_schedule_quality_target()
     rows = fetch_rows(
         target,
@@ -190,6 +194,9 @@ def fetch_schedule_quality_settings(
     *,
     config_version_id: int,
 ) -> ScheduleQualitySettingsSnapshot:
+    if postgres_settings_enabled():
+        from reporting_mirror.native_settings import fetch_snapshot
+        return fetch_snapshot(config_version_id=config_version_id)
     target = build_schedule_quality_target()
     result_sets = fetch_result_sets(
         target,
@@ -270,7 +277,10 @@ def fetch_schedule_quality_settings(
     )
     if len(result_sets) < 4 or not result_sets[0]:
         raise LookupError(f"Schedule quality configuration {config_version_id} was not found.")
+    return _snapshot_from_result_sets(result_sets)
 
+
+def _snapshot_from_result_sets(result_sets) -> ScheduleQualitySettingsSnapshot:
     header = result_sets[0][0]
     checks = tuple(
         ScheduleQualityCheckScope(
@@ -373,6 +383,9 @@ def save_schedule_quality_draft(
     changed_by: str,
     change_note: str = "",
 ) -> str:
+    if postgres_settings_enabled():
+        from reporting_mirror.native_settings import save_draft
+        return save_draft(config_version_id=config_version_id, payload=payload, expected_settings_hash=expected_settings_hash, changed_by=changed_by, change_note=change_note)
     target = build_schedule_quality_target()
     expected_settings_hash = _validated_settings_hash(expected_settings_hash)
     settings_json = json.dumps(
@@ -416,6 +429,9 @@ def publish_schedule_quality_config(
     published_by: str,
     trigger_type: str = "publish",
 ) -> None:
+    if postgres_settings_enabled():
+        from reporting_mirror.sync import run_sync
+        return run_sync(trigger="settings_publish", requested_by=published_by, force=True, recalculate_only=True, config_version_id=config_version_id, expected_settings_hash=expected_settings_hash)
     target = build_schedule_quality_target()
     expected_settings_hash = _validated_settings_hash(expected_settings_hash)
     try:
@@ -473,6 +489,9 @@ def refresh_schedule_quality(
     expected_settings_hash: str | None = None,
     trigger: str = "scheduled",
 ) -> str:
+    if postgres_settings_enabled():
+        from reporting_mirror.sync import run_sync
+        return run_sync(trigger=trigger, force=True, recalculate_only=config_version_id is not None, config_version_id=config_version_id, expected_settings_hash=expected_settings_hash)
     target = build_schedule_quality_target()
     sql = build_refresh_schedule_quality_sql(
         proj_id=proj_id,
@@ -512,6 +531,9 @@ def fetch_schedule_quality_refresh_history(
     offset: int = 0,
     status: str = "",
 ) -> list[dict[str, object]]:
+    if postgres_settings_enabled():
+        from reporting_mirror.native_pipeline import refresh_history
+        return refresh_history(limit=limit, offset=offset, status=status)
     target = build_schedule_quality_target()
     safe_limit = max(1, min(int(limit), 50))
     safe_offset = max(0, int(offset))
@@ -548,6 +570,11 @@ def fetch_schedule_quality_refresh_history(
 
 
 def count_schedule_quality_refresh_history(*, status: str = "") -> int:
+    if postgres_settings_enabled():
+        from reporting_mirror.models import ReportingRun
+        rows = ReportingRun.objects.all()
+        if status in {"success", "failed", "running"}: rows = rows.filter(status=status)
+        return rows.count()
     target = build_schedule_quality_target()
     status_filter = status.strip().lower()
     if status_filter not in {"success", "failed", "running"}:

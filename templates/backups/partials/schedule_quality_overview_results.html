@@ -1,4 +1,5 @@
 <div class="overview-layout">
+<dialog class="workspace-filter-dialog" data-workspace-filter-shell><div class="workspace-filter-body">{% if workspace_reporting_mirror_installed %}{% include "reporting_mirror/source_status.html" %}{% endif %}
     <aside class="panel overview-filters" aria-live="polite">
         <h2>Filters</h2>
         <form method="get"
@@ -81,23 +82,24 @@
             </div>
         </form>
     </aside>
+</div></dialog>
 
     <div class="overview-main">
-        <section class="overview-score-summary" aria-label="Score summary">
-            <article class="panel overview-scorecard">
-                <span>Total points available</span>
+        <section class="overview-score-summary report-kpis" data-kpi-count="4" aria-label="Score summary">
+            <article class="panel overview-scorecard report-kpi">
+                <div class="report-kpi-label"><span>Total points available</span></div>
                 <strong>{{ total_points_available }}</strong>
             </article>
-            <article class="panel overview-scorecard">
-                <span>Points achieved</span>
+            <article class="panel overview-scorecard report-kpi">
+                <div class="report-kpi-label"><span>Points achieved</span></div>
                 <strong>{{ total_points_achieved }}</strong>
             </article>
-            <article class="panel overview-scorecard">
-                <span>Pass %</span>
+            <article class="panel overview-scorecard report-kpi">
+                <div class="report-kpi-label"><span>Pass %</span></div>
                 <strong>{{ pass_percent|floatformat:2 }}%</strong>
             </article>
-            <article class="panel overview-scorecard outcome {{ pass_or_fail|lower }}">
-                <span>Pass or fail</span>
+            <article class="panel overview-scorecard report-kpi outcome {{ pass_or_fail|lower }}">
+                <div class="report-kpi-label"><span>Pass or fail</span></div>
                 <strong>{{ pass_or_fail }}</strong>
             </article>
         </section>
@@ -118,7 +120,7 @@
                     </div>
                 </div>
             </div>
-            <div class="overview-table-wrap">
+            <div class="overview-table-wrap workspace-table-scroll" role="region" aria-label="Programme scorecard" tabindex="0">
                 <table>
                     <thead>
                         <tr>
